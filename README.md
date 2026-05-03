@@ -46,3 +46,12 @@ Open `http://127.0.0.1:3000`.
 4. Connect authentication and staff roles.
 5. Replace mock dashboard data with real database queries.
 6. Create the separate `tattoo-shop-accounting` app for owner/admin reporting.
+
+## Environment
+
+Create `.env.local` from `env.example`.
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+```
