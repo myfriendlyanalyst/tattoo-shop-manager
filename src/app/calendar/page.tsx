@@ -1,25 +1,22 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppShell } from "@/components/app-shell";
+import { supabase } from "@/lib/supabase";
 
-type Appointment = {
-  start: string;
-  end: string;
-  client: string;
-  project: string;
-  artist: string;
-  type: string;
-  status: string;
-  deposit: string;
-  waiver: string;
-  notes: string;
+type StaffRecord = {
+  id: string;
+  display_name: string;
+  role: string;
+  active: boolean;
 };
 
-type DraftAppointment = {
-  artist: string;
-  start: string;
-  end: string;
+type StaffSchedule = {
+  staff_id: string;
+  day_of_week: number;
+  available: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
 };
 
 type ArtistSchedule = {
@@ -28,122 +25,63 @@ type ArtistSchedule = {
   end: string;
 };
 
-const artists = [
-  "YUSHI",
-  "BAKI",
-  "QSUN",
-  "JC",
-  "AIMEE",
-  "PHANGS",
-  "LESLIE",
-  "Mina",
-  "Alex",
-  "Sam",
-];
+type Appointment = {
+  id: string;
+  start: string;
+  end: string;
+  client: string;
+  project: string;
+  artistId: string;
+  artist: string;
+  type: string;
+  status: string;
+  waiver: string;
+  notes: string;
+};
+
+type AppointmentRow = {
+  id: string;
+  artist_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  appointment_type: string;
+  status: string;
+  notes: string | null;
+  customer: { name: string } | { name: string }[] | null;
+  project: { subject: string; waiver_signed: boolean } | { subject: string; waiver_signed: boolean }[] | null;
+  artist: { display_name: string } | { display_name: string }[] | null;
+};
+
+type DraftAppointment = {
+  artistId: string;
+  artist: string;
+  date: string;
+  start: string;
+  end: string;
+};
+
+type NewAppointmentForm = {
+  customer: string;
+  project: string;
+  type: string;
+  notes: string;
+  start: string;
+  end: string;
+};
 
 const dayStartHour = 10;
 const dayEndHour = 18;
 const pixelsPerHour = 88;
 const timelineHeight = (dayEndHour - dayStartHour) * pixelsPerHour;
+const defaultDate = "2026-05-03";
 
-const sundaySchedules: Record<string, ArtistSchedule> = {
-  YUSHI: { available: false, start: "", end: "" },
-  BAKI: { available: true, start: "11:00", end: "16:00" },
-  QSUN: { available: false, start: "", end: "" },
-  JC: { available: false, start: "", end: "" },
-  AIMEE: { available: true, start: "12:00", end: "17:00" },
-  PHANGS: { available: true, start: "13:00", end: "18:00" },
-  LESLIE: { available: false, start: "", end: "" },
-  Mina: { available: true, start: "10:00", end: "15:00" },
-  Alex: { available: true, start: "12:00", end: "18:00" },
-  Sam: { available: false, start: "", end: "" },
-};
-
-const appointments: Appointment[] = [
-  {
-    start: "10:30",
-    end: "11:00",
-    client: "Mina David",
-    project: "Fine line floral sleeve",
-    artist: "JC",
-    type: "Consultation",
-    status: "Scheduled",
-    deposit: "No deposit",
-    waiver: "Missing",
-    notes: "Converted from REQ-1046. Client prefers afternoon follow-up.",
-  },
-  {
-    start: "11:00",
-    end: "13:00",
-    client: "Armando Gonzales",
-    project: "Vagabond",
-    artist: "JC",
-    type: "On-Going",
-    status: "Checked-in",
-    deposit: "$180 available",
-    waiver: "Signed",
-    notes: "First session outline. Confirm deposit before closing session.",
-  },
-  {
-    start: "13:00",
-    end: "17:00",
-    client: "Sora Kim",
-    project: "Dragon sleeve",
-    artist: "YUSHI",
-    type: "One-Done",
-    status: "Scheduled",
-    deposit: "$250 available",
-    waiver: "Missing",
-    notes: "Long appointment block: 1:00 PM to 5:00 PM.",
-  },
-  {
-    start: "13:30",
-    end: "15:00",
-    client: "Leo Grant",
-    project: "Walk-in flash",
-    artist: "BAKI",
-    type: "Walk-in",
-    status: "Scheduled",
-    deposit: "No deposit",
-    waiver: "Signed",
-    notes: "Same day overlap with another artist is normal.",
-  },
-  {
-    start: "14:00",
-    end: "15:00",
-    client: "Nora Lee",
-    project: "Color flower thigh",
-    artist: "AIMEE",
-    type: "Consultation",
-    status: "Scheduled",
-    deposit: "No deposit",
-    waiver: "Missing",
-    notes: "Short consultation that overlaps with longer artist blocks.",
-  },
-  {
-    start: "14:30",
-    end: "16:30",
-    client: "Chris Morgan",
-    project: "Cover up review",
-    artist: "PHANGS",
-    type: "On-Going",
-    status: "Scheduled",
-    deposit: "$200 available",
-    waiver: "Signed",
-    notes: "Two-hour project review and touch-up.",
-  },
-  {
-    start: "16:00",
-    end: "16:30",
-    client: "Nina Park",
-    project: "Minimal crescent",
-    artist: "AIMEE",
-    type: "Deposit",
-    status: "Scheduled",
-    deposit: "$150 due",
-    waiver: "Not needed yet",
-    notes: "Deposit appointment only. Schedule tattoo date after payment.",
-  },
+const appointmentTypes = [
+  "Consultation",
+  "Walk-in",
+  "One-Done",
+  "On-Going",
+  "Closing",
+  "Deposit",
 ];
 
 const hourMarkers = Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, index) => {
@@ -156,6 +94,10 @@ const hourMarkers = Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, in
     top: index * pixelsPerHour,
   };
 });
+
+function normalizeTime(value: string | null) {
+  return value ? value.slice(0, 5) : "";
+}
 
 function minutesFromStart(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -206,46 +148,72 @@ function formatTime(time: string) {
   return `${displayHour}:${minute} ${period}`;
 }
 
+function formatDateLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${date}T00:00:00`));
+}
+
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    scheduled: "Scheduled",
+    checked_in: "Checked-in",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    no_show: "No-show",
+  };
+
+  return labels[status] ?? status;
+}
+
 function statusClasses(status: string) {
   const variants: Record<string, string> = {
-    Scheduled: "bg-[#e5edf4] text-[#315f82]",
-    "Checked-in": "bg-[#e8f0ee] text-[#2f6658]",
-    Completed: "bg-[#e4f1df] text-[#476b33]",
-    Cancelled: "bg-[#f3e1e1] text-[#8a3030]",
-    "No-show": "bg-[#f4e7df] text-[#8a5130]",
+    scheduled: "bg-[#e5edf4] text-[#315f82]",
+    checked_in: "bg-[#e8f0ee] text-[#2f6658]",
+    completed: "bg-[#e4f1df] text-[#476b33]",
+    cancelled: "bg-[#f3e1e1] text-[#8a3030]",
+    no_show: "bg-[#f4e7df] text-[#8a5130]",
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
 }
 
-function appointmentsForArtist(artist: string) {
-  return appointments.filter((appointment) => appointment.artist === artist);
+function dayOfWeek(date: string) {
+  return new Date(`${date}T00:00:00`).getDay();
 }
 
-function isWithinSchedule(artist: string, start: string, end: string) {
-  const schedule = sundaySchedules[artist];
-
-  if (!schedule?.available) {
-    return false;
-  }
-
-  const startMinutes = minutesFromStart(start);
-  const endMinutes = minutesFromStart(end);
-  const scheduleStart = minutesFromStart(schedule.start);
-  const scheduleEnd = minutesFromStart(schedule.end);
-
-  return startMinutes >= scheduleStart && endMinutes <= scheduleEnd;
+function timestampFor(date: string, time: string) {
+  return new Date(`${date}T${time}:00`).toISOString();
 }
 
-function draftFromClick(artist: string, event: MouseEvent<HTMLDivElement>) {
+function timeFromTimestamp(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(value));
+}
+
+function draftFromClick(
+  artist: StaffRecord,
+  date: string,
+  event: MouseEvent<HTMLDivElement>,
+): DraftAppointment {
   const rect = event.currentTarget.getBoundingClientRect();
   const y = Math.max(0, Math.min(event.clientY - rect.top, timelineHeight));
   const rawMinutes = (y / pixelsPerHour) * 60;
-  const startMinutes = Math.min(Math.round(rawMinutes / 30) * 30, (dayEndHour - dayStartHour - 1) * 60);
+  const startMinutes = Math.min(
+    Math.round(rawMinutes / 30) * 30,
+    (dayEndHour - dayStartHour - 1) * 60,
+  );
   const endMinutes = Math.min(startMinutes + 60, (dayEndHour - dayStartHour) * 60);
 
   return {
-    artist,
+    artistId: artist.id,
+    artist: artist.display_name,
+    date,
     start: minutesToTime(startMinutes),
     end: minutesToTime(endMinutes),
   };
@@ -257,6 +225,62 @@ function scheduleLabel(schedule: ArtistSchedule) {
   }
 
   return `${formatTime(schedule.start)} - ${formatTime(schedule.end)}`;
+}
+
+function isWithinSchedule(schedule: ArtistSchedule, start: string, end: string) {
+  if (!schedule.available) {
+    return false;
+  }
+
+  const startMinutes = minutesFromStart(start);
+  const endMinutes = minutesFromStart(end);
+  const scheduleStart = minutesFromStart(schedule.start);
+  const scheduleEnd = minutesFromStart(schedule.end);
+
+  return startMinutes >= scheduleStart && endMinutes <= scheduleEnd;
+}
+
+function scheduleMapForDate(date: string, schedules: StaffSchedule[]) {
+  const selectedDay = dayOfWeek(date);
+  const nextMap: Record<string, ArtistSchedule> = {};
+
+  schedules
+    .filter((schedule) => schedule.day_of_week === selectedDay)
+    .forEach((schedule) => {
+      nextMap[schedule.staff_id] = {
+        available: schedule.available,
+        start: normalizeTime(schedule.starts_at) || "10:00",
+        end: normalizeTime(schedule.ends_at) || "18:00",
+      };
+    });
+
+  return nextMap;
+}
+
+function relatedOne<T>(value: T | T[] | null) {
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function mapAppointment(row: AppointmentRow): Appointment {
+  const start = timeFromTimestamp(row.starts_at);
+  const end = row.ends_at ? timeFromTimestamp(row.ends_at) : start;
+  const customer = relatedOne(row.customer);
+  const project = relatedOne(row.project);
+  const artist = relatedOne(row.artist);
+
+  return {
+    id: row.id,
+    start,
+    end,
+    client: customer?.name ?? "Unknown customer",
+    project: project?.subject ?? "Untitled project",
+    artistId: row.artist_id ?? "",
+    artist: artist?.display_name ?? "Unassigned",
+    type: row.appointment_type,
+    status: row.status,
+    waiver: project?.waiver_signed ? "Signed" : "Missing",
+    notes: row.notes ?? "",
+  };
 }
 
 function AppointmentDetailModal({
@@ -298,8 +322,8 @@ function AppointmentDetailModal({
               </p>
             </div>
             <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-              <p className="text-[#697178]">Deposit</p>
-              <p className="mt-1 font-semibold">{appointment.deposit}</p>
+              <p className="text-[#697178]">Type</p>
+              <p className="mt-1 font-semibold">{appointment.type}</p>
             </div>
             <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
               <p className="text-[#697178]">Waiver</p>
@@ -310,23 +334,8 @@ function AppointmentDetailModal({
           <div>
             <h4 className="text-sm font-semibold">Notes</h4>
             <p className="mt-2 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#4d555c]">
-              {appointment.notes}
+              {appointment.notes || "No notes yet."}
             </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <button
-              className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-              type="button"
-            >
-              Reschedule
-            </button>
-            <button
-              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
-              type="button"
-            >
-              Artist entry
-            </button>
           </div>
         </div>
       </section>
@@ -336,11 +345,26 @@ function AppointmentDetailModal({
 
 function NewAppointmentModal({
   draft,
+  saving,
+  error,
   onClose,
+  onSave,
 }: {
   draft: DraftAppointment;
+  saving: boolean;
+  error: string;
   onClose: () => void;
+  onSave: (form: NewAppointmentForm) => void;
 }) {
+  const [form, setForm] = useState<NewAppointmentForm>({
+    customer: "",
+    project: "",
+    type: "Consultation",
+    notes: "",
+    start: draft.start,
+    end: draft.end,
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
       <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
@@ -348,7 +372,7 @@ function NewAppointmentModal({
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">New appointment</p>
             <h3 className="mt-1 text-xl font-semibold">
-              {draft.artist} / {formatTime(draft.start)}
+              {draft.artist} / {formatTime(form.start)}
             </h3>
             <p className="mt-1 text-sm text-[#697178]">
               Created from the calendar position you clicked.
@@ -365,6 +389,12 @@ function NewAppointmentModal({
         </div>
 
         <div className="space-y-3 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm font-semibold">
               Artist
@@ -378,42 +408,56 @@ function NewAppointmentModal({
               Start
               <input
                 className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                defaultValue={draft.start}
+                onChange={(event) => setForm((current) => ({ ...current, start: event.target.value }))}
                 type="time"
+                value={form.start}
               />
             </label>
             <label className="text-sm font-semibold">
               End
               <input
                 className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                defaultValue={draft.end}
+                onChange={(event) => setForm((current) => ({ ...current, end: event.target.value }))}
                 type="time"
+                value={form.end}
               />
             </label>
           </div>
 
           <input
             className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, customer: event.target.value }))}
             placeholder="Customer"
+            value={form.customer}
           />
           <input
             className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, project: event.target.value }))}
             placeholder="Project"
+            value={form.project}
           />
-          <select className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
-            <option>Consultation</option>
-            <option>Walk-in</option>
-            <option>One-Done</option>
-            <option>On-Going</option>
-            <option>Closing</option>
-            <option>Deposit</option>
+          <select
+            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
+            value={form.type}
+          >
+            {appointmentTypes.map((type) => (
+              <option key={type}>{type}</option>
+            ))}
           </select>
+          <textarea
+            className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+            placeholder="Notes"
+            value={form.notes}
+          />
           <button
-            className="h-10 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
-            onClick={onClose}
+            className="h-10 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onSave(form)}
             type="button"
           >
-            Save appointment
+            {saving ? "Saving..." : "Save appointment"}
           </button>
         </div>
       </section>
@@ -422,140 +466,368 @@ function NewAppointmentModal({
 }
 
 export default function CalendarPage() {
+  const [artists, setArtists] = useState<StaffRecord[]>([]);
+  const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [artistFilter, setArtistFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
+
+  const visibleArtists = useMemo(() => {
+    if (artistFilter === "all") {
+      return artists;
+    }
+
+    return artists.filter((artist) => artist.id === artistFilter);
+  }, [artistFilter, artists]);
+
+  const visibleAppointments = useMemo(() => {
+    if (typeFilter === "all") {
+      return appointments;
+    }
+
+    return appointments.filter((appointment) => appointment.type === typeFilter);
+  }, [appointments, typeFilter]);
+
+  const dailySchedules = useMemo(
+    () => scheduleMapForDate(selectedDate, schedules),
+    [schedules, selectedDate],
+  );
+
+  useEffect(() => {
+    async function loadCalendar() {
+      setLoading(true);
+      setError("");
+
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        setError("Please log in to view the calendar.");
+        setLoading(false);
+        return;
+      }
+
+      const dayStart = timestampFor(selectedDate, "00:00");
+      const dayEnd = timestampFor(selectedDate, "23:59");
+
+      const [staffResult, scheduleResult, appointmentResult] = await Promise.all([
+        supabase
+          .from("staff")
+          .select("id, display_name, role, active")
+          .eq("active", true)
+          .in("role", ["Artist", "Owner", "Admin"])
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("staff_schedules")
+          .select("staff_id, day_of_week, available, starts_at, ends_at"),
+        supabase
+          .from("appointments")
+          .select(
+            "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+          )
+          .gte("starts_at", dayStart)
+          .lte("starts_at", dayEnd)
+          .order("starts_at", { ascending: true }),
+      ]);
+
+      if (staffResult.error) {
+        setError(staffResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (scheduleResult.error) {
+        setError(scheduleResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (appointmentResult.error) {
+        setError(appointmentResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      setArtists(staffResult.data ?? []);
+      setSchedules(scheduleResult.data ?? []);
+      setAppointments(((appointmentResult.data ?? []) as unknown as AppointmentRow[]).map(mapAppointment));
+      setLoading(false);
+    }
+
+    loadCalendar();
+  }, [selectedDate]);
+
+  function appointmentsForArtist(artistId: string) {
+    return visibleAppointments.filter((appointment) => appointment.artistId === artistId);
+  }
+
+  async function saveAppointment(form: NewAppointmentForm) {
+    if (!draftAppointment) {
+      return;
+    }
+
+    const customerName = form.customer.trim();
+    const projectSubject = form.project.trim();
+
+    if (!customerName || !projectSubject) {
+      setModalError("Customer and project are required.");
+      return;
+    }
+
+    if (minutesFromStart(form.end) <= minutesFromStart(form.start)) {
+      setModalError("End time must be later than start time.");
+      return;
+    }
+
+    setSaving(true);
+    setModalError("");
+
+    const customerResult = await supabase
+      .from("customers")
+      .insert({ name: customerName })
+      .select("id, name")
+      .single();
+
+    if (customerResult.error) {
+      setModalError(customerResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const projectResult = await supabase
+      .from("projects")
+      .insert({
+        customer_id: customerResult.data.id,
+        artist_id: draftAppointment.artistId,
+        subject: projectSubject,
+        session_type: form.type,
+        status: "booked",
+      })
+      .select("id, subject, waiver_signed")
+      .single();
+
+    if (projectResult.error) {
+      setModalError(projectResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const appointmentResult = await supabase
+      .from("appointments")
+      .insert({
+        project_id: projectResult.data.id,
+        customer_id: customerResult.data.id,
+        artist_id: draftAppointment.artistId,
+        starts_at: timestampFor(draftAppointment.date, form.start),
+        ends_at: timestampFor(draftAppointment.date, form.end),
+        appointment_type: form.type,
+        status: "scheduled",
+        notes: form.notes.trim() || null,
+      })
+      .select(
+        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+      )
+      .single();
+
+    if (appointmentResult.error) {
+      setModalError(appointmentResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setAppointments((current) => [
+      ...current,
+      mapAppointment(appointmentResult.data as unknown as AppointmentRow),
+    ]);
+    setDraftAppointment(null);
+    setSaving(false);
+  }
 
   return (
     <AppShell
       active="Calendar"
       eyebrow="Appointments"
       title="Calendar and booking"
-      description="Book consultations and tattoo sessions by artist. Click a booking for details, or click an open position in an artist column to create an appointment there."
+      description="Book consultations and tattoo sessions by artist. Staff schedules now come from Supabase."
       actions={
-        <>
-          <button
-            className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-            onClick={() => setDraftAppointment({ artist: "JC", start: "10:00", end: "11:00" })}
-            type="button"
-          >
-            Book consultation
-          </button>
-          <button
-            className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
-            onClick={() => setDraftAppointment({ artist: "YUSHI", start: "10:00", end: "11:00" })}
-            type="button"
-          >
-            New appointment
-          </button>
-        </>
+        <button
+          className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={artists.length === 0}
+          onClick={() => {
+            const artist = visibleArtists[0] ?? artists[0];
+
+            if (artist) {
+              setDraftAppointment({
+                artistId: artist.id,
+                artist: artist.display_name,
+                date: selectedDate,
+                start: "10:00",
+                end: "11:00",
+              });
+            }
+          }}
+          type="button"
+        >
+          New appointment
+        </button>
       }
     >
-      <section className="grid gap-6 xl:grid-cols-[0.72fr_1.65fr]">
-        <aside className="space-y-6">
-          <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
-            <h3 className="text-base font-semibold">Filters</h3>
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm font-semibold">
-                Date
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  defaultValue="2026-05-03"
-                  type="date"
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                Artist
-                <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
-                  <option>All artists</option>
-                  {artists.map((artist) => (
-                    <option key={artist}>{artist}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                Appointment type
-                <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
-                  <option>All types</option>
-                  <option>Consultation</option>
-                  <option>Walk-in</option>
-                  <option>One-Done</option>
-                  <option>On-Going</option>
-                  <option>Closing</option>
-                  <option>Deposit</option>
-                </select>
-              </label>
-            </div>
-          </div>
+      {loading ? (
+        <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
+          Loading calendar...
+        </div>
+      ) : null}
 
-          <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
-            <h3 className="text-base font-semibold">Calendar model</h3>
-            <div className="mt-4 space-y-3 text-sm text-[#4d555c]">
-              <p>Each artist has a separate column.</p>
-              <p>Card position is based on start time.</p>
-              <p>Card height is based on appointment length.</p>
-              <p>Grey areas are outside the artist&apos;s tattoo schedule.</p>
-            </div>
-          </div>
-        </aside>
+      {!loading && error ? (
+        <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#8a3030] shadow-sm">
+          {error}
+        </div>
+      ) : null}
 
-        <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#e5dfd4] px-4 py-4">
-            <div>
-              <h3 className="text-base font-semibold">Sunday, May 3</h3>
-              <p className="mt-1 text-sm text-[#697178]">Artist timeline, 10:00 AM - 6:00 PM</p>
-            </div>
-            <span className="rounded-md bg-[#f1eadc] px-2 py-1 text-xs font-semibold text-[#775f36]">
-              {appointments.length} appointments
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <div className="min-w-[1280px]">
-              <div className="grid grid-cols-[76px_repeat(10,minmax(112px,1fr))] border-b border-[#e5dfd4] bg-[#f7f2e9]">
-                <div className="px-3 py-3 text-xs font-semibold uppercase text-[#6f7275]">
-                  Time
-                </div>
-                {artists.map((artist) => (
-                  <div
-                    key={artist}
-                    className="border-l border-[#e5dfd4] px-3 py-3 text-center text-xs font-bold uppercase text-[#4d555c]"
+      {!loading && !error ? (
+        <section className="grid gap-6 xl:grid-cols-[0.72fr_1.65fr]">
+          <aside className="space-y-6">
+            <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+              <h3 className="text-base font-semibold">Filters</h3>
+              <div className="mt-4 space-y-3">
+                <label className="block text-sm font-semibold">
+                  Date
+                  <input
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                    type="date"
+                    value={selectedDate}
+                  />
+                </label>
+                <label className="block text-sm font-semibold">
+                  Artist
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) => setArtistFilter(event.target.value)}
+                    value={artistFilter}
                   >
-                    <span className="block">{artist}</span>
-                    <span className="mt-1 block text-[10px] font-semibold normal-case text-[#8a6f4d]">
-                      {scheduleLabel(sundaySchedules[artist])}
-                    </span>
-                  </div>
-                ))}
+                    <option value="all">All artists</option>
+                    {artists.map((artist) => (
+                      <option key={artist.id} value={artist.id}>
+                        {artist.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm font-semibold">
+                  Appointment type
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) => setTypeFilter(event.target.value)}
+                    value={typeFilter}
+                  >
+                    <option value="all">All types</option>
+                    {appointmentTypes.map((type) => (
+                      <option key={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
+            </div>
 
-              <div
-                className="relative grid grid-cols-[76px_repeat(10,minmax(112px,1fr))]"
-                style={{ height: `${timelineHeight}px` }}
-              >
-                <div className="relative border-r border-[#e5dfd4] bg-[#fdfbf7]">
-                  {hourMarkers.map((marker) => (
-                    <p
-                      key={marker.label}
-                      className="absolute left-3 text-xs font-semibold text-[#697178]"
-                      style={{ top: `${marker.top - 7}px` }}
-                    >
-                      {marker.label}
-                    </p>
-                  ))}
+            <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+              <h3 className="text-base font-semibold">Calendar model</h3>
+              <div className="mt-4 space-y-3 text-sm text-[#4d555c]">
+                <p>Each artist has a separate column.</p>
+                <p>Card position is based on start time.</p>
+                <p>Card height is based on appointment length.</p>
+                <p>Grey areas are outside the artist&apos;s tattoo schedule.</p>
+              </div>
+            </div>
+          </aside>
+
+          <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#e5dfd4] px-4 py-4">
+              <div>
+                <h3 className="text-base font-semibold">{formatDateLabel(selectedDate)}</h3>
+                <p className="mt-1 text-sm text-[#697178]">Artist timeline, 10:00 AM - 6:00 PM</p>
+              </div>
+              <span className="rounded-md bg-[#f1eadc] px-2 py-1 text-xs font-semibold text-[#775f36]">
+                {visibleAppointments.length} appointments
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div style={{ minWidth: `${Math.max(visibleArtists.length, 1) * 132 + 76}px` }}>
+                <div
+                  className="border-b border-[#e5dfd4] bg-[#f7f2e9]"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(112px, 1fr))`,
+                  }}
+                >
+                  <div className="px-3 py-3 text-xs font-semibold uppercase text-[#6f7275]">
+                    Time
+                  </div>
+                  {visibleArtists.map((artist) => {
+                    const schedule = dailySchedules[artist.id] ?? {
+                      available: false,
+                      start: "10:00",
+                      end: "18:00",
+                    };
+
+                    return (
+                      <div
+                        key={artist.id}
+                        className="border-l border-[#e5dfd4] px-3 py-3 text-center text-xs font-bold uppercase text-[#4d555c]"
+                      >
+                        <span className="block">{artist.display_name}</span>
+                        <span className="mt-1 block text-[10px] font-semibold normal-case text-[#8a6f4d]">
+                          {scheduleLabel(schedule)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {artists.map((artist) => {
-                  const schedule = sundaySchedules[artist];
-                  const availableStyle = scheduleStyle(schedule);
+                <div
+                  className="relative"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(112px, 1fr))`,
+                    height: `${timelineHeight}px`,
+                  }}
+                >
+                  <div className="relative border-r border-[#e5dfd4] bg-[#fdfbf7]">
+                    {hourMarkers.map((marker) => (
+                      <p
+                        key={marker.label}
+                        className="absolute left-3 text-xs font-semibold text-[#697178]"
+                        style={{ top: `${marker.top - 7}px` }}
+                      >
+                        {marker.label}
+                      </p>
+                    ))}
+                  </div>
 
-                  return (
+                  {visibleArtists.map((artist) => {
+                    const schedule = dailySchedules[artist.id] ?? {
+                      available: false,
+                      start: "10:00",
+                      end: "18:00",
+                    };
+                    const availableStyle = scheduleStyle(schedule);
+
+                    return (
                       <div
-                        key={artist}
+                        key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          const draft = draftFromClick(artist, event);
+                          const draft = draftFromClick(artist, selectedDate, event);
 
-                          if (isWithinSchedule(artist, draft.start, draft.end)) {
+                          if (isWithinSchedule(schedule, draft.start, draft.end)) {
+                            setModalError("");
                             setDraftAppointment(draft);
                           }
                         }}
@@ -577,16 +849,16 @@ export default function CalendarPage() {
                           </div>
                         )}
 
-                        {appointmentsForArtist(artist).map((appointment) => {
+                        {appointmentsForArtist(artist.id).map((appointment) => {
                           const inSchedule = isWithinSchedule(
-                            artist,
+                            schedule,
                             appointment.start,
                             appointment.end,
                           );
 
                           return (
                             <button
-                              key={`${appointment.artist}-${appointment.start}-${appointment.client}`}
+                              key={appointment.id}
                               className={`absolute left-2 right-2 overflow-hidden rounded-md border px-2 py-2 text-left text-xs shadow-sm transition hover:border-[#9f5c3c] hover:bg-[#fffaf1] ${
                                 inSchedule
                                   ? "border-[#e4dccf] bg-[#fdfbf7]"
@@ -606,7 +878,7 @@ export default function CalendarPage() {
                                     appointment.status,
                                   )}`}
                                 >
-                                  {appointment.type}
+                                  {statusLabel(appointment.status)}
                                 </span>
                               </div>
                               <p className="mt-1 truncate text-[#4d555c]">
@@ -624,13 +896,14 @@ export default function CalendarPage() {
                           );
                         })}
                       </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          </section>
         </section>
-      </section>
+      ) : null}
 
       {selectedAppointment ? (
         <AppointmentDetailModal
@@ -640,7 +913,13 @@ export default function CalendarPage() {
       ) : null}
 
       {draftAppointment ? (
-        <NewAppointmentModal draft={draftAppointment} onClose={() => setDraftAppointment(null)} />
+        <NewAppointmentModal
+          draft={draftAppointment}
+          error={modalError}
+          onClose={() => setDraftAppointment(null)}
+          onSave={saveAppointment}
+          saving={saving}
+        />
       ) : null}
     </AppShell>
   );
