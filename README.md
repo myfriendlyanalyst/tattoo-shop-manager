@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tattoo Shop Manager
 
-## Getting Started
+Integrated tattoo shop operations app built from the five original static prototypes.
 
-First, run the development server:
+## Current Status
+
+This is the new main app skeleton. It currently uses mock data and does not require Supabase yet.
+
+Included in this first version:
+
+- Next.js app foundation
+- Owner/admin dashboard shell
+- Main navigation structure
+- Request queue preview
+- Today sessions preview
+- MVP module placeholders
+- Next build step checklist
+
+## Product Rules
+
+- Customer request intake is the normal starting point of the workflow.
+- Requests come from the public website request form/email flow.
+- Artists can enter individual customer sessions and deposits.
+- Accounting, payout, and shop-wide revenue views belong in a separate owner/admin app.
+- The operations app stores session/deposit entries in the shared database, but does not show shop-wide accounting screens.
+
+## Planned Stack
+
+- Next.js
+- Supabase for database, authentication, and file storage
+- Vercel for hosting
+
+## Local Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://127.0.0.1:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Next Steps
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create a Supabase project.
+2. Run the schema from `../supabase_schema.sql`.
+3. Add Supabase environment variables.
+4. Connect authentication and staff roles.
+5. Replace mock dashboard data with real database queries.
+6. Create the separate `tattoo-shop-accounting` app for owner/admin reporting.
