@@ -19,6 +19,12 @@ type StaffSchedule = {
   ends_at: string | null;
 };
 
+type StaffPermission = {
+  staff_id: string;
+  permission_key: string;
+  enabled: boolean;
+};
+
 type ArtistSchedule = {
   available: boolean;
   start: string;
@@ -283,6 +289,19 @@ function mapAppointment(row: AppointmentRow): Appointment {
   };
 }
 
+function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]) {
+  const bookingPermission = permissionRows.find(
+    (permission) =>
+      permission.staff_id === staff.id && permission.permission_key === "calendarBooking",
+  );
+
+  if (bookingPermission) {
+    return bookingPermission.enabled;
+  }
+
+  return staff.role === "Artist";
+}
+
 function AppointmentDetailModal({
   appointment,
   onClose,
@@ -516,16 +535,19 @@ export default function CalendarPage() {
       const dayStart = timestampFor(selectedDate, "00:00");
       const dayEnd = timestampFor(selectedDate, "23:59");
 
-      const [staffResult, scheduleResult, appointmentResult] = await Promise.all([
+      const [staffResult, scheduleResult, permissionResult, appointmentResult] = await Promise.all([
         supabase
           .from("staff")
           .select("id, display_name, role, active")
           .eq("active", true)
-          .in("role", ["Artist", "Owner", "Admin"])
           .order("sort_order", { ascending: true }),
         supabase
           .from("staff_schedules")
           .select("staff_id, day_of_week, available, starts_at, ends_at"),
+        supabase
+          .from("staff_permissions")
+          .select("staff_id, permission_key, enabled")
+          .eq("permission_key", "calendarBooking"),
         supabase
           .from("appointments")
           .select(
@@ -548,13 +570,21 @@ export default function CalendarPage() {
         return;
       }
 
+      if (permissionResult.error) {
+        setError(permissionResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       if (appointmentResult.error) {
         setError(appointmentResult.error.message);
         setLoading(false);
         return;
       }
 
-      setArtists(staffResult.data ?? []);
+      const nextPermissions = permissionResult.data ?? [];
+
+      setArtists((staffResult.data ?? []).filter((staff) => canShowInCalendar(staff, nextPermissions)));
       setSchedules(scheduleResult.data ?? []);
       setAppointments(((appointmentResult.data ?? []) as unknown as AppointmentRow[]).map(mapAppointment));
       setLoading(false);
@@ -712,7 +742,7 @@ export default function CalendarPage() {
                     onChange={(event) => setArtistFilter(event.target.value)}
                     value={artistFilter}
                   >
-                    <option value="all">All artists</option>
+                    <option value="all">All calendar staff</option>
                     {artists.map((artist) => (
                       <option key={artist.id} value={artist.id}>
                         {artist.display_name}
@@ -791,8 +821,14 @@ export default function CalendarPage() {
                   })}
                 </div>
 
+                {visibleArtists.length === 0 ? (
+                  <div className="flex h-72 items-center justify-center border-t border-[#eee8dd] px-4 text-center text-sm font-semibold text-[#697178]">
+                    No staff are enabled for Calendar / Booking.
+                  </div>
+                ) : null}
+
                 <div
-                  className="relative"
+                  className={`relative ${visibleArtists.length === 0 ? "hidden" : ""}`}
                   style={{
                     display: "grid",
                     gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(112px, 1fr))`,

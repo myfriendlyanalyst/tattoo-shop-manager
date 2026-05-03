@@ -41,6 +41,7 @@ type StaffForm = {
 
 const permissions = [
   { key: "artistSchedule", label: "Artist Schedule" },
+  { key: "calendarBooking", label: "Calendar / Booking" },
   { key: "session", label: "Session" },
   { key: "deposit", label: "Deposit" },
   { key: "merch", label: "Merch" },
