@@ -279,6 +279,20 @@ create table if not exists public.requests (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.request_artist_candidates (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.requests(id) on delete cascade,
+  artist_id uuid not null references public.staff(id) on delete cascade,
+  status text not null default 'sent' check (
+    status in ('sent', 'interested', 'passed', 'selected', 'declined')
+  ),
+  responded_at timestamptz,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (request_id, artist_id)
+);
+
 -- ---------------------------------------------------------------------------
 -- Files
 -- ---------------------------------------------------------------------------
@@ -353,6 +367,8 @@ create index if not exists idx_payouts_artist_period on public.payouts(artist_id
 create index if not exists idx_requests_status on public.requests(status);
 create index if not exists idx_requests_artist_id on public.requests(artist_id);
 create index if not exists idx_requests_received_at on public.requests(received_at);
+create index if not exists idx_request_artist_candidates_request_id on public.request_artist_candidates(request_id);
+create index if not exists idx_request_artist_candidates_artist_id on public.request_artist_candidates(artist_id);
 create index if not exists idx_files_customer_id on public.files(customer_id);
 create index if not exists idx_files_project_id on public.files(project_id);
 
@@ -415,6 +431,11 @@ create trigger set_requests_updated_at
 before update on public.requests
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_request_artist_candidates_updated_at on public.request_artist_candidates;
+create trigger set_request_artist_candidates_updated_at
+before update on public.request_artist_candidates
+for each row execute function public.set_updated_at();
+
 -- ---------------------------------------------------------------------------
 -- Role helpers for RLS
 -- ---------------------------------------------------------------------------
@@ -475,6 +496,7 @@ alter table public.deposits enable row level security;
 alter table public.payouts enable row level security;
 alter table public.payout_items enable row level security;
 alter table public.requests enable row level security;
+alter table public.request_artist_candidates enable row level security;
 alter table public.files enable row level security;
 
 -- ---------------------------------------------------------------------------
@@ -495,6 +517,7 @@ grant select, insert, update, delete on public.deposits to authenticated;
 grant select, insert, update, delete on public.payouts to authenticated;
 grant select, insert, update, delete on public.payout_items to authenticated;
 grant select, insert, update, delete on public.requests to authenticated;
+grant select, insert, update, delete on public.request_artist_candidates to authenticated;
 grant select, insert, update, delete on public.files to authenticated;
 
 grant select on public.accounting_entries to authenticated;
@@ -709,6 +732,12 @@ using (public.is_operations_user());
 drop policy if exists "requests_authenticated_all" on public.requests;
 create policy "requests_authenticated_all"
 on public.requests for all
+using (auth.uid() is not null)
+with check (auth.uid() is not null);
+
+drop policy if exists "request_artist_candidates_authenticated_all" on public.request_artist_candidates;
+create policy "request_artist_candidates_authenticated_all"
+on public.request_artist_candidates for all
 using (auth.uid() is not null)
 with check (auth.uid() is not null);
 
