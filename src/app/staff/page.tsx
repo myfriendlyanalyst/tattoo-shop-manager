@@ -25,6 +25,20 @@ type StaffSchedule = {
   ends_at: string | null;
 };
 
+type StaffPermission = {
+  id: string;
+  staff_id: string;
+  permission_key: string;
+  enabled: boolean;
+};
+
+type StaffForm = {
+  displayName: string;
+  role: string;
+  schedule: StaffSchedule[];
+  permissionKeys: string[];
+};
+
 const permissions = [
   { key: "artistSchedule", label: "Artist Schedule" },
   { key: "session", label: "Session" },
@@ -59,11 +73,7 @@ function displayDate(value: string | null) {
 }
 
 function normalizeTime(value: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  return value.slice(0, 5);
+  return value ? value.slice(0, 5) : "";
 }
 
 function fallbackSchedule(dayOfWeek: number, staffId: string): StaffSchedule {
@@ -77,12 +87,39 @@ function fallbackSchedule(dayOfWeek: number, staffId: string): StaffSchedule {
   };
 }
 
+function scheduleForStaff(staffId: string, schedules: StaffSchedule[]) {
+  return dayLabels.map((_, dayOfWeek) => {
+    return (
+      schedules.find((schedule) => schedule.staff_id === staffId && schedule.day_of_week === dayOfWeek) ??
+      fallbackSchedule(dayOfWeek, staffId)
+    );
+  });
+}
+
+function permissionKeysForStaff(staffId: string, permissionRows: StaffPermission[]) {
+  return permissionRows
+    .filter((permission) => permission.staff_id === staffId && permission.enabled)
+    .map((permission) => permission.permission_key);
+}
+
+function errorMessage(message: string) {
+  if (message.includes("row-level security") || message.includes("permission denied")) {
+    return `${message}. 현재 로그인 계정이 Supabase에서 owner/admin 직원으로 연결되어 있어야 저장할 수 있습니다.`;
+  }
+
+  return message;
+}
+
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermission[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [form, setForm] = useState<StaffForm | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function loadStaff() {
@@ -97,7 +134,7 @@ export default function StaffPage() {
         return;
       }
 
-      const [staffResult, scheduleResult] = await Promise.all([
+      const [staffResult, scheduleResult, permissionResult] = await Promise.all([
         supabase
           .from("staff")
           .select("id, display_name, legal_name, role, email, phone, start_date, active")
@@ -106,24 +143,49 @@ export default function StaffPage() {
           .from("staff_schedules")
           .select("id, staff_id, day_of_week, available, starts_at, ends_at")
           .order("day_of_week", { ascending: true }),
+        supabase
+          .from("staff_permissions")
+          .select("id, staff_id, permission_key, enabled")
+          .order("permission_key", { ascending: true }),
       ]);
 
       if (staffResult.error) {
-        setError(staffResult.error.message);
+        setError(errorMessage(staffResult.error.message));
         setLoading(false);
         return;
       }
 
       if (scheduleResult.error) {
-        setError(scheduleResult.error.message);
+        setError(errorMessage(scheduleResult.error.message));
+        setLoading(false);
+        return;
+      }
+
+      if (permissionResult.error) {
+        setError(errorMessage(permissionResult.error.message));
         setLoading(false);
         return;
       }
 
       const nextStaff = staffResult.data ?? [];
+      const nextSchedules = scheduleResult.data ?? [];
+      const nextPermissions = permissionResult.data ?? [];
+      const nextSelectedId = nextStaff[0]?.id || "";
+
       setStaff(nextStaff);
-      setSchedules(scheduleResult.data ?? []);
-      setSelectedStaffId((current) => current || nextStaff[0]?.id || "");
+      setSchedules(nextSchedules);
+      setStaffPermissions(nextPermissions);
+      setSelectedStaffId(nextSelectedId);
+      setForm(
+        nextStaff[0]
+          ? {
+              displayName: nextStaff[0].display_name,
+              role: nextStaff[0].role,
+              schedule: scheduleForStaff(nextSelectedId, nextSchedules),
+              permissionKeys: permissionKeysForStaff(nextSelectedId, nextPermissions),
+            }
+          : null,
+      );
       setLoading(false);
     }
 
@@ -135,20 +197,129 @@ export default function StaffPage() {
     [selectedStaffId, staff],
   );
 
-  const selectedSchedule = useMemo(() => {
-    if (!selectedStaff) {
-      return [];
+  function selectStaff(person: StaffRecord) {
+    setSelectedStaffId(person.id);
+    setMessage("");
+    setError("");
+    setForm({
+      displayName: person.display_name,
+      role: person.role,
+      schedule: scheduleForStaff(person.id, schedules),
+      permissionKeys: permissionKeysForStaff(person.id, staffPermissions),
+    });
+  }
+
+  function updateSchedule(dayOfWeek: number, patch: Partial<StaffSchedule>) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        schedule: current.schedule.map((slot) =>
+          slot.day_of_week === dayOfWeek ? { ...slot, ...patch } : slot,
+        ),
+      };
+    });
+  }
+
+  function updatePermission(permissionKey: string, enabled: boolean) {
+    setForm((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        permissionKeys: enabled
+          ? Array.from(new Set([...current.permissionKeys, permissionKey]))
+          : current.permissionKeys.filter((key) => key !== permissionKey),
+      };
+    });
+  }
+
+  async function saveStaffRecord() {
+    if (!selectedStaff || !form) {
+      return;
     }
 
-    return dayLabels.map((_, dayOfWeek) => {
-      return (
-        schedules.find(
-          (schedule) =>
-            schedule.staff_id === selectedStaff.id && schedule.day_of_week === dayOfWeek,
-        ) ?? fallbackSchedule(dayOfWeek, selectedStaff.id)
-      );
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const staffResult = await supabase
+      .from("staff")
+      .update({
+        display_name: form.displayName.trim(),
+        role: form.role,
+      })
+      .eq("id", selectedStaff.id);
+
+    if (staffResult.error) {
+      setError(errorMessage(staffResult.error.message));
+      setSaving(false);
+      return;
+    }
+
+    const schedulePayload = form.schedule.map((slot) => ({
+      staff_id: selectedStaff.id,
+      day_of_week: slot.day_of_week,
+      available: slot.available,
+      starts_at: slot.available ? normalizeTime(slot.starts_at) || null : null,
+      ends_at: slot.available ? normalizeTime(slot.ends_at) || null : null,
+    }));
+
+    const scheduleResult = await supabase
+      .from("staff_schedules")
+      .upsert(schedulePayload, { onConflict: "staff_id,day_of_week" });
+
+    if (scheduleResult.error) {
+      setError(errorMessage(scheduleResult.error.message));
+      setSaving(false);
+      return;
+    }
+
+    const permissionPayload = permissions.map((permission) => ({
+      staff_id: selectedStaff.id,
+      permission_key: permission.key,
+      enabled: form.permissionKeys.includes(permission.key),
+    }));
+
+    const permissionResult = await supabase
+      .from("staff_permissions")
+      .upsert(permissionPayload, { onConflict: "staff_id,permission_key" });
+
+    if (permissionResult.error) {
+      setError(errorMessage(permissionResult.error.message));
+      setSaving(false);
+      return;
+    }
+
+    setStaff((current) =>
+      current.map((person) =>
+        person.id === selectedStaff.id
+          ? { ...person, display_name: form.displayName.trim(), role: form.role }
+          : person,
+      ),
+    );
+    setSchedules((current) => {
+      const others = current.filter((slot) => slot.staff_id !== selectedStaff.id);
+      return [...others, ...schedulePayload.map((slot) => ({ ...slot, id: `${slot.staff_id}-${slot.day_of_week}` }))];
     });
-  }, [schedules, selectedStaff]);
+    setStaffPermissions((current) => {
+      const others = current.filter((permission) => permission.staff_id !== selectedStaff.id);
+      return [
+        ...others,
+        ...permissionPayload.map((permission) => ({
+          ...permission,
+          id: `${permission.staff_id}-${permission.permission_key}`,
+        })),
+      ];
+    });
+    setMessage("Staff record saved.");
+    setSaving(false);
+  }
 
   return (
     <AppShell
@@ -179,7 +350,7 @@ export default function StaffPage() {
         </div>
       ) : null}
 
-      {!loading && error ? (
+      {!loading && error && !selectedStaff ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 shadow-sm">
           <p className="text-sm font-semibold text-[#8a3030]">{error}</p>
           <Link
@@ -191,7 +362,13 @@ export default function StaffPage() {
         </div>
       ) : null}
 
-      {!loading && !error && selectedStaff ? (
+      {!loading && !error && !selectedStaff ? (
+        <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
+          No staff records found.
+        </div>
+      ) : null}
+
+      {!loading && selectedStaff && form ? (
         <section className="grid gap-6 xl:grid-cols-[1.25fr_0.85fr]">
           <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-center md:justify-between">
@@ -225,8 +402,8 @@ export default function StaffPage() {
                   {staff.map((person) => (
                     <tr
                       key={person.id}
-                      className={person.id === selectedStaff.id ? "bg-[#fffaf1]" : undefined}
-                      onClick={() => setSelectedStaffId(person.id)}
+                      className={`cursor-pointer ${person.id === selectedStaff.id ? "bg-[#fffaf1]" : ""}`}
+                      onClick={() => selectStaff(person)}
                     >
                       <td className="px-4 py-4">
                         <p className="text-xs font-semibold text-[#8a6f4d]">
@@ -274,19 +451,40 @@ export default function StaffPage() {
               </div>
 
               <div className="space-y-4 px-4 py-4">
+                {error ? (
+                  <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+                    {error}
+                  </p>
+                ) : null}
+                {message ? (
+                  <p className="rounded-md bg-[#e4f1df] px-3 py-2 text-sm font-semibold text-[#476b33]">
+                    {message}
+                  </p>
+                ) : null}
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="text-sm font-semibold">
                     Display name
                     <input
                       className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      defaultValue={selectedStaff.display_name}
+                      onChange={(event) =>
+                        setForm((current) =>
+                          current ? { ...current, displayName: event.target.value } : current,
+                        )
+                      }
+                      value={form.displayName}
                     />
                   </label>
                   <label className="text-sm font-semibold">
                     Role
                     <select
                       className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      defaultValue={selectedStaff.role}
+                      onChange={(event) =>
+                        setForm((current) =>
+                          current ? { ...current, role: event.target.value } : current,
+                        )
+                      }
+                      value={form.role}
                     >
                       <option>Owner</option>
                       <option>Admin</option>
@@ -305,7 +503,13 @@ export default function StaffPage() {
                         className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
                       >
                         <span className="font-semibold">{permission.label}</span>
-                        <input type="checkbox" />
+                        <input
+                          checked={form.permissionKeys.includes(permission.key)}
+                          onChange={(event) =>
+                            updatePermission(permission.key, event.target.checked)
+                          }
+                          type="checkbox"
+                        />
                       </label>
                     ))}
                   </div>
@@ -317,7 +521,7 @@ export default function StaffPage() {
                     These working hours should feed the calendar booking availability.
                   </p>
                   <div className="mt-3 space-y-2">
-                    {selectedSchedule.map((slot) => (
+                    {form.schedule.map((slot) => (
                       <div
                         key={slot.day_of_week}
                         className="grid grid-cols-[54px_1fr_1fr_56px] items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
@@ -325,18 +529,34 @@ export default function StaffPage() {
                         <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
                         <input
                           className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
-                          defaultValue={normalizeTime(slot.starts_at)}
                           disabled={!slot.available}
+                          onChange={(event) =>
+                            updateSchedule(slot.day_of_week, { starts_at: event.target.value })
+                          }
                           type="time"
+                          value={normalizeTime(slot.starts_at)}
                         />
                         <input
                           className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
-                          defaultValue={normalizeTime(slot.ends_at)}
                           disabled={!slot.available}
+                          onChange={(event) =>
+                            updateSchedule(slot.day_of_week, { ends_at: event.target.value })
+                          }
                           type="time"
+                          value={normalizeTime(slot.ends_at)}
                         />
                         <label className="flex items-center justify-end gap-2 text-xs font-semibold text-[#4d555c]">
-                          <input defaultChecked={slot.available} type="checkbox" />
+                          <input
+                            checked={slot.available}
+                            onChange={(event) =>
+                              updateSchedule(slot.day_of_week, {
+                                available: event.target.checked,
+                                starts_at: event.target.checked ? slot.starts_at || "10:00" : null,
+                                ends_at: event.target.checked ? slot.ends_at || "18:00" : null,
+                              })
+                            }
+                            type="checkbox"
+                          />
                           On
                         </label>
                       </div>
@@ -345,10 +565,12 @@ export default function StaffPage() {
                 </div>
 
                 <button
-                  className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
+                  className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={saving}
+                  onClick={saveStaffRecord}
                   type="button"
                 >
-                  Save staff record
+                  {saving ? "Saving..." : "Save staff record"}
                 </button>
               </div>
             </section>
