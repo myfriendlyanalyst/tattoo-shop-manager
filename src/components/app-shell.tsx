@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthButton } from "@/components/auth-button";
 
 const navItems = [
   { label: "Dashboard", href: "/" },
@@ -78,7 +79,10 @@ export function AppShell({
                   <p className="mt-1 max-w-3xl text-sm text-[#697178]">{description}</p>
                 ) : null}
               </div>
-              {actions ? <div className="flex gap-2">{actions}</div> : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {actions}
+                <AuthButton />
+              </div>
             </div>
           </header>
 

@@ -47,6 +47,12 @@ Open `http://127.0.0.1:3000`.
 5. Replace mock dashboard data with real database queries.
 6. Create the separate `tattoo-shop-accounting` app for owner/admin reporting.
 
+## Authentication
+
+The app currently includes a Supabase email/password login page at `/login`.
+Create users in Supabase Authentication first, then connect those users to rows in
+`profiles` and `staff`.
+
 ## Environment
 
 Create `.env.local` from `env.example`.
