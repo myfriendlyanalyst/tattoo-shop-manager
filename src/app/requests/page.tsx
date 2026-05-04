@@ -67,7 +67,6 @@ type NewRequestForm = {
   clientName: string;
   email: string;
   phone: string;
-  subject: string;
   tattooDescription: string;
   approximateSize: string;
   placement: string;
@@ -75,7 +74,6 @@ type NewRequestForm = {
   requestedArtistLabel: string;
   ageConfirmed: boolean;
   artistId: string;
-  priority: string;
   notes: string;
 };
 
@@ -147,10 +145,6 @@ function statusClasses(status: string) {
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
-}
-
-function priorityLabel(priority: string) {
-  return priority.charAt(0).toUpperCase() + priority.slice(1);
 }
 
 function displayDateTime(value: string | null) {
@@ -255,7 +249,6 @@ function NewRequestModal({
     clientName: "",
     email: "",
     phone: "",
-    subject: "",
     tattooDescription: "",
     approximateSize: "",
     placement: "",
@@ -263,7 +256,6 @@ function NewRequestModal({
     requestedArtistLabel: "Any available artist",
     ageConfirmed: true,
     artistId: "",
-    priority: "normal",
     notes: "",
   });
 
@@ -316,12 +308,6 @@ function NewRequestModal({
               value={form.phone}
             />
           </div>
-          <input
-            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
-            placeholder="Short request subject"
-            value={form.subject}
-          />
           <textarea
             className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
             onChange={(event) =>
@@ -388,26 +374,17 @@ function NewRequestModal({
                 </option>
               ))}
             </select>
-            <select
-              className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}
-              value={form.priority}
-            >
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-            </select>
+            <label className="flex h-10 items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 text-sm font-semibold">
+              <input
+                checked={form.ageConfirmed}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, ageConfirmed: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              18+
+            </label>
           </div>
-          <label className="flex items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm font-semibold">
-            <input
-              checked={form.ageConfirmed}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, ageConfirmed: event.target.checked }))
-              }
-              type="checkbox"
-            />
-            Client confirmed they are 18 years or older
-          </label>
           <textarea
             className="min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
             onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
@@ -616,10 +593,10 @@ export default function RequestsPage() {
 
   async function createRequest(form: NewRequestForm) {
     const clientName = form.clientName.trim();
-    const subject = form.subject.trim();
+    const tattooDescription = form.tattooDescription.trim();
 
-    if (!clientName || !subject) {
-      setNewRequestError("Client name and subject are required.");
+    if (!clientName || !tattooDescription) {
+      setNewRequestError("Client name and tattoo description are required.");
       return;
     }
 
@@ -632,15 +609,15 @@ export default function RequestsPage() {
         client_name: clientName,
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
-        subject,
-        tattoo_description: form.tattooDescription.trim() || subject,
+        subject: tattooDescription,
+        tattoo_description: tattooDescription,
         approximate_size: form.approximateSize.trim() || null,
         placement: form.placement.trim() || null,
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
         age_confirmed: form.ageConfirmed,
         artist_id: form.artistId || null,
-        priority: form.priority,
+        priority: "normal",
         notes: form.notes.trim() || null,
         status: "new",
       })
@@ -1083,16 +1060,12 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div className="mt-3 grid gap-3 text-sm">
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Selected artist</p>
                         <p className="mt-1 font-semibold">
                           {relatedOne(selectedRequest.artist)?.display_name ?? "Any available"}
                         </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Priority</p>
-                        <p className="mt-1 font-semibold">{priorityLabel(selectedRequest.priority)}</p>
                       </div>
                     </div>
                   </div>

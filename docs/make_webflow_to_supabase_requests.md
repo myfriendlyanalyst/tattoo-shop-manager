@@ -69,7 +69,6 @@ Recommended first-version body:
   "requested_artist_label": "{{Artist you want to consult with}}",
   "age_confirmed": true,
   "artist_id": null,
-  "priority": "normal",
   "status": "new",
   "notes": null
 }
@@ -77,6 +76,10 @@ Recommended first-version body:
 
 If Make.com field tokens have different names, use the Webflow module output
 tokens that correspond to the labels above.
+
+`subject` is still required by the database, but the app treats it as an
+internal summary and fills it from `Tattoo Description`. Operators do not need a
+separate short subject field.
 
 ## Required Request Columns
 
