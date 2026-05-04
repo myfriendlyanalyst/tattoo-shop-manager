@@ -264,6 +264,12 @@ create table if not exists public.requests (
   email text,
   phone text,
   subject text not null,
+  tattoo_description text,
+  approximate_size text,
+  placement text,
+  reference_image_url text,
+  requested_artist_label text,
+  age_confirmed boolean not null default false,
   artist_id uuid references public.staff(id) on delete set null,
   status public.request_status not null default 'new',
   priority public.request_priority not null default 'normal',
@@ -367,6 +373,7 @@ create index if not exists idx_payouts_artist_period on public.payouts(artist_id
 create index if not exists idx_requests_status on public.requests(status);
 create index if not exists idx_requests_artist_id on public.requests(artist_id);
 create index if not exists idx_requests_received_at on public.requests(received_at);
+create index if not exists idx_requests_requested_artist_label on public.requests(requested_artist_label);
 create index if not exists idx_request_artist_candidates_request_id on public.request_artist_candidates(request_id);
 create index if not exists idx_request_artist_candidates_artist_id on public.request_artist_candidates(artist_id);
 create index if not exists idx_files_customer_id on public.files(customer_id);

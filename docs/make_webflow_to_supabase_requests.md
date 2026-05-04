@@ -60,15 +60,38 @@ Recommended first-version body:
   "email": "{{Email Address}}",
   "phone": "{{Phone Number}}",
   "subject": "{{Tattoo Description}}",
+  "tattoo_description": "{{Tattoo Description}}",
+  "approximate_size": "{{Approximate Size (in inches)}}",
+  "placement": "{{Placement on your Body}}",
+  "reference_image_url": "{{Reference image}}",
+  "requested_artist_label": "{{Artist you want to consult with}}",
+  "age_confirmed": true,
   "artist_id": null,
   "priority": "normal",
   "status": "new",
-  "notes": "Requested artist: {{Artist you want to consult with}}\nTattoo description: {{Tattoo Description}}\nApproximate size: {{Approximate Size (in inches)}}\nPlacement: {{Placement on your Body}}\nReference image: {{Reference image}}\nAge confirmation: {{Yes, I am 18 years or older.}}"
+  "notes": null
 }
 ```
 
 If Make.com field tokens have different names, use the Webflow module output
 tokens that correspond to the labels above.
+
+## Required Request Columns
+
+Before using the JSON body above, run this SQL once in Supabase:
+
+```text
+docs/supabase_request_form_columns.sql
+```
+
+The app expects these Webflow-specific fields to be stored as separate columns:
+
+- `tattoo_description`
+- `approximate_size`
+- `placement`
+- `reference_image_url`
+- `requested_artist_label`
+- `age_confirmed`
 
 ## Artist Selection
 

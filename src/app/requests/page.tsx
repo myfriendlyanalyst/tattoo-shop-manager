@@ -23,6 +23,12 @@ type RequestRecord = {
   email: string | null;
   phone: string | null;
   subject: string;
+  tattoo_description: string | null;
+  approximate_size: string | null;
+  placement: string | null;
+  reference_image_url: string | null;
+  requested_artist_label: string | null;
+  age_confirmed: boolean;
   artist_id: string | null;
   status: string;
   priority: string;
@@ -51,6 +57,12 @@ type NewRequestForm = {
   email: string;
   phone: string;
   subject: string;
+  tattooDescription: string;
+  approximateSize: string;
+  placement: string;
+  referenceImageUrl: string;
+  requestedArtistLabel: string;
+  ageConfirmed: boolean;
   artistId: string;
   priority: string;
   notes: string;
@@ -178,6 +190,20 @@ function timelineFor(request: RequestRecord) {
   ];
 }
 
+function requestDetailMemo(request: RequestRecord) {
+  return [
+    request.notes,
+    request.tattoo_description ? `Tattoo description: ${request.tattoo_description}` : null,
+    request.approximate_size ? `Approximate size: ${request.approximate_size}` : null,
+    request.placement ? `Placement: ${request.placement}` : null,
+    request.reference_image_url ? `Reference image: ${request.reference_image_url}` : null,
+    request.requested_artist_label ? `Requested artist: ${request.requested_artist_label}` : null,
+    `Age confirmed: ${request.age_confirmed ? "Yes" : "No"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function NewRequestModal({
   artists,
   error,
@@ -196,6 +222,12 @@ function NewRequestModal({
     email: "",
     phone: "",
     subject: "",
+    tattooDescription: "",
+    approximateSize: "",
+    placement: "",
+    referenceImageUrl: "",
+    requestedArtistLabel: "Any available artist",
+    ageConfirmed: true,
     artistId: "",
     priority: "normal",
     notes: "",
@@ -253,13 +285,55 @@ function NewRequestModal({
           <input
             className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
             onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
-            placeholder="Tattoo request subject"
+            placeholder="Short request subject"
             value={form.subject}
+          />
+          <textarea
+            className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+            onChange={(event) =>
+              setForm((current) => ({ ...current, tattooDescription: event.target.value }))
+            }
+            placeholder="Tattoo description"
+            value={form.tattooDescription}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, approximateSize: event.target.value }))
+              }
+              placeholder="Approximate size"
+              value={form.approximateSize}
+            />
+            <input
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, placement: event.target.value }))
+              }
+              placeholder="Placement"
+              value={form.placement}
+            />
+          </div>
+          <input
+            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) =>
+              setForm((current) => ({ ...current, referenceImageUrl: event.target.value }))
+            }
+            placeholder="Reference image URL"
+            value={form.referenceImageUrl}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <select
               className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) => setForm((current) => ({ ...current, artistId: event.target.value }))}
+              onChange={(event) => {
+                const selectedArtist = artists.find((artist) => artist.id === event.target.value);
+
+                setForm((current) => ({
+                  ...current,
+                  artistId: event.target.value,
+                  requestedArtistLabel: selectedArtist?.display_name ?? "Any available artist",
+                }));
+              }}
               value={form.artistId}
             >
               <option value="">Any available</option>
@@ -279,6 +353,16 @@ function NewRequestModal({
               <option value="high">High</option>
             </select>
           </div>
+          <label className="flex items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm font-semibold">
+            <input
+              checked={form.ageConfirmed}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, ageConfirmed: event.target.checked }))
+              }
+              type="checkbox"
+            />
+            Client confirmed they are 18 years or older
+          </label>
           <textarea
             className="min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
             onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
@@ -361,7 +445,7 @@ export default function RequestsPage() {
         supabase
           .from("requests")
           .select(
-            "id, customer_id, client_name, email, phone, subject, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
+            "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
           )
           .order("received_at", { ascending: false }),
         supabase
@@ -483,13 +567,19 @@ export default function RequestsPage() {
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
         subject,
+        tattoo_description: form.tattooDescription.trim() || subject,
+        approximate_size: form.approximateSize.trim() || null,
+        placement: form.placement.trim() || null,
+        reference_image_url: form.referenceImageUrl.trim() || null,
+        requested_artist_label: form.requestedArtistLabel,
+        age_confirmed: form.ageConfirmed,
         artist_id: form.artistId || null,
         priority: form.priority,
         notes: form.notes.trim() || null,
         status: "new",
       })
       .select(
-        "id, customer_id, client_name, email, phone, subject, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
+        "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
       )
       .single();
 
@@ -650,7 +740,7 @@ export default function RequestsPage() {
           name: selectedRequest.client_name,
           email: selectedRequest.email,
           phone: selectedRequest.phone,
-          notes: selectedRequest.notes,
+          notes: requestDetailMemo(selectedRequest),
         })
         .select("id")
         .single();
@@ -671,7 +761,7 @@ export default function RequestsPage() {
         artist_id: selectedRequest.artist_id,
         subject: selectedRequest.subject,
         status: "consultation",
-        memo: selectedRequest.notes,
+        memo: requestDetailMemo(selectedRequest),
       })
       .select("id")
       .single();
@@ -902,6 +992,50 @@ export default function RequestsPage() {
                         <p className="mt-1 font-semibold">{priorityLabel(selectedRequest.priority)}</p>
                       </div>
                     </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold">Tattoo details</h4>
+                    <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 sm:col-span-2">
+                        <p className="text-[#697178]">Description</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.tattoo_description || selectedRequest.subject}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Size</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.approximate_size || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Placement</p>
+                        <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Requested artist</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.requested_artist_label || "Any available"}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Age confirmed</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.age_confirmed ? "Yes" : "No"}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedRequest.reference_image_url ? (
+                      <a
+                        className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                        href={selectedRequest.reference_image_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Open reference image
+                      </a>
+                    ) : null}
                   </div>
 
                   <div>
