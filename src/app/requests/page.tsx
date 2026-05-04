@@ -52,6 +52,17 @@ type CandidateRecord = {
   artist: { display_name: string } | { display_name: string }[] | null;
 };
 
+type RequestFile = {
+  id: string;
+  request_id: string | null;
+  file_type: string;
+  storage_path: string;
+  original_name: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  url?: string;
+};
+
 type NewRequestForm = {
   clientName: string;
   email: string;
@@ -60,7 +71,7 @@ type NewRequestForm = {
   tattooDescription: string;
   approximateSize: string;
   placement: string;
-  referenceImageUrl: string;
+  referenceFile: File | null;
   requestedArtistLabel: string;
   ageConfirmed: boolean;
   artistId: string;
@@ -87,6 +98,10 @@ const summaryStatuses = [
   "consultation",
   "booked",
 ];
+
+const referenceBucket = "request-references";
+const requestSelect =
+  "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -204,6 +219,25 @@ function requestDetailMemo(request: RequestRecord) {
     .join("\n");
 }
 
+function safeFileName(fileName: string) {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
+async function filesWithSignedUrls(files: RequestFile[]) {
+  return Promise.all(
+    files.map(async (file) => {
+      const { data } = await supabase.storage
+        .from(referenceBucket)
+        .createSignedUrl(file.storage_path, 60 * 60);
+
+      return {
+        ...file,
+        url: data?.signedUrl,
+      };
+    }),
+  );
+}
+
 function NewRequestModal({
   artists,
   error,
@@ -225,7 +259,7 @@ function NewRequestModal({
     tattooDescription: "",
     approximateSize: "",
     placement: "",
-    referenceImageUrl: "",
+    referenceFile: null,
     requestedArtistLabel: "Any available artist",
     ageConfirmed: true,
     artistId: "",
@@ -314,14 +348,25 @@ function NewRequestModal({
               value={form.placement}
             />
           </div>
-          <input
-            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) =>
-              setForm((current) => ({ ...current, referenceImageUrl: event.target.value }))
-            }
-            placeholder="Reference image URL"
-            value={form.referenceImageUrl}
-          />
+          <label className="block rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm font-semibold">
+            Reference image
+            <input
+              accept="image/*"
+              className="mt-2 block w-full text-sm text-[#4d555c]"
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  referenceFile: event.target.files?.[0] ?? null,
+                }))
+              }
+              type="file"
+            />
+            {form.referenceFile ? (
+              <span className="mt-2 block text-xs font-medium text-[#697178]">
+                {form.referenceFile.name}
+              </span>
+            ) : null}
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <select
               className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -386,6 +431,7 @@ function NewRequestModal({
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
+  const [requestFiles, setRequestFiles] = useState<RequestFile[]>([]);
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [artistToAdd, setArtistToAdd] = useState("");
@@ -420,6 +466,14 @@ export default function RequestsPage() {
     return candidates.filter((candidate) => candidate.request_id === selectedRequest.id);
   }, [candidates, selectedRequest]);
 
+  const selectedFiles = useMemo(() => {
+    if (!selectedRequest) {
+      return [];
+    }
+
+    return requestFiles.filter((file) => file.request_id === selectedRequest.id);
+  }, [requestFiles, selectedRequest]);
+
   const candidateArtistIds = new Set(selectedCandidates.map((candidate) => candidate.artist_id));
   const availableArtistsToAdd = artists.filter((artist) => !candidateArtistIds.has(artist.id));
 
@@ -441,12 +495,10 @@ export default function RequestsPage() {
         return;
       }
 
-      const [requestResult, staffResult, permissionResult, candidateResult] = await Promise.all([
+      const [requestResult, staffResult, permissionResult, candidateResult, fileResult] = await Promise.all([
         supabase
           .from("requests")
-          .select(
-            "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
-          )
+          .select(requestSelect)
           .order("received_at", { ascending: false }),
         supabase
           .from("staff")
@@ -460,6 +512,12 @@ export default function RequestsPage() {
         supabase
           .from("request_artist_candidates")
           .select("id, request_id, artist_id, status, responded_at, notes, artist:staff(display_name)")
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("files")
+          .select("id, request_id, file_type, storage_path, original_name, mime_type, size_bytes")
+          .eq("file_type", "reference")
+          .not("request_id", "is", null)
           .order("created_at", { ascending: true }),
       ]);
 
@@ -487,15 +545,23 @@ export default function RequestsPage() {
         return;
       }
 
+      if (fileResult.error) {
+        setError(fileResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       const nextRequests = (requestResult.data ?? []) as unknown as RequestRecord[];
       const nextPermissions = permissionResult.data ?? [];
       const nextArtists = (staffResult.data ?? []).filter((staff) =>
         canShowInCalendar(staff, nextPermissions),
       );
+      const nextFiles = await filesWithSignedUrls((fileResult.data ?? []) as RequestFile[]);
 
       setRequests(nextRequests);
       setArtists(nextArtists);
       setCandidates((candidateResult.data ?? []) as unknown as CandidateRecord[]);
+      setRequestFiles(nextFiles);
       setSelectedRequestId(nextRequests[0]?.id ?? "");
       setArtistToAdd(nextArtists[0]?.id ?? "");
       setLoading(false);
@@ -570,7 +636,7 @@ export default function RequestsPage() {
         tattoo_description: form.tattooDescription.trim() || subject,
         approximate_size: form.approximateSize.trim() || null,
         placement: form.placement.trim() || null,
-        reference_image_url: form.referenceImageUrl.trim() || null,
+        reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
         age_confirmed: form.ageConfirmed,
         artist_id: form.artistId || null,
@@ -578,9 +644,7 @@ export default function RequestsPage() {
         notes: form.notes.trim() || null,
         status: "new",
       })
-      .select(
-        "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
-      )
+      .select(requestSelect)
       .single();
 
     if (result.error) {
@@ -590,6 +654,45 @@ export default function RequestsPage() {
     }
 
     const request = result.data as unknown as RequestRecord;
+
+    if (form.referenceFile) {
+      const storagePath = `requests/${request.id}/${Date.now()}-${safeFileName(
+        form.referenceFile.name,
+      )}`;
+      const uploadResult = await supabase.storage
+        .from(referenceBucket)
+        .upload(storagePath, form.referenceFile, {
+          contentType: form.referenceFile.type || undefined,
+        });
+
+      if (uploadResult.error) {
+        setNewRequestError(uploadResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      const fileResult = await supabase
+        .from("files")
+        .insert({
+          request_id: request.id,
+          file_type: "reference",
+          storage_path: storagePath,
+          original_name: form.referenceFile.name,
+          mime_type: form.referenceFile.type || null,
+          size_bytes: form.referenceFile.size,
+        })
+        .select("id, request_id, file_type, storage_path, original_name, mime_type, size_bytes")
+        .single();
+
+      if (fileResult.error) {
+        setNewRequestError(fileResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      const [newFile] = await filesWithSignedUrls([fileResult.data as RequestFile]);
+      setRequestFiles((current) => [...current, newFile]);
+    }
 
     setRequests((current) => [request, ...current]);
     setSelectedRequestId(request.id);
@@ -1026,14 +1129,34 @@ export default function RequestsPage() {
                         </p>
                       </div>
                     </div>
-                    {selectedRequest.reference_image_url ? (
+                    {selectedFiles.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {selectedFiles.map((file) => (
+                          <a
+                            key={file.id}
+                            className="flex min-h-10 items-center justify-between gap-3 rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                            href={file.url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <span className="min-w-0 truncate">
+                              {file.original_name || "Reference image"}
+                            </span>
+                            <span className="shrink-0 text-xs font-medium text-[#697178]">
+                              {file.size_bytes ? `${Math.round(file.size_bytes / 1024)} KB` : ""}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                    {selectedFiles.length === 0 && selectedRequest.reference_image_url ? (
                       <a
                         className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
                         href={selectedRequest.reference_image_url}
                         rel="noreferrer"
                         target="_blank"
                       >
-                        Open reference image
+                        Open legacy reference link
                       </a>
                     ) : null}
                   </div>

@@ -9,6 +9,8 @@ The recommended scenario is:
 1. Webflow form submission
 2. Send/forward Gmail notification
 3. Insert one row into Supabase `requests`
+4. Upload the reference image to Supabase Storage
+5. Insert one row into Supabase `files`
 
 ## Current Webflow Fields
 
@@ -63,7 +65,7 @@ Recommended first-version body:
   "tattoo_description": "{{Tattoo Description}}",
   "approximate_size": "{{Approximate Size (in inches)}}",
   "placement": "{{Placement on your Body}}",
-  "reference_image_url": "{{Reference image}}",
+  "reference_image_url": null,
   "requested_artist_label": "{{Artist you want to consult with}}",
   "age_confirmed": true,
   "artist_id": null,
@@ -82,6 +84,7 @@ Before using the JSON body above, run this SQL once in Supabase:
 
 ```text
 docs/supabase_request_form_columns.sql
+docs/supabase_request_reference_storage.sql
 ```
 
 The app expects these Webflow-specific fields to be stored as separate columns:
@@ -122,16 +125,53 @@ can be spotted quickly.
 
 ## Reference Image Handling
 
-First version:
+The app now expects reference images to be stored as files, not as plain URL
+text.
 
-- Store the Webflow/Make.com reference image URL inside `notes`.
-- Keep the actual uploaded file in Webflow/Gmail/Make.com storage.
+Make.com flow:
 
-Later version:
+1. Create the `requests` row using the JSON above.
+2. Read the returned request `id`.
+3. Download the Webflow reference image file.
+4. Upload the binary file to Supabase Storage bucket `request-references`.
+5. Insert a matching metadata row into public `files`.
 
-- Upload the image to Supabase Storage.
-- Insert one row into `files` with `request_id`, `file_type = 'reference'`,
-  and the Supabase storage path.
+Storage upload request:
+
+Method: `POST`
+
+URL:
+
+```text
+https://tkblwbahhtnoxbzkgvbb.supabase.co/storage/v1/object/request-references/requests/{{request_id}}/{{safe_file_name}}
+```
+
+Headers:
+
+```text
+apikey: <SUPABASE_PUBLISHABLE_KEY>
+Authorization: Bearer <SUPABASE_PUBLISHABLE_KEY>
+Content-Type: {{reference_image_mime_type}}
+```
+
+Body: raw binary file data from Webflow/Make.com.
+
+After upload succeeds, insert into `files`:
+
+```json
+{
+  "request_id": "{{request_id}}",
+  "file_type": "reference",
+  "storage_path": "requests/{{request_id}}/{{safe_file_name}}",
+  "original_name": "{{original_file_name}}",
+  "mime_type": "{{reference_image_mime_type}}",
+  "size_bytes": "{{reference_image_size_bytes}}"
+}
+```
+
+If Make.com cannot upload the file in the first automation version, keep the
+reference image in Gmail and let the owner upload it manually in the app. Avoid
+using `reference_image_url` except as a temporary legacy fallback.
 
 ## Next Email Thread Step
 
