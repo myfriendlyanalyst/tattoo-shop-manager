@@ -46,6 +46,16 @@ type CandidateRecord = {
   artist: { display_name: string } | { display_name: string }[] | null;
 };
 
+type NewRequestForm = {
+  clientName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  artistId: string;
+  priority: string;
+  notes: string;
+};
+
 const statusOptions = [
   "new",
   "forwarded",
@@ -168,6 +178,127 @@ function timelineFor(request: RequestRecord) {
   ];
 }
 
+function NewRequestModal({
+  artists,
+  error,
+  saving,
+  onClose,
+  onSave,
+}: {
+  artists: StaffRecord[];
+  error: string;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (form: NewRequestForm) => void;
+}) {
+  const [form, setForm] = useState<NewRequestForm>({
+    clientName: "",
+    email: "",
+    phone: "",
+    subject: "",
+    artistId: "",
+    priority: "normal",
+    notes: "",
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">New request</p>
+            <h3 className="mt-1 text-xl font-semibold">Manual intake</h3>
+            <p className="mt-1 text-sm text-[#697178]">
+              Use this for testing before Make.com starts inserting Webflow requests.
+            </p>
+          </div>
+          <button
+            aria-label="Close new request"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-3 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <input
+            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))}
+            placeholder="Client name"
+            value={form.clientName}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              placeholder="Email"
+              type="email"
+              value={form.email}
+            />
+            <input
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+              placeholder="Phone"
+              value={form.phone}
+            />
+          </div>
+          <input
+            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))}
+            placeholder="Tattoo request subject"
+            value={form.subject}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, artistId: event.target.value }))}
+              value={form.artistId}
+            >
+              <option value="">Any available</option>
+              {artists.map((artist) => (
+                <option key={artist.id} value={artist.id}>
+                  {artist.display_name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}
+              value={form.priority}
+            >
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <textarea
+            className="min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+            placeholder="Request notes, placement, references, availability, budget, etc."
+            value={form.notes}
+          />
+          <button
+            className="h-10 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onSave(form)}
+            type="button"
+          >
+            {saving ? "Saving..." : "Create request"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
@@ -180,6 +311,8 @@ export default function RequestsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showNewRequest, setShowNewRequest] = useState(false);
+  const [newRequestError, setNewRequestError] = useState("");
 
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? requests[0],
@@ -328,6 +461,50 @@ export default function RequestsPage() {
       ),
     );
     setMessage("Request status updated.");
+    setSaving(false);
+  }
+
+  async function createRequest(form: NewRequestForm) {
+    const clientName = form.clientName.trim();
+    const subject = form.subject.trim();
+
+    if (!clientName || !subject) {
+      setNewRequestError("Client name and subject are required.");
+      return;
+    }
+
+    setSaving(true);
+    setNewRequestError("");
+
+    const result = await supabase
+      .from("requests")
+      .insert({
+        client_name: clientName,
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        subject,
+        artist_id: form.artistId || null,
+        priority: form.priority,
+        notes: form.notes.trim() || null,
+        status: "new",
+      })
+      .select(
+        "id, customer_id, client_name, email, phone, subject, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)",
+      )
+      .single();
+
+    if (result.error) {
+      setNewRequestError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const request = result.data as unknown as RequestRecord;
+
+    setRequests((current) => [request, ...current]);
+    setSelectedRequestId(request.id);
+    setShowNewRequest(false);
+    setMessage("Request created.");
     setSaving(false);
   }
 
@@ -538,6 +715,10 @@ export default function RequestsPage() {
           </button>
           <button
             className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
+            onClick={() => {
+              setNewRequestError("");
+              setShowNewRequest(true);
+            }}
             type="button"
           >
             New request
@@ -554,6 +735,22 @@ export default function RequestsPage() {
       {!loading && error && requests.length === 0 ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#8a3030] shadow-sm">
           {error}
+        </div>
+      ) : null}
+
+      {!loading && requests.length === 0 && !error ? (
+        <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 shadow-sm">
+          <p className="text-sm font-semibold text-[#30373d]">No requests yet.</p>
+          <p className="mt-2 text-sm text-[#697178]">
+            Create a manual request for testing, or connect Make.com to insert Webflow requests.
+          </p>
+          <button
+            className="mt-4 h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
+            onClick={() => setShowNewRequest(true)}
+            type="button"
+          >
+            New request
+          </button>
         </div>
       ) : null}
 
@@ -849,6 +1046,16 @@ export default function RequestsPage() {
             ) : null}
           </section>
         </>
+      ) : null}
+
+      {showNewRequest ? (
+        <NewRequestModal
+          artists={artists}
+          error={newRequestError}
+          onClose={() => setShowNewRequest(false)}
+          onSave={createRequest}
+          saving={saving}
+        />
       ) : null}
     </AppShell>
   );
