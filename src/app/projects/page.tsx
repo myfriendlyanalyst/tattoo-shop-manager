@@ -88,6 +88,8 @@ type DepositForm = {
 
 type SessionForm = {
   appointmentId: string;
+  startsAt: string;
+  endsAt: string;
   depositId: string;
   tattooAmount: string;
   tattooPaymentMethod: string;
@@ -344,14 +346,21 @@ function SessionEntryModal({
   onClose: () => void;
   onSave: (form: SessionForm) => void;
 }) {
-  const [form, setForm] = useState<SessionForm>({
-    appointmentId: appointments[0]?.id ?? "",
-    depositId: "",
-    tattooAmount: "",
-    tattooPaymentMethod: "cash",
-    tipAmount: "",
-    tipPaymentMethod: "cash",
-    memo: "",
+  const [form, setForm] = useState<SessionForm>(() => {
+    const startsAt = new Date();
+    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+
+    return {
+      appointmentId: appointments[0]?.id ?? "",
+      startsAt: localDateTimeInput(startsAt),
+      endsAt: localDateTimeInput(endsAt),
+      depositId: "",
+      tattooAmount: "",
+      tattooPaymentMethod: "cash",
+      tipAmount: "",
+      tipPaymentMethod: "cash",
+      memo: "",
+    };
   });
 
   return (
@@ -379,12 +388,6 @@ function SessionEntryModal({
             </p>
           ) : null}
 
-          {appointments.length === 0 ? (
-            <p className="rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold text-[#697178]">
-              Create a calendar appointment for this project before adding a session entry.
-            </p>
-          ) : null}
-
           <label className="block text-sm font-semibold">
             Appointment
             <select
@@ -394,6 +397,7 @@ function SessionEntryModal({
               }
               value={form.appointmentId}
             >
+              <option value="">Manual / walk-in session</option>
               {appointments.map((appointment) => (
                 <option key={appointment.id} value={appointment.id}>
                   {appointmentLabel(appointment)}
@@ -401,6 +405,33 @@ function SessionEntryModal({
               ))}
             </select>
           </label>
+
+          {!form.appointmentId ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
+                Starts at
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, startsAt: event.target.value }))
+                  }
+                  type="datetime-local"
+                  value={form.startsAt}
+                />
+              </label>
+              <label className="text-sm font-semibold">
+                Ends at
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, endsAt: event.target.value }))
+                  }
+                  type="datetime-local"
+                  value={form.endsAt}
+                />
+              </label>
+            </div>
+          ) : null}
 
           <label className="block text-sm font-semibold">
             Apply deposit
@@ -495,7 +526,7 @@ function SessionEntryModal({
 
           <button
             className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || appointments.length === 0}
+            disabled={saving}
             onClick={() => onSave(form)}
             type="button"
           >
@@ -787,14 +818,18 @@ export default function ProjectsPage() {
     }
 
     const appointment = selectedAppointments.find((item) => item.id === form.appointmentId);
-
-    if (!appointment) {
-      setEntryError("Choose a calendar appointment for this session.");
-      return;
-    }
+    const startsAt = appointment?.starts_at ?? form.startsAt;
+    const endsAt = appointment?.ends_at ?? form.endsAt;
+    const startsDate = new Date(startsAt);
+    const endsDate = new Date(endsAt);
 
     const tattooAmount = Number(form.tattooAmount || 0);
     const tipAmount = Number(form.tipAmount || 0);
+
+    if (!appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
+      setEntryError("Manual sessions need a valid start and end time.");
+      return;
+    }
 
     if (!Number.isFinite(tattooAmount) || !Number.isFinite(tipAmount)) {
       setEntryError("Amounts must be valid numbers.");
@@ -812,15 +847,43 @@ export default function ProjectsPage() {
     setMessage("");
 
     const { data: userData } = await supabase.auth.getUser();
+    let sessionAppointment = appointment;
+
+    if (!sessionAppointment) {
+      const appointmentResult = await supabase
+        .from("appointments")
+        .insert({
+          project_id: selectedProject.id,
+          customer_id: selectedProject.customer_id,
+          artist_id: selectedProject.artist_id,
+          starts_at: startsDate.toISOString(),
+          ends_at: endsDate.toISOString(),
+          appointment_type: "walk-in",
+          status: "completed",
+          notes: "Created from manual session entry.",
+        })
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .single();
+
+      if (appointmentResult.error) {
+        setEntryError(appointmentResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      sessionAppointment = appointmentResult.data as AppointmentRecord;
+      setAppointments((current) => [sessionAppointment!, ...current]);
+    }
+
     const result = await supabase
       .from("session_entries")
       .insert({
         project_id: selectedProject.id,
         customer_id: selectedProject.customer_id,
-        appointment_id: appointment.id,
-        artist_id: appointment.artist_id ?? selectedProject.artist_id,
+        appointment_id: sessionAppointment.id,
+        artist_id: sessionAppointment.artist_id ?? selectedProject.artist_id,
         entry_type: "session",
-        entered_at: new Date(appointment.starts_at).toISOString(),
+        entered_at: new Date(sessionAppointment.starts_at).toISOString(),
         tattoo_amount: tattooAmount,
         tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
         tip_amount: tipAmount,
@@ -1100,7 +1163,6 @@ export default function ProjectsPage() {
                     <h3 className="text-base font-semibold">Session entries</h3>
                     <button
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
-                      disabled={unenteredSelectedAppointments.length === 0}
                       onClick={() => {
                         setEntryError("");
                         setShowSessionEntry(true);
