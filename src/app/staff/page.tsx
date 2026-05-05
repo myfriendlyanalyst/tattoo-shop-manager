@@ -39,6 +39,13 @@ type StaffForm = {
   permissionKeys: string[];
 };
 
+type InviteUserForm = {
+  displayName: string;
+  email: string;
+  role: string;
+  permissionKeys: string[];
+};
+
 const permissions = [
   { key: "artistSchedule", label: "Artist Schedule" },
   { key: "calendarBooking", label: "Calendar / Booking" },
@@ -49,6 +56,14 @@ const permissions = [
 ];
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const roleOptions = ["Owner", "Admin", "Artist", "Front Desk"];
+
+const defaultPermissionsByRole: Record<string, string[]> = {
+  Owner: ["calendarBooking", "staffAdmin"],
+  Admin: ["calendarBooking", "staffAdmin"],
+  Artist: ["artistSchedule", "calendarBooking", "session", "deposit"],
+  "Front Desk": ["calendarBooking"],
+};
 
 function roleClasses(role: string) {
   const variants: Record<string, string> = {
@@ -111,6 +126,142 @@ function errorMessage(message: string) {
   return message;
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function InviteUserModal({
+  error,
+  saving,
+  onClose,
+  onInvite,
+}: {
+  error: string;
+  saving: boolean;
+  onClose: () => void;
+  onInvite: (form: InviteUserForm) => void;
+}) {
+  const [form, setForm] = useState<InviteUserForm>({
+    displayName: "",
+    email: "",
+    role: "Artist",
+    permissionKeys: defaultPermissionsByRole.Artist,
+  });
+
+  function updateRole(role: string) {
+    setForm((current) => ({
+      ...current,
+      role,
+      permissionKeys: defaultPermissionsByRole[role] ?? [],
+    }));
+  }
+
+  function updatePermission(permissionKey: string, enabled: boolean) {
+    setForm((current) => ({
+      ...current,
+      permissionKeys: enabled
+        ? Array.from(new Set([...current.permissionKeys, permissionKey]))
+        : current.permissionKeys.filter((key) => key !== permissionKey),
+    }));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">Invite user</p>
+            <h3 className="mt-1 text-xl font-semibold">Send staff invitation</h3>
+          </div>
+          <button
+            aria-label="Close invite user"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Display name
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, displayName: event.target.value }))
+                }
+                placeholder="Artist or staff name"
+                value={form.displayName}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Email
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, email: event.target.value }))
+                }
+                placeholder="name@example.com"
+                type="email"
+                value={form.email}
+              />
+            </label>
+          </div>
+
+          <label className="block text-sm font-semibold">
+            Role
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => updateRole(event.target.value)}
+              value={form.role}
+            >
+              {roleOptions.map((role) => (
+                <option key={role}>{role}</option>
+              ))}
+            </select>
+          </label>
+
+          <div>
+            <h4 className="text-sm font-semibold">Initial permissions</h4>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {permissions.map((permission) => (
+                <label
+                  key={permission.key}
+                  className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                >
+                  <span className="font-semibold">{permission.label}</span>
+                  <input
+                    checked={form.permissionKeys.includes(permission.key)}
+                    onChange={(event) => updatePermission(permission.key, event.target.checked)}
+                    type="checkbox"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onInvite(form)}
+            type="button"
+          >
+            {saving ? "Sending invite..." : "Send invite"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
@@ -121,6 +272,8 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showInviteUser, setShowInviteUser] = useState(false);
+  const [inviteError, setInviteError] = useState("");
 
   useEffect(() => {
     async function loadStaff() {
@@ -322,6 +475,80 @@ export default function StaffPage() {
     setSaving(false);
   }
 
+  async function inviteUser(inviteForm: InviteUserForm) {
+    const displayName = inviteForm.displayName.trim();
+    const email = inviteForm.email.trim().toLowerCase();
+
+    if (!displayName) {
+      setInviteError("Display name is required.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setInviteError("Enter a valid email address.");
+      return;
+    }
+
+    setSaving(true);
+    setInviteError("");
+    setError("");
+    setMessage("");
+
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+
+    if (!accessToken) {
+      setInviteError("Please log in again before sending an invite.");
+      setSaving(false);
+      return;
+    }
+
+    const response = await fetch("/api/invite-user", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...inviteForm,
+        displayName,
+        email,
+      }),
+    });
+
+    const result = (await response.json()) as {
+      staff?: StaffRecord;
+      permissions?: StaffPermission[];
+      error?: string;
+    };
+
+    if (!response.ok || !result.staff) {
+      setInviteError(result.error ?? "Could not send invite.");
+      setSaving(false);
+      return;
+    }
+
+    setStaff((current) => {
+      const others = current.filter((person) => person.id !== result.staff!.id);
+      return [result.staff!, ...others];
+    });
+    setStaffPermissions((current) => {
+      const invitedPermissions = result.permissions ?? [];
+      const others = current.filter((permission) => permission.staff_id !== result.staff!.id);
+      return [...others, ...invitedPermissions];
+    });
+    setSelectedStaffId(result.staff.id);
+    setForm({
+      displayName: result.staff.display_name,
+      role: result.staff.role,
+      schedule: scheduleForStaff(result.staff.id, schedules),
+      permissionKeys: (result.permissions ?? []).map((permission) => permission.permission_key),
+    });
+    setShowInviteUser(false);
+    setMessage(`Invite sent to ${result.staff.email}.`);
+    setSaving(false);
+  }
+
   return (
     <AppShell
       active="Staff"
@@ -332,6 +559,10 @@ export default function StaffPage() {
         <>
           <button
             className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+            onClick={() => {
+              setInviteError("");
+              setShowInviteUser(true);
+            }}
             type="button"
           >
             Invite user
@@ -585,6 +816,15 @@ export default function StaffPage() {
             </section>
           </aside>
         </section>
+      ) : null}
+
+      {showInviteUser ? (
+        <InviteUserModal
+          error={inviteError}
+          onClose={() => setShowInviteUser(false)}
+          onInvite={inviteUser}
+          saving={saving}
+        />
       ) : null}
     </AppShell>
   );
