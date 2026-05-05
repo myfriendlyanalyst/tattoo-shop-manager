@@ -1863,52 +1863,109 @@ export default function ProjectsPage() {
                         No deposits yet.
                       </p>
                     ) : null}
-                    {selectedDeposits.map((deposit) => (
-                      <div
-                        key={deposit.id}
-                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.7fr_0.65fr_0.65fr_0.7fr_1fr_auto]"
-                      >
-                        <p className="font-semibold">{displayDate(deposit.received_at)}</p>
-                        <p className="font-semibold">{money(deposit.amount)} original</p>
-                        <p className="font-semibold text-[#8a5130]">
-                          {money(depositAppliedTotal(deposit.id, depositApplications))} applied
-                        </p>
-                        <p
-                          className={
-                            depositRemaining(deposit, depositApplications) > 0
-                              ? "text-[#2f6658]"
-                              : "text-[#697178]"
-                          }
-                        >
-                          {money(depositRemaining(deposit, depositApplications))} left
-                        </p>
-                        <p className="text-[#4d555c]">
-                          {deposit.memo || paymentLabel(deposit.payment_method)}
-                        </p>
-                        <div className="flex gap-2 md:justify-end">
-                          <button
-                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
-                            disabled={saving}
-                            onClick={() => {
-                              setEntryError("");
-                              setEditingDeposit(deposit);
-                              setShowDepositEntry(true);
-                            }}
-                            type="button"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
-                            disabled={saving}
-                            onClick={() => deleteDeposit(deposit)}
-                            type="button"
-                          >
-                            Delete
-                          </button>
+                    {selectedDeposits.map((deposit) => {
+                      const applications = depositApplications
+                        .filter((application) => application.deposit_id === deposit.id)
+                        .sort(
+                          (a, b) =>
+                            new Date(a.applied_at).getTime() - new Date(b.applied_at).getTime(),
+                        );
+                      let runningBalance = Number(deposit.amount);
+
+                      return (
+                        <div key={deposit.id} className="px-4 py-4 text-sm">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="font-semibold">
+                                Deposit {money(deposit.amount)} / {displayDate(deposit.received_at)}
+                              </p>
+                              <p className="mt-1 text-[#697178]">
+                                {paymentLabel(deposit.payment_method)}
+                                {deposit.memo ? ` / ${deposit.memo}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 md:justify-end">
+                              <button
+                                className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                                disabled={saving}
+                                onClick={() => {
+                                  setEntryError("");
+                                  setEditingDeposit(deposit);
+                                  setShowDepositEntry(true);
+                                }}
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
+                                disabled={saving}
+                                onClick={() => deleteDeposit(deposit)}
+                                type="button"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 overflow-hidden rounded-md border border-[#e4dccf]">
+                            <div className="grid grid-cols-[0.9fr_1fr_0.7fr_0.7fr] bg-[#f7f2e9] px-3 py-2 text-xs font-bold uppercase text-[#6f7275]">
+                              <span>Date</span>
+                              <span>History</span>
+                              <span className="text-right">Change</span>
+                              <span className="text-right">Balance</span>
+                            </div>
+                            <div className="grid grid-cols-[0.9fr_1fr_0.7fr_0.7fr] px-3 py-2">
+                              <span>{displayDate(deposit.received_at)}</span>
+                              <span className="font-semibold text-[#2f6658]">Deposit received</span>
+                              <span className="text-right font-semibold text-[#2f6658]">
+                                +{money(deposit.amount)}
+                              </span>
+                              <span className="text-right font-semibold">
+                                {money(runningBalance)}
+                              </span>
+                            </div>
+                            {applications.map((application) => {
+                              runningBalance -= Number(application.amount);
+                              const session = selectedSessions.find(
+                                (item) => item.id === application.session_entry_id,
+                              );
+
+                              return (
+                                <div
+                                  key={application.id}
+                                  className="grid grid-cols-[0.9fr_1fr_0.7fr_0.7fr] border-t border-[#eee8dd] px-3 py-2"
+                                >
+                                  <span>{displayDate(application.applied_at)}</span>
+                                  <span>
+                                    Applied to{" "}
+                                    {session ? displayDateTime(session.entered_at) : "session"}
+                                  </span>
+                                  <span className="text-right font-semibold text-[#8a5130]">
+                                    -{money(application.amount)}
+                                  </span>
+                                  <span className="text-right font-semibold">
+                                    {money(runningBalance)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            <div className="grid grid-cols-[0.9fr_1fr_0.7fr_0.7fr] border-t border-[#e4dccf] bg-[#fdfbf7] px-3 py-2 font-semibold">
+                              <span />
+                              <span>Remaining balance</span>
+                              <span />
+                              <span
+                                className={`text-right ${
+                                  runningBalance > 0 ? "text-[#2f6658]" : "text-[#697178]"
+                                }`}
+                              >
+                                {money(runningBalance)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
 
