@@ -33,10 +33,10 @@ Redirect URLs:
 https://your-vercel-domain.vercel.app/**
 ```
 
-Invited users are sent to:
+Invited users are sent through:
 
 ```txt
-https://your-vercel-domain.vercel.app/set-password
+https://your-vercel-domain.vercel.app/auth/callback
 ```
 
 If an invite is sent while running the app locally, the link can point to `localhost`. For external

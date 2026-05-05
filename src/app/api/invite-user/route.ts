@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Choose a valid role.", 400);
   }
 
-  const redirectTo = `${appOrigin(request)}/set-password`;
+  const redirectTo = `${appOrigin(request)}/auth/callback`;
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     email,
     {
