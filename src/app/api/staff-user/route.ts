@@ -67,7 +67,7 @@ export async function DELETE(request: NextRequest) {
     return jsonError("Staff id is required.", 400);
   }
 
-  const { data: staffRow, error: staffError } = await adminClient
+  const { data: staffRow, error: staffError } = await authClient
     .from("staff")
     .select("id, profile_id, email, display_name")
     .eq("id", staffId)
@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (mode === "deactivate") {
-    const { error: staffUpdateError } = await adminClient
+    const { error: staffUpdateError } = await authClient
       .from("staff")
       .update({ active: false })
       .eq("id", staffId);
@@ -96,7 +96,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (staffRow.profile_id) {
-      const { error: profileUpdateError } = await adminClient
+      const { error: profileUpdateError } = await authClient
         .from("profiles")
         .update({ active: false })
         .eq("id", staffRow.profile_id);
@@ -109,7 +109,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ staffId, mode });
   }
 
-  const { error: staffDeleteError } = await adminClient.from("staff").delete().eq("id", staffId);
+  const { error: staffDeleteError } = await authClient.from("staff").delete().eq("id", staffId);
 
   if (staffDeleteError) {
     return jsonError(staffDeleteError.message, 500);
