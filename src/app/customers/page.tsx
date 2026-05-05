@@ -51,19 +51,6 @@ type DepositRecord = {
   available: boolean;
 };
 
-type SessionEntryRecord = {
-  id: string;
-  customer_id: string | null;
-  project_id: string | null;
-  artist_id: string | null;
-  entered_at: string;
-  entry_type: string;
-  tattoo_amount: number | null;
-  tip_amount: number | null;
-  artist: { display_name: string } | { display_name: string }[] | null;
-  project: { subject: string } | { subject: string }[] | null;
-};
-
 type NewCustomerForm = {
   name: string;
   email: string;
@@ -142,15 +129,6 @@ function displayDate(value: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(value));
-}
-
-function displayDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
   }).format(new Date(value));
 }
 
@@ -274,7 +252,6 @@ export default function CustomersPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
-  const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -311,22 +288,6 @@ export default function CustomersPage() {
     return projects.filter((project) => project.customer_id === selectedCustomer.id);
   }, [projects, selectedCustomer]);
 
-  const selectedSessions = useMemo(() => {
-    if (!selectedCustomer) {
-      return [];
-    }
-
-    return sessions.filter((session) => session.customer_id === selectedCustomer.id);
-  }, [sessions, selectedCustomer]);
-
-  const selectedAppointments = useMemo(() => {
-    if (!selectedCustomer) {
-      return [];
-    }
-
-    return appointments.filter((appointment) => appointment.customer_id === selectedCustomer.id);
-  }, [appointments, selectedCustomer]);
-
   useEffect(() => {
     async function loadCustomers() {
       setLoading(true);
@@ -340,7 +301,7 @@ export default function CustomersPage() {
         return;
       }
 
-      const [customerResult, projectResult, appointmentResult, depositResult, sessionResult] =
+      const [customerResult, projectResult, appointmentResult, depositResult] =
         await Promise.all([
           supabase.from("customers").select(customerSelect).order("created_at", { ascending: false }),
           supabase
@@ -356,12 +317,6 @@ export default function CustomersPage() {
             )
             .order("starts_at", { ascending: false }),
           supabase.from("deposits").select("id, customer_id, project_id, amount, available"),
-          supabase
-            .from("session_entries")
-            .select(
-              "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tip_amount, artist:staff(display_name), project:projects(subject)",
-            )
-            .order("entered_at", { ascending: false }),
         ]);
 
       if (customerResult.error) {
@@ -388,19 +343,12 @@ export default function CustomersPage() {
         return;
       }
 
-      if (sessionResult.error) {
-        setError(sessionResult.error.message);
-        setLoading(false);
-        return;
-      }
-
       const nextCustomers = (customerResult.data ?? []) as CustomerRecord[];
 
       setCustomers(nextCustomers);
       setProjects((projectResult.data ?? []) as unknown as ProjectRecord[]);
       setAppointments((appointmentResult.data ?? []) as unknown as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
-      setSessions((sessionResult.data ?? []) as unknown as SessionEntryRecord[]);
       setSelectedCustomerId(nextCustomers[0]?.id ?? "");
       setLoading(false);
     }
@@ -493,8 +441,8 @@ export default function CustomersPage() {
     <AppShell
       active="Customers"
       eyebrow="Customer records"
-      title="Customers and tattoo projects"
-      description="Customer records can originate from Requests. Each customer can hold multiple tattoo projects, with separate artists, deposits, waiver state, and session history."
+      title="Customer directory"
+      description="Customer records can originate from Requests. Use this page for contact details and a quick project overview; project work is managed in Projects."
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
@@ -708,87 +656,6 @@ export default function CustomersPage() {
               </div>
             </section>
 
-            <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-              <div className="border-b border-[#e5dfd4] px-4 py-4">
-                <h3 className="text-base font-semibold">Appointments</h3>
-                <p className="mt-1 text-sm text-[#697178]">
-                  Bookings created in Calendar will appear here.
-                </p>
-              </div>
-
-              <div className="divide-y divide-[#eee8dd]">
-                {selectedAppointments.length === 0 ? (
-                  <p className="px-4 py-6 text-sm font-semibold text-[#697178]">
-                    No appointments yet.
-                  </p>
-                ) : null}
-                {selectedAppointments.map((appointment) => {
-                  const artist = relatedOne(appointment.artist);
-                  const project = relatedOne(appointment.project);
-
-                  return (
-                    <div
-                      key={appointment.id}
-                      className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_1fr_0.8fr_0.7fr]"
-                    >
-                      <div>
-                        <p className="font-semibold">{displayDateTime(appointment.starts_at)}</p>
-                        <p className="text-[#697178]">{appointment.appointment_type}</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{project?.subject ?? "Untitled project"}</p>
-                        <p className="text-[#697178]">{appointment.status}</p>
-                      </div>
-                      <p className="font-semibold">{artist?.display_name ?? "-"}</p>
-                      <p className="text-[#4d555c]">
-                        {appointment.ends_at ? displayDateTime(appointment.ends_at) : "-"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-              <div className="border-b border-[#e5dfd4] px-4 py-4">
-                <h3 className="text-base font-semibold">Session history</h3>
-                <p className="mt-1 text-sm text-[#697178]">
-                  Artists enter individual amounts here; full reporting stays in the accounting app.
-                </p>
-              </div>
-
-              <div className="divide-y divide-[#eee8dd]">
-                {selectedSessions.length === 0 ? (
-                  <p className="px-4 py-6 text-sm font-semibold text-[#697178]">
-                    No sessions yet.
-                  </p>
-                ) : null}
-                {selectedSessions.map((session) => {
-                  const artist = relatedOne(session.artist);
-                  const project = relatedOne(session.project);
-
-                  return (
-                    <div
-                      key={session.id}
-                      className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.7fr_1fr_0.8fr_1fr]"
-                    >
-                      <div>
-                        <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
-                        <p className="text-[#697178]">{session.entry_type}</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{project?.subject ?? "Untitled project"}</p>
-                        <p className="text-[#697178]">Session entry</p>
-                      </div>
-                      <p className="font-semibold">{artist?.display_name ?? "-"}</p>
-                      <p className="text-[#4d555c]">
-                        {money(session.tattoo_amount)} tattoo / {money(session.tip_amount)} tip
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
           </div>
         </section>
       ) : null}
