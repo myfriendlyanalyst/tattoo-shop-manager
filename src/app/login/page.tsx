@@ -29,7 +29,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    router.push("/requests");
     router.refresh();
   }
 
@@ -89,7 +89,7 @@ export default function LoginPage() {
             className="block text-center text-sm font-semibold text-[#7d684d] hover:text-[#9f5c3c]"
             href="/"
           >
-            Back to dashboard
+            Back
           </Link>
         </form>
       </section>

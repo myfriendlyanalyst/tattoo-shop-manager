@@ -2,11 +2,10 @@ import Link from "next/link";
 import { AuthButton } from "@/components/auth-button";
 
 const navItems = [
-  { label: "Dashboard", href: "/" },
   { label: "Requests", href: "/requests", note: "Start" },
-  { label: "Customers", href: "/customers" },
   { label: "Projects", href: "/projects" },
   { label: "Calendar", href: "/calendar" },
+  { label: "Customers", href: "/customers" },
   { label: "Artist Entry", href: "/artist-entry" },
   { label: "Staff", href: "/staff" },
   { label: "Settings", href: "/settings" },
