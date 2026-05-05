@@ -18,6 +18,7 @@ Keep the existing public variables too:
 ```txt
 NEXT_PUBLIC_SUPABASE_URL=https://tkblwbahhtnoxbzkgvbb.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+NEXT_PUBLIC_SITE_URL=https://your-vercel-domain.vercel.app
 ```
 
 ## Supabase redirect URLs
@@ -31,6 +32,15 @@ https://your-vercel-domain.vercel.app
 Redirect URLs:
 https://your-vercel-domain.vercel.app/**
 ```
+
+Invited users are sent to:
+
+```txt
+https://your-vercel-domain.vercel.app/set-password
+```
+
+If an invite is sent while running the app locally, the link can point to `localhost`. For external
+testing, send invites from the Vercel deployment or set `NEXT_PUBLIC_SITE_URL` to the Vercel URL.
 
 ## Staff invitation flow
 

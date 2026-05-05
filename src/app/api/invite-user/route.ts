@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 const roleMap: Record<string, "owner" | "admin" | "artist" | "front_desk"> = {
   Owner: "owner",
@@ -25,6 +26,18 @@ function jsonError(message: string, status: number) {
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function appOrigin(request: NextRequest) {
+  if (siteUrl) {
+    return siteUrl.replace(/\/$/, "");
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return request.nextUrl.origin;
 }
 
 export async function POST(request: NextRequest) {
@@ -94,7 +107,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Choose a valid role.", 400);
   }
 
-  const redirectTo = new URL("/login", request.url).toString();
+  const redirectTo = `${appOrigin(request)}/set-password`;
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
     email,
     {
