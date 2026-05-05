@@ -21,6 +21,9 @@ type ProjectRecord = {
   size: string | null;
   session_type: string | null;
   waiver_signed: boolean;
+  waiver_status: string;
+  waiver_sent_at: string | null;
+  waiver_signed_at: string | null;
   status: string;
   memo: string | null;
   created_at: string;
@@ -74,6 +77,10 @@ function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function projectStatusLabel(status: string) {
   const labels: Record<string, string> = {
     lead: "Lead",
@@ -98,6 +105,32 @@ function projectStatusClasses(status: string) {
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
+}
+
+function waiverLabel(project: ProjectRecord) {
+  if (project.waiver_signed || project.waiver_status === "signed") {
+    return "Signed";
+  }
+
+  if (project.waiver_status === "sent") {
+    return "Sent";
+  }
+
+  return "Missing";
+}
+
+function waiverClasses(project: ProjectRecord) {
+  const status = waiverLabel(project);
+
+  if (status === "Signed") {
+    return "bg-[#e8f0ee] text-[#2f6658]";
+  }
+
+  if (status === "Sent") {
+    return "bg-[#e5edf4] text-[#315f82]";
+  }
+
+  return "bg-[#f4e7df] text-[#8a5130]";
 }
 
 function displayDate(value: string | null) {
@@ -313,7 +346,7 @@ export default function CustomersPage() {
           supabase
             .from("projects")
             .select(
-              "id, customer_id, artist_id, subject, size, session_type, waiver_signed, status, memo, created_at, artist:staff(display_name)",
+              "id, customer_id, artist_id, subject, size, session_type, waiver_signed, waiver_status, waiver_sent_at, waiver_signed_at, status, memo, created_at, artist:staff(display_name)",
             )
             .order("created_at", { ascending: false }),
           supabase
@@ -387,6 +420,12 @@ export default function CustomersPage() {
     setNewCustomerError("");
     setMessage("");
 
+    if (form.email.trim() && !isValidEmail(form.email.trim())) {
+      setNewCustomerError("Enter a valid email address.");
+      setSaving(false);
+      return;
+    }
+
     const result = await supabase
       .from("customers")
       .insert({
@@ -410,6 +449,43 @@ export default function CustomersPage() {
     setSelectedCustomerId(customer.id);
     setShowNewCustomer(false);
     setMessage("Customer created.");
+    setSaving(false);
+  }
+
+  async function markWaiverSigned(project: ProjectRecord) {
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const signedAt = new Date().toISOString();
+    const result = await supabase
+      .from("projects")
+      .update({
+        waiver_signed: true,
+        waiver_status: "signed",
+        waiver_signed_at: signedAt,
+      })
+      .eq("id", project.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((item) =>
+        item.id === project.id
+          ? {
+              ...item,
+              waiver_signed: true,
+              waiver_status: "signed",
+              waiver_signed_at: signedAt,
+            }
+          : item,
+      ),
+    );
+    setMessage("Waiver marked as signed.");
     setSaving(false);
   }
 
@@ -600,8 +676,26 @@ export default function CustomersPage() {
                               {projectStatusLabel(project.status)}
                             </span>
                           </td>
-                          <td className="px-4 py-4 font-semibold">
-                            {project.waiver_signed ? "Signed" : "Missing"}
+                          <td className="px-4 py-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(
+                                  project,
+                                )}`}
+                              >
+                                {waiverLabel(project)}
+                              </span>
+                              {!project.waiver_signed ? (
+                                <button
+                                  className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={saving}
+                                  onClick={() => markWaiverSigned(project)}
+                                  type="button"
+                                >
+                                  Mark signed
+                                </button>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
                             {projectDepositLabel(project, deposits)}

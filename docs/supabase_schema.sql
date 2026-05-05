@@ -167,6 +167,11 @@ create table if not exists public.projects (
   size text,
   session_type text,
   waiver_signed boolean not null default false,
+  waiver_status text not null default 'missing' check (
+    waiver_status in ('missing', 'sent', 'signed')
+  ),
+  waiver_sent_at timestamptz,
+  waiver_signed_at timestamptz,
   status public.project_status not null default 'lead',
   memo text,
   created_at timestamptz not null default now(),
@@ -260,6 +265,7 @@ create table if not exists public.payout_items (
 create table if not exists public.requests (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.customers(id) on delete set null,
+  project_id uuid references public.projects(id) on delete set null,
   client_name text not null,
   email text,
   phone text,
@@ -363,6 +369,7 @@ create index if not exists idx_customers_email on public.customers(email);
 create index if not exists idx_projects_customer_id on public.projects(customer_id);
 create index if not exists idx_projects_artist_id on public.projects(artist_id);
 create index if not exists idx_projects_status on public.projects(status);
+create index if not exists idx_projects_waiver_status on public.projects(waiver_status);
 create index if not exists idx_appointments_artist_starts on public.appointments(artist_id, starts_at);
 create index if not exists idx_appointments_customer_id on public.appointments(customer_id);
 create index if not exists idx_session_entries_artist_entered on public.session_entries(artist_id, entered_at);
@@ -374,6 +381,7 @@ create index if not exists idx_requests_status on public.requests(status);
 create index if not exists idx_requests_artist_id on public.requests(artist_id);
 create index if not exists idx_requests_received_at on public.requests(received_at);
 create index if not exists idx_requests_requested_artist_label on public.requests(requested_artist_label);
+create unique index if not exists idx_requests_project_id_unique on public.requests(project_id) where project_id is not null;
 create index if not exists idx_request_artist_candidates_request_id on public.request_artist_candidates(request_id);
 create index if not exists idx_request_artist_candidates_artist_id on public.request_artist_candidates(artist_id);
 create index if not exists idx_files_customer_id on public.files(customer_id);

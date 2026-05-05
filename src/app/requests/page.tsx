@@ -19,6 +19,7 @@ type StaffPermission = {
 type RequestRecord = {
   id: string;
   customer_id: string | null;
+  project_id: string | null;
   client_name: string;
   email: string | null;
   phone: string | null;
@@ -99,10 +100,14 @@ const summaryStatuses = [
 
 const referenceBucket = "request-references";
 const requestSelect =
-  "id, customer_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+  "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function statusLabel(status: string) {
@@ -594,9 +599,15 @@ export default function RequestsPage() {
   async function createRequest(form: NewRequestForm) {
     const clientName = form.clientName.trim();
     const tattooDescription = form.tattooDescription.trim();
+    const email = form.email.trim();
 
     if (!clientName || !tattooDescription) {
       setNewRequestError("Client name and tattoo description are required.");
+      return;
+    }
+
+    if (email && !isValidEmail(email)) {
+      setNewRequestError("Enter a valid email address.");
       return;
     }
 
@@ -607,7 +618,7 @@ export default function RequestsPage() {
       .from("requests")
       .insert({
         client_name: clientName,
-        email: form.email.trim() || null,
+        email: email || null,
         phone: form.phone.trim() || null,
         subject: tattooDescription,
         tattoo_description: tattooDescription,
@@ -807,6 +818,11 @@ export default function RequestsPage() {
       return;
     }
 
+    if (selectedRequest.project_id) {
+      setError("This request has already been converted to a project.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setMessage("");
@@ -841,6 +857,8 @@ export default function RequestsPage() {
         artist_id: selectedRequest.artist_id,
         subject: selectedRequest.subject,
         status: "consultation",
+        waiver_signed: false,
+        waiver_status: "missing",
         memo: requestDetailMemo(selectedRequest),
       })
       .select("id")
@@ -854,6 +872,7 @@ export default function RequestsPage() {
 
     const requestPatch = {
       customer_id: customerId,
+      project_id: projectResult.data.id,
       status: "consultation",
       consultation_at: selectedRequest.consultation_at ?? new Date().toISOString(),
     };
@@ -1264,11 +1283,11 @@ export default function RequestsPage() {
                     </select>
                     <button
                       className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={saving}
+                      disabled={saving || Boolean(selectedRequest.project_id)}
                       onClick={convertToProject}
                       type="button"
                     >
-                      Convert to project
+                      {selectedRequest.project_id ? "Project created" : "Convert to project"}
                     </button>
                   </div>
                 </div>
