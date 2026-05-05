@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Invalid login session.", 401);
   }
 
-  const { data: currentProfile, error: profileError } = await adminClient
+  const { data: currentProfile, error: profileError } = await authClient
     .from("profiles")
     .select("role")
     .eq("id", currentUserData.user.id)
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     return jsonError("Supabase did not return the invited user.", 500);
   }
 
-  const { error: profileUpsertError } = await adminClient.from("profiles").upsert(
+  const { error: profileUpsertError } = await authClient.from("profiles").upsert(
     {
       id: invitedUser.id,
       email,
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     return jsonError(profileUpsertError.message, 500);
   }
 
-  const { data: staffRow, error: staffUpsertError } = await adminClient
+  const { data: staffRow, error: staffUpsertError } = await authClient
     .from("staff")
     .upsert(
       {
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
   }));
 
   if (permissionPayload.length > 0) {
-    const { error: permissionError } = await adminClient
+    const { error: permissionError } = await authClient
       .from("staff_permissions")
       .upsert(permissionPayload, { onConflict: "staff_id,permission_key" });
 

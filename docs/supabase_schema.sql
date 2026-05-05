@@ -549,6 +549,11 @@ create policy "profiles_select_own_or_admin"
 on public.profiles for select
 using (id = auth.uid() or public.is_owner_or_admin());
 
+drop policy if exists "profiles_insert_admin" on public.profiles;
+create policy "profiles_insert_admin"
+on public.profiles for insert
+with check (public.is_owner_or_admin());
+
 drop policy if exists "profiles_update_admin" on public.profiles;
 create policy "profiles_update_admin"
 on public.profiles for update
