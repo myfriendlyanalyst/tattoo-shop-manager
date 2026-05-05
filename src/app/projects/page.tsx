@@ -59,11 +59,14 @@ type DepositRecord = {
   payment_method: string | null;
   received_at: string;
   available: boolean;
+  used_at: string | null;
+  used_session_entry_id: string | null;
   memo: string | null;
 };
 
 type SessionEntryRecord = {
   id: string;
+  appointment_id: string | null;
   customer_id: string | null;
   project_id: string | null;
   artist_id: string | null;
@@ -84,7 +87,8 @@ type DepositForm = {
 };
 
 type SessionForm = {
-  enteredAt: string;
+  appointmentId: string;
+  depositId: string;
   tattooAmount: string;
   tattooPaymentMethod: string;
   tipAmount: string;
@@ -142,6 +146,10 @@ function money(value: number | null | undefined) {
 
 function paymentLabel(value: string | null | undefined) {
   return paymentMethods.find((method) => method.value === value)?.label ?? value ?? "-";
+}
+
+function appointmentLabel(appointment: AppointmentRecord) {
+  return `${displayDateTime(appointment.starts_at)} / ${appointment.appointment_type}`;
 }
 
 function projectStatusLabel(status: string) {
@@ -323,17 +331,22 @@ function SessionEntryModal({
   error,
   saving,
   project,
+  appointments,
+  availableDeposits,
   onClose,
   onSave,
 }: {
   error: string;
   saving: boolean;
   project: ProjectRecord;
+  appointments: AppointmentRecord[];
+  availableDeposits: DepositRecord[];
   onClose: () => void;
   onSave: (form: SessionForm) => void;
 }) {
   const [form, setForm] = useState<SessionForm>({
-    enteredAt: localDateTimeInput(),
+    appointmentId: appointments[0]?.id ?? "",
+    depositId: "",
     tattooAmount: "",
     tattooPaymentMethod: "cash",
     tipAmount: "",
@@ -366,16 +379,45 @@ function SessionEntryModal({
             </p>
           ) : null}
 
+          {appointments.length === 0 ? (
+            <p className="rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold text-[#697178]">
+              Create a calendar appointment for this project before adding a session entry.
+            </p>
+          ) : null}
+
           <label className="block text-sm font-semibold">
-            Entered at
-            <input
+            Appointment
+            <select
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
               onChange={(event) =>
-                setForm((current) => ({ ...current, enteredAt: event.target.value }))
+                setForm((current) => ({ ...current, appointmentId: event.target.value }))
               }
-              type="datetime-local"
-              value={form.enteredAt}
-            />
+              value={form.appointmentId}
+            >
+              {appointments.map((appointment) => (
+                <option key={appointment.id} value={appointment.id}>
+                  {appointmentLabel(appointment)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm font-semibold">
+            Apply deposit
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, depositId: event.target.value }))
+              }
+              value={form.depositId}
+            >
+              <option value="">No deposit applied</option>
+              {availableDeposits.map((deposit) => (
+                <option key={deposit.id} value={deposit.id}>
+                  {money(deposit.amount)} / {displayDate(deposit.received_at)}
+                </option>
+              ))}
+            </select>
           </label>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -453,7 +495,7 @@ function SessionEntryModal({
 
           <button
             className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving}
+            disabled={saving || appointments.length === 0}
             onClick={() => onSave(form)}
             type="button"
           >
@@ -547,6 +589,23 @@ export default function ProjectsPage() {
     return sessions.filter((session) => session.project_id === selectedProject.id);
   }, [selectedProject, sessions]);
 
+  const availableSelectedDeposits = useMemo(() => {
+    return selectedDeposits.filter((deposit) => deposit.available);
+  }, [selectedDeposits]);
+
+  const unenteredSelectedAppointments = useMemo(() => {
+    const enteredAppointmentIds = new Set(
+      selectedSessions
+        .map((session) => session.appointment_id)
+        .filter((appointmentId): appointmentId is string => Boolean(appointmentId)),
+    );
+
+    return selectedAppointments.filter(
+      (appointment) =>
+        !enteredAppointmentIds.has(appointment.id) && appointment.status !== "cancelled",
+    );
+  }, [selectedAppointments, selectedSessions]);
+
   const activeCount = projects.filter((project) =>
     ["lead", "consultation", "booked", "in_progress"].includes(project.status),
   ).length;
@@ -582,13 +641,13 @@ export default function ProjectsPage() {
           supabase
             .from("deposits")
             .select(
-              "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, memo",
+              "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
             )
             .order("received_at", { ascending: false }),
           supabase
             .from("session_entries")
             .select(
-              "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+              "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
             )
             .order("entered_at", { ascending: false }),
         ]);
@@ -705,7 +764,9 @@ export default function ProjectsPage() {
         memo: form.memo.trim() || null,
         created_by: userData.user?.id ?? null,
       })
-      .select("id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, memo")
+      .select(
+        "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+      )
       .single();
 
     if (result.error) {
@@ -722,6 +783,13 @@ export default function ProjectsPage() {
 
   async function createSession(form: SessionForm) {
     if (!selectedProject) {
+      return;
+    }
+
+    const appointment = selectedAppointments.find((item) => item.id === form.appointmentId);
+
+    if (!appointment) {
+      setEntryError("Choose a calendar appointment for this session.");
       return;
     }
 
@@ -749,9 +817,10 @@ export default function ProjectsPage() {
       .insert({
         project_id: selectedProject.id,
         customer_id: selectedProject.customer_id,
-        artist_id: selectedProject.artist_id,
+        appointment_id: appointment.id,
+        artist_id: appointment.artist_id ?? selectedProject.artist_id,
         entry_type: "session",
-        entered_at: new Date(form.enteredAt).toISOString(),
+        entered_at: new Date(appointment.starts_at).toISOString(),
         tattoo_amount: tattooAmount,
         tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
         tip_amount: tipAmount,
@@ -760,7 +829,7 @@ export default function ProjectsPage() {
         created_by: userData.user?.id ?? null,
       })
       .select(
-        "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+        "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
       )
       .single();
 
@@ -768,6 +837,33 @@ export default function ProjectsPage() {
       setEntryError(result.error.message);
       setSaving(false);
       return;
+    }
+
+    if (form.depositId) {
+      const depositResult = await supabase
+        .from("deposits")
+        .update({
+          available: false,
+          used_at: new Date().toISOString(),
+          used_session_entry_id: result.data.id,
+        })
+        .eq("id", form.depositId)
+        .select(
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+        )
+        .single();
+
+      if (depositResult.error) {
+        setEntryError(depositResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      setDeposits((current) =>
+        current.map((deposit) =>
+          deposit.id === form.depositId ? (depositResult.data as DepositRecord) : deposit,
+        ),
+      );
     }
 
     setSessions((current) => [result.data as SessionEntryRecord, ...current]);
@@ -1004,6 +1100,7 @@ export default function ProjectsPage() {
                     <h3 className="text-base font-semibold">Session entries</h3>
                     <button
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
+                      disabled={unenteredSelectedAppointments.length === 0}
                       onClick={() => {
                         setEntryError("");
                         setShowSessionEntry(true);
@@ -1026,7 +1123,15 @@ export default function ProjectsPage() {
                       >
                         <div>
                           <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
-                          <p className="text-[#697178]">{session.entry_type}</p>
+                          <p className="text-[#697178]">
+                            {selectedAppointments.find((item) => item.id === session.appointment_id)
+                              ? appointmentLabel(
+                                  selectedAppointments.find(
+                                    (item) => item.id === session.appointment_id,
+                                  )!,
+                                )
+                              : "No appointment"}
+                          </p>
                         </div>
                         <div>
                           <p className="font-semibold">{money(session.tattoo_amount)} tattoo</p>
@@ -1121,6 +1226,8 @@ export default function ProjectsPage() {
 
       {showSessionEntry && selectedProject ? (
         <SessionEntryModal
+          appointments={unenteredSelectedAppointments}
+          availableDeposits={availableSelectedDeposits}
           error={entryError}
           onClose={() => setShowSessionEntry(false)}
           onSave={createSession}
