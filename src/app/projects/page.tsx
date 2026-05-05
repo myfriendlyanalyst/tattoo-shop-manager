@@ -415,6 +415,7 @@ function SessionEntryModal({
                   onChange={(event) =>
                     setForm((current) => ({ ...current, startsAt: event.target.value }))
                   }
+                  step={1800}
                   type="datetime-local"
                   value={form.startsAt}
                 />
@@ -426,6 +427,7 @@ function SessionEntryModal({
                   onChange={(event) =>
                     setForm((current) => ({ ...current, endsAt: event.target.value }))
                   }
+                  step={1800}
                   type="datetime-local"
                   value={form.endsAt}
                 />
@@ -449,6 +451,11 @@ function SessionEntryModal({
                 </option>
               ))}
             </select>
+            {availableDeposits.length === 0 ? (
+              <span className="mt-2 block text-xs font-medium text-[#697178]">
+                No available deposits for this project.
+              </span>
+            ) : null}
           </label>
 
           <div className="grid gap-3 sm:grid-cols-2">

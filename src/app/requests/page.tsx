@@ -43,16 +43,6 @@ type RequestRecord = {
   artist: { display_name: string } | { display_name: string }[] | null;
 };
 
-type CandidateRecord = {
-  id: string;
-  request_id: string;
-  artist_id: string;
-  status: string;
-  responded_at: string | null;
-  notes: string | null;
-  artist: { display_name: string } | { display_name: string }[] | null;
-};
-
 type RequestFile = {
   id: string;
   request_id: string | null;
@@ -108,6 +98,15 @@ function relatedOne<T>(value: T | T[] | null) {
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isValidPhone(value: string) {
+  return /^\+?[0-9\s().-]{7,20}$/.test(value);
+}
+
+function isValidPositiveNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
 }
 
 function statusLabel(status: string) {
@@ -258,9 +257,9 @@ function NewRequestModal({
     approximateSize: "",
     placement: "",
     referenceFile: null,
-    requestedArtistLabel: "Any available artist",
+    requestedArtistLabel: artists[0]?.display_name ?? "",
     ageConfirmed: true,
-    artistId: "",
+    artistId: artists[0]?.id ?? "",
     notes: "",
   });
 
@@ -328,6 +327,8 @@ function NewRequestModal({
                 setForm((current) => ({ ...current, approximateSize: event.target.value }))
               }
               placeholder="Approximate size"
+              step="0.1"
+              type="number"
               value={form.approximateSize}
             />
             <input
@@ -367,12 +368,12 @@ function NewRequestModal({
                 setForm((current) => ({
                   ...current,
                   artistId: event.target.value,
-                  requestedArtistLabel: selectedArtist?.display_name ?? "Any available artist",
+                  requestedArtistLabel: selectedArtist?.display_name ?? "",
                 }));
               }}
               value={form.artistId}
             >
-              <option value="">Any available</option>
+              <option value="">Select artist</option>
               {artists.map((artist) => (
                 <option key={artist.id} value={artist.id}>
                   {artist.display_name}
@@ -412,11 +413,9 @@ function NewRequestModal({
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestRecord[]>([]);
-  const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
   const [requestFiles, setRequestFiles] = useState<RequestFile[]>([]);
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
-  const [artistToAdd, setArtistToAdd] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [artistFilter, setArtistFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -440,14 +439,6 @@ export default function RequestsPage() {
     });
   }, [artistFilter, requests, statusFilter]);
 
-  const selectedCandidates = useMemo(() => {
-    if (!selectedRequest) {
-      return [];
-    }
-
-    return candidates.filter((candidate) => candidate.request_id === selectedRequest.id);
-  }, [candidates, selectedRequest]);
-
   const selectedFiles = useMemo(() => {
     if (!selectedRequest) {
       return [];
@@ -455,9 +446,6 @@ export default function RequestsPage() {
 
     return requestFiles.filter((file) => file.request_id === selectedRequest.id);
   }, [requestFiles, selectedRequest]);
-
-  const candidateArtistIds = new Set(selectedCandidates.map((candidate) => candidate.artist_id));
-  const availableArtistsToAdd = artists.filter((artist) => !candidateArtistIds.has(artist.id));
 
   const statusSummary = summaryStatuses.map((status) => ({
     label: statusLabel(status),
@@ -477,7 +465,7 @@ export default function RequestsPage() {
         return;
       }
 
-      const [requestResult, staffResult, permissionResult, candidateResult, fileResult] = await Promise.all([
+      const [requestResult, staffResult, permissionResult, fileResult] = await Promise.all([
         supabase
           .from("requests")
           .select(requestSelect)
@@ -491,10 +479,6 @@ export default function RequestsPage() {
           .from("staff_permissions")
           .select("staff_id, permission_key, enabled")
           .eq("permission_key", "calendarBooking"),
-        supabase
-          .from("request_artist_candidates")
-          .select("id, request_id, artist_id, status, responded_at, notes, artist:staff(display_name)")
-          .order("created_at", { ascending: true }),
         supabase
           .from("files")
           .select("id, request_id, file_type, storage_path, original_name, mime_type, size_bytes")
@@ -521,12 +505,6 @@ export default function RequestsPage() {
         return;
       }
 
-      if (candidateResult.error) {
-        setError(`${candidateResult.error.message}. Run docs/supabase_request_candidates.sql in Supabase SQL Editor.`);
-        setLoading(false);
-        return;
-      }
-
       if (fileResult.error) {
         setError(fileResult.error.message);
         setLoading(false);
@@ -542,10 +520,8 @@ export default function RequestsPage() {
 
       setRequests(nextRequests);
       setArtists(nextArtists);
-      setCandidates((candidateResult.data ?? []) as unknown as CandidateRecord[]);
       setRequestFiles(nextFiles);
       setSelectedRequestId(nextRequests[0]?.id ?? "");
-      setArtistToAdd(nextArtists[0]?.id ?? "");
       setLoading(false);
     }
 
@@ -600,14 +576,37 @@ export default function RequestsPage() {
     const clientName = form.clientName.trim();
     const tattooDescription = form.tattooDescription.trim();
     const email = form.email.trim();
+    const phone = form.phone.trim();
+    const approximateSize = form.approximateSize.trim();
+    const placement = form.placement.trim();
 
-    if (!clientName || !tattooDescription) {
-      setNewRequestError("Client name and tattoo description are required.");
+    if (
+      !clientName ||
+      !email ||
+      !phone ||
+      !tattooDescription ||
+      !approximateSize ||
+      !placement ||
+      !form.artistId
+    ) {
+      setNewRequestError(
+        "Name, email, phone, tattoo description, size, placement, and artist are required.",
+      );
       return;
     }
 
-    if (email && !isValidEmail(email)) {
+    if (!isValidEmail(email)) {
       setNewRequestError("Enter a valid email address.");
+      return;
+    }
+
+    if (!isValidPhone(phone)) {
+      setNewRequestError("Enter a valid phone number.");
+      return;
+    }
+
+    if (!isValidPositiveNumber(approximateSize)) {
+      setNewRequestError("Approximate size must be a number greater than 0.");
       return;
     }
 
@@ -618,16 +617,16 @@ export default function RequestsPage() {
       .from("requests")
       .insert({
         client_name: clientName,
-        email: email || null,
-        phone: form.phone.trim() || null,
+        email,
+        phone,
         subject: tattooDescription,
         tattoo_description: tattooDescription,
-        approximate_size: form.approximateSize.trim() || null,
-        placement: form.placement.trim() || null,
+        approximate_size: approximateSize,
+        placement,
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
         age_confirmed: form.ageConfirmed,
-        artist_id: form.artistId || null,
+        artist_id: form.artistId,
         priority: "normal",
         notes: form.notes.trim() || null,
         status: "new",
@@ -689,24 +688,24 @@ export default function RequestsPage() {
     setSaving(false);
   }
 
-  async function addCandidate() {
-    if (!selectedRequest || !artistToAdd) {
+  async function assignRequestArtist(artistId: string) {
+    if (!selectedRequest || !artistId) {
       return;
     }
+
+    const artist = artists.find((item) => item.id === artistId);
+    const requestPatch = {
+      artist_id: artistId,
+      requested_artist_label: artist?.display_name ?? selectedRequest.requested_artist_label,
+      status: selectedRequest.status === "new" ? "forwarded" : selectedRequest.status,
+      forwarded_at: selectedRequest.forwarded_at ?? new Date().toISOString(),
+    };
 
     setSaving(true);
     setError("");
     setMessage("");
 
-    const result = await supabase
-      .from("request_artist_candidates")
-      .insert({
-        request_id: selectedRequest.id,
-        artist_id: artistToAdd,
-        status: "sent",
-      })
-      .select("id, request_id, artist_id, status, responded_at, notes, artist:staff(display_name)")
-      .single();
+    const result = await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
 
     if (result.error) {
       setError(result.error.message);
@@ -714,97 +713,18 @@ export default function RequestsPage() {
       return;
     }
 
-    const requestPatch = {
-      status: "forwarded",
-      forwarded_at: selectedRequest.forwarded_at ?? new Date().toISOString(),
-    };
-
-    await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
-
-    setCandidates((current) => [...current, result.data as unknown as CandidateRecord]);
     setRequests((current) =>
       current.map((request) =>
-        request.id === selectedRequest.id ? { ...request, ...requestPatch } : request,
-      ),
-    );
-    setMessage("Candidate artist added.");
-    setArtistToAdd(availableArtistsToAdd.find((artist) => artist.id !== artistToAdd)?.id ?? "");
-    setSaving(false);
-  }
-
-  async function updateCandidate(candidate: CandidateRecord, status: string) {
-    if (!selectedRequest) {
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setMessage("");
-
-    const candidatePatch = {
-      status,
-      responded_at: ["interested", "passed", "declined", "selected"].includes(status)
-        ? new Date().toISOString()
-        : candidate.responded_at,
-    };
-
-    const candidateResult = await supabase
-      .from("request_artist_candidates")
-      .update(candidatePatch)
-      .eq("id", candidate.id);
-
-    if (candidateResult.error) {
-      setError(candidateResult.error.message);
-      setSaving(false);
-      return;
-    }
-
-    const requestPatch =
-      status === "selected"
-        ? {
-            artist_id: candidate.artist_id,
-            status: "artist_replied",
-            artist_reply_at: selectedRequest.artist_reply_at ?? new Date().toISOString(),
-          }
-        : status === "interested"
+        request.id === selectedRequest.id
           ? {
-              status: "artist_replied",
-              artist_reply_at: selectedRequest.artist_reply_at ?? new Date().toISOString(),
+              ...request,
+              ...requestPatch,
+              artist: artist ? { display_name: artist.display_name } : request.artist,
             }
-          : null;
-
-    if (status === "selected") {
-      await supabase
-        .from("request_artist_candidates")
-        .update({ status: "sent" })
-        .eq("request_id", selectedRequest.id)
-        .neq("id", candidate.id)
-        .eq("status", "selected");
-    }
-
-    if (requestPatch) {
-      await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
-    }
-
-    setCandidates((current) =>
-      current.map((item) =>
-        item.id === candidate.id
-          ? { ...item, ...candidatePatch }
-          : status === "selected" &&
-              item.request_id === selectedRequest.id &&
-              item.status === "selected"
-            ? { ...item, status: "sent" }
-            : item,
+          : request,
       ),
     );
-    if (requestPatch) {
-      setRequests((current) =>
-        current.map((request) =>
-          request.id === selectedRequest.id ? { ...request, ...requestPatch } : request,
-        ),
-      );
-    }
-    setMessage(status === "selected" ? "Artist selected for this request." : "Candidate updated.");
+    setMessage("Artist assigned.");
     setSaving(false);
   }
 
@@ -1154,91 +1074,24 @@ export default function RequestsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-semibold">Candidate artists</h4>
-                    <div className="mt-3 flex gap-2">
+                    <h4 className="text-sm font-semibold">Artist assignment</h4>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
                       <select
-                        className="h-10 min-w-0 flex-1 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                        onChange={(event) => setArtistToAdd(event.target.value)}
-                        value={artistToAdd}
+                        className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                        disabled={saving}
+                        onChange={(event) => assignRequestArtist(event.target.value)}
+                        value={selectedRequest.artist_id ?? ""}
                       >
-                        {availableArtistsToAdd.map((artist) => (
+                        <option value="">Select artist</option>
+                        {artists.map((artist) => (
                           <option key={artist.id} value={artist.id}>
                             {artist.display_name}
                           </option>
                         ))}
                       </select>
-                      <button
-                        className="h-10 rounded-md bg-[#9f5c3c] px-3 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={saving || !artistToAdd}
-                        onClick={addCandidate}
-                        type="button"
-                      >
-                        Send
-                      </button>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {selectedCandidates.length === 0 ? (
-                        <p className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#697178]">
-                          No candidate artists yet.
-                        </p>
-                      ) : null}
-                      {selectedCandidates.map((candidate) => {
-                        const artist = relatedOne(candidate.artist);
-
-                        return (
-                          <div
-                            key={candidate.id}
-                            className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-semibold">
-                                  {artist?.display_name ?? "Artist"}
-                                </p>
-                                <p className="mt-1 text-xs text-[#697178]">
-                                  {candidate.responded_at
-                                    ? displayDateTime(candidate.responded_at)
-                                    : "Waiting for response"}
-                                </p>
-                              </div>
-                              <span
-                                className={`rounded-md px-2 py-1 text-xs font-semibold ${statusClasses(
-                                  candidate.status,
-                                )}`}
-                              >
-                                {statusLabel(candidate.status)}
-                              </span>
-                            </div>
-                            <div className="mt-3 grid grid-cols-3 gap-2">
-                              <button
-                                className="h-9 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
-                                disabled={saving}
-                                onClick={() => updateCandidate(candidate, "interested")}
-                                type="button"
-                              >
-                                Interested
-                              </button>
-                              <button
-                                className="h-9 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
-                                disabled={saving}
-                                onClick={() => updateCandidate(candidate, "passed")}
-                                type="button"
-                              >
-                                Pass
-                              </button>
-                              <button
-                                className="h-9 rounded-md bg-[#1f2428] px-2 text-xs font-semibold text-white hover:bg-[#30373d]"
-                                disabled={saving}
-                                onClick={() => updateCandidate(candidate, "selected")}
-                                type="button"
-                              >
-                                Select
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                      <span className="flex h-10 items-center rounded-md bg-[#f7f2e9] px-3 text-xs font-semibold text-[#697178]">
+                        Admin assigns
+                      </span>
                     </div>
                   </div>
 

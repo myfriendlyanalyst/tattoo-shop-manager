@@ -45,6 +45,15 @@ type Appointment = {
   notes: string;
 };
 
+type ProjectRecord = {
+  id: string;
+  customer_id: string;
+  artist_id: string | null;
+  subject: string;
+  status: string;
+  customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
+};
+
 type AppointmentRow = {
   id: string;
   artist_id: string | null;
@@ -67,8 +76,8 @@ type DraftAppointment = {
 };
 
 type NewAppointmentForm = {
-  customer: string;
-  project: string;
+  customerId: string;
+  projectId: string;
   type: string;
   notes: string;
   start: string;
@@ -364,25 +373,30 @@ function AppointmentDetailModal({
 
 function NewAppointmentModal({
   draft,
+  projects,
   saving,
   error,
   onClose,
   onSave,
 }: {
   draft: DraftAppointment;
+  projects: ProjectRecord[];
   saving: boolean;
   error: string;
   onClose: () => void;
   onSave: (form: NewAppointmentForm) => void;
 }) {
+  const firstProject = projects[0];
   const [form, setForm] = useState<NewAppointmentForm>({
-    customer: "",
-    project: "",
+    customerId: firstProject?.customer_id ?? "",
+    projectId: firstProject?.id ?? "",
     type: "Consultation",
     notes: "",
     start: draft.start,
     end: draft.end,
   });
+  const selectedProject = projects.find((project) => project.id === form.projectId) ?? firstProject;
+  const selectedCustomer = relatedOne(selectedProject?.customer ?? null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
@@ -443,18 +457,37 @@ function NewAppointmentModal({
             </label>
           </div>
 
-          <input
-            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, customer: event.target.value }))}
-            placeholder="Customer"
-            value={form.customer}
-          />
-          <input
-            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, project: event.target.value }))}
-            placeholder="Project"
-            value={form.project}
-          />
+          <label className="block text-sm font-semibold">
+            Project
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => {
+                const project = projects.find((item) => item.id === event.target.value);
+
+                setForm((current) => ({
+                  ...current,
+                  projectId: event.target.value,
+                  customerId: project?.customer_id ?? "",
+                }));
+              }}
+              value={form.projectId}
+            >
+              {projects.length === 0 ? <option value="">No projects for this artist</option> : null}
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.subject}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-semibold">
+            Customer
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm"
+              readOnly
+              value={selectedCustomer?.name ?? "Select a project"}
+            />
+          </label>
           <select
             className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
             onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
@@ -486,6 +519,7 @@ function NewAppointmentModal({
 
 export default function CalendarPage() {
   const [artists, setArtists] = useState<StaffRecord[]>([]);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(defaultDate);
@@ -519,6 +553,14 @@ export default function CalendarPage() {
     [schedules, selectedDate],
   );
 
+  const draftProjects = useMemo(() => {
+    if (!draftAppointment) {
+      return [];
+    }
+
+    return projects.filter((project) => project.artist_id === draftAppointment.artistId);
+  }, [draftAppointment, projects]);
+
   useEffect(() => {
     async function loadCalendar() {
       setLoading(true);
@@ -535,7 +577,7 @@ export default function CalendarPage() {
       const dayStart = timestampFor(selectedDate, "00:00");
       const dayEnd = timestampFor(selectedDate, "23:59");
 
-      const [staffResult, scheduleResult, permissionResult, appointmentResult] = await Promise.all([
+      const [staffResult, scheduleResult, permissionResult, projectResult, appointmentResult] = await Promise.all([
         supabase
           .from("staff")
           .select("id, display_name, role, active")
@@ -548,6 +590,11 @@ export default function CalendarPage() {
           .from("staff_permissions")
           .select("staff_id, permission_key, enabled")
           .eq("permission_key", "calendarBooking"),
+        supabase
+          .from("projects")
+          .select("id, customer_id, artist_id, subject, status, customer:customers(name, email)")
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false }),
         supabase
           .from("appointments")
           .select(
@@ -576,6 +623,12 @@ export default function CalendarPage() {
         return;
       }
 
+      if (projectResult.error) {
+        setError(projectResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       if (appointmentResult.error) {
         setError(appointmentResult.error.message);
         setLoading(false);
@@ -585,6 +638,7 @@ export default function CalendarPage() {
       const nextPermissions = permissionResult.data ?? [];
 
       setArtists((staffResult.data ?? []).filter((staff) => canShowInCalendar(staff, nextPermissions)));
+      setProjects((projectResult.data ?? []) as unknown as ProjectRecord[]);
       setSchedules(scheduleResult.data ?? []);
       setAppointments(((appointmentResult.data ?? []) as unknown as AppointmentRow[]).map(mapAppointment));
       setLoading(false);
@@ -602,10 +656,11 @@ export default function CalendarPage() {
       return;
     }
 
-    const customerName = form.customer.trim();
-    const projectSubject = form.project.trim();
+    const project = projects.find(
+      (item) => item.id === form.projectId && item.artist_id === draftAppointment.artistId,
+    );
 
-    if (!customerName || !projectSubject) {
+    if (!project || !form.customerId) {
       setModalError("Customer and project are required.");
       return;
     }
@@ -618,41 +673,11 @@ export default function CalendarPage() {
     setSaving(true);
     setModalError("");
 
-    const customerResult = await supabase
-      .from("customers")
-      .insert({ name: customerName })
-      .select("id, name")
-      .single();
-
-    if (customerResult.error) {
-      setModalError(customerResult.error.message);
-      setSaving(false);
-      return;
-    }
-
-    const projectResult = await supabase
-      .from("projects")
-      .insert({
-        customer_id: customerResult.data.id,
-        artist_id: draftAppointment.artistId,
-        subject: projectSubject,
-        session_type: form.type,
-        status: "booked",
-      })
-      .select("id, subject, waiver_signed")
-      .single();
-
-    if (projectResult.error) {
-      setModalError(projectResult.error.message);
-      setSaving(false);
-      return;
-    }
-
     const appointmentResult = await supabase
       .from("appointments")
       .insert({
-        project_id: projectResult.data.id,
-        customer_id: customerResult.data.id,
+        project_id: project.id,
+        customer_id: project.customer_id,
         artist_id: draftAppointment.artistId,
         starts_at: timestampFor(draftAppointment.date, form.start),
         ends_at: timestampFor(draftAppointment.date, form.end),
@@ -953,6 +978,7 @@ export default function CalendarPage() {
           draft={draftAppointment}
           error={modalError}
           onClose={() => setDraftAppointment(null)}
+          projects={draftProjects}
           onSave={saveAppointment}
           saving={saving}
         />
