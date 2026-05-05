@@ -73,6 +73,14 @@ type DepositApplicationRecord = {
   memo: string | null;
 };
 
+type SessionPaymentRecord = {
+  id: string;
+  session_entry_id: string;
+  payment_method: string;
+  amount: number;
+  memo: string | null;
+};
+
 type SessionEntryRecord = {
   id: string;
   appointment_id: string | null;
@@ -103,9 +111,16 @@ type SessionForm = {
   depositAppliedAmount: string;
   tattooAmount: string;
   tattooPaymentMethod: string;
+  paymentLines: PaymentLineForm[];
   tipAmount: string;
   tipPaymentMethod: string;
   memo: string;
+};
+
+type PaymentLineForm = {
+  id: string;
+  paymentMethod: string;
+  amount: string;
 };
 
 const projectSelect =
@@ -176,6 +191,14 @@ function depositAppliedTotal(depositId: string, applications: DepositApplication
 
 function depositRemaining(deposit: DepositRecord, applications: DepositApplicationRecord[]) {
   return Math.max(Number(deposit.amount) - depositAppliedTotal(deposit.id, applications), 0);
+}
+
+function newPaymentLine(method = "cash", amount = ""): PaymentLineForm {
+  return {
+    id: crypto.randomUUID(),
+    paymentMethod: method,
+    amount,
+  };
 }
 
 function projectStatusLabel(status: string) {
@@ -372,6 +395,7 @@ function SessionEntryModal({
   appointments,
   availableDeposits,
   depositApplications,
+  sessionPayments,
   onClose,
   onSave,
 }: {
@@ -382,6 +406,7 @@ function SessionEntryModal({
   appointments: AppointmentRecord[];
   availableDeposits: DepositRecord[];
   depositApplications: DepositApplicationRecord[];
+  sessionPayments: SessionPaymentRecord[];
   onClose: () => void;
   onSave: (form: SessionForm) => void;
 }) {
@@ -408,6 +433,11 @@ function SessionEntryModal({
           },
         ]
     : availableDeposits;
+  const sessionPaymentLines = session
+    ? sessionPayments
+        .filter((payment) => payment.session_entry_id === session.id)
+        .map((payment) => newPaymentLine(payment.payment_method, numberInputValue(payment.amount)))
+    : [];
   const [form, setForm] = useState<SessionForm>(() => {
     const startsAt = new Date();
     const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
@@ -420,6 +450,10 @@ function SessionEntryModal({
       depositAppliedAmount: numberInputValue(sessionDepositApplication?.amount),
       tattooAmount: numberInputValue(session?.tattoo_amount),
       tattooPaymentMethod: session?.tattoo_payment_method ?? "cash",
+      paymentLines:
+        sessionPaymentLines.length > 0
+          ? sessionPaymentLines
+          : [newPaymentLine(session?.tattoo_payment_method ?? "cash")],
       tipAmount: numberInputValue(session?.tip_amount),
       tipPaymentMethod: session?.tip_payment_method ?? "cash",
       memo: session?.memo ?? "",
@@ -433,6 +467,13 @@ function SessionEntryModal({
   const selectedDepositAvailable = selectedDeposit
     ? depositRemaining(selectedDeposit, depositApplications) + currentAppliedAmount
     : 0;
+  const tattooAmount = Number(form.tattooAmount || 0);
+  const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
+  const nonDepositPaidAmount = form.paymentLines.reduce(
+    (sum, line) => sum + Number(line.amount || 0),
+    0,
+  );
+  const remainingTattooBalance = tattooAmount - appliedDepositAmount - nonDepositPaidAmount;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
@@ -578,22 +619,93 @@ function SessionEntryModal({
                 value={form.tattooAmount}
               />
             </label>
-            <label className="text-sm font-semibold">
-              Tattoo payment
-              <select
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tattooPaymentMethod: event.target.value }))
-                }
-                value={form.tattooPaymentMethod}
+            <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
+              <p className="font-semibold">Payment balance</p>
+              <p className="mt-1 text-[#697178]">
+                Deposit {money(appliedDepositAmount)} + other payments {money(nonDepositPaidAmount)}
+              </p>
+              <p
+                className={`mt-1 font-semibold ${
+                  Math.abs(remainingTattooBalance) < 0.01 ? "text-[#2f6658]" : "text-[#8a5130]"
+                }`}
               >
-                {paymentMethods.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                Remaining {money(remainingTattooBalance)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold">Payment breakdown</p>
+              <button
+                className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    paymentLines: [...current.paymentLines, newPaymentLine()],
+                  }))
+                }
+                type="button"
+              >
+                Add payment
+              </button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {form.paymentLines.map((line, index) => (
+                <div key={line.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <select
+                    className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        paymentLines: current.paymentLines.map((item) =>
+                          item.id === line.id
+                            ? { ...item, paymentMethod: event.target.value }
+                            : item,
+                        ),
+                      }))
+                    }
+                    value={line.paymentMethod}
+                  >
+                    {paymentMethods.map((method) => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    min="0"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        paymentLines: current.paymentLines.map((item) =>
+                          item.id === line.id ? { ...item, amount: event.target.value } : item,
+                        ),
+                      }))
+                    }
+                    placeholder="0.00"
+                    step="0.01"
+                    type="number"
+                    value={line.amount}
+                  />
+                  <button
+                    className="h-10 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={form.paymentLines.length === 1}
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        paymentLines: current.paymentLines.filter((item) => item.id !== line.id),
+                      }))
+                    }
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                  {index === 0 ? null : null}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -656,6 +768,7 @@ export default function ProjectsPage() {
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
   const [depositApplications, setDepositApplications] = useState<DepositApplicationRecord[]>([]);
+  const [sessionPayments, setSessionPayments] = useState<SessionPaymentRecord[]>([]);
   const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [artistFilter, setArtistFilter] = useState("all");
@@ -785,6 +898,7 @@ export default function ProjectsPage() {
         appointmentResult,
         depositResult,
         depositApplicationResult,
+        sessionPaymentResult,
         sessionResult,
       ] =
         await Promise.all([
@@ -807,6 +921,10 @@ export default function ProjectsPage() {
             .from("deposit_applications")
             .select("id, deposit_id, session_entry_id, amount, applied_at, memo")
             .order("applied_at", { ascending: false }),
+          supabase
+            .from("session_payments")
+            .select("id, session_entry_id, payment_method, amount, memo")
+            .order("created_at", { ascending: false }),
           supabase
             .from("session_entries")
             .select(
@@ -847,6 +965,14 @@ export default function ProjectsPage() {
         return;
       }
 
+      if (sessionPaymentResult.error) {
+        setError(
+          `${sessionPaymentResult.error.message}. Run docs/supabase_session_payments.sql in Supabase SQL Editor.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       if (sessionResult.error) {
         setError(sessionResult.error.message);
         setLoading(false);
@@ -862,6 +988,7 @@ export default function ProjectsPage() {
       setDepositApplications(
         (depositApplicationResult.data ?? []) as DepositApplicationRecord[],
       );
+      setSessionPayments((sessionPaymentResult.data ?? []) as SessionPaymentRecord[]);
       setSessions((sessionResult.data ?? []) as SessionEntryRecord[]);
       setSelectedProjectId(nextProjects[0]?.id ?? "");
       setLoading(false);
@@ -999,6 +1126,13 @@ export default function ProjectsPage() {
     const tattooAmount = Number(form.tattooAmount || 0);
     const tipAmount = Number(form.tipAmount || 0);
     const depositAppliedAmount = Number(form.depositAppliedAmount || 0);
+    const paymentLines = form.paymentLines
+      .map((line) => ({
+        paymentMethod: line.paymentMethod,
+        amount: Number(line.amount || 0),
+      }))
+      .filter((line) => line.amount > 0);
+    const paymentLineTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0);
     const priorDepositApplications = editingSession
       ? depositApplications.filter((application) => application.session_entry_id === editingSession.id)
       : [];
@@ -1019,7 +1153,8 @@ export default function ProjectsPage() {
     if (
       !Number.isFinite(tattooAmount) ||
       !Number.isFinite(tipAmount) ||
-      !Number.isFinite(depositAppliedAmount)
+      !Number.isFinite(depositAppliedAmount) ||
+      form.paymentLines.some((line) => !Number.isFinite(Number(line.amount || 0)))
     ) {
       setEntryError("Amounts must be valid numbers.");
       return;
@@ -1042,6 +1177,16 @@ export default function ProjectsPage() {
 
     if (form.depositId && depositAppliedAmount > selectedDepositAvailable) {
       setEntryError(`Applied deposit cannot exceed available balance ${money(selectedDepositAvailable)}.`);
+      return;
+    }
+
+    if (depositAppliedAmount > tattooAmount) {
+      setEntryError("Applied deposit cannot exceed the tattoo amount.");
+      return;
+    }
+
+    if (Math.abs(tattooAmount - depositAppliedAmount - paymentLineTotal) >= 0.01) {
+      setEntryError("Payment breakdown must equal tattoo amount minus applied deposit.");
       return;
     }
 
@@ -1081,7 +1226,7 @@ export default function ProjectsPage() {
 
     const sessionPayload = {
       tattoo_amount: tattooAmount,
-      tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
+      tattoo_payment_method: paymentLines[0]?.paymentMethod ?? null,
       tip_amount: tipAmount,
       tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
       memo: form.memo.trim() || null,
@@ -1116,6 +1261,48 @@ export default function ProjectsPage() {
       setEntryError(result.error.message);
       setSaving(false);
       return;
+    }
+
+    const deletePaymentsResult = await supabase
+      .from("session_payments")
+      .delete()
+      .eq("session_entry_id", result.data.id);
+
+    if (deletePaymentsResult.error) {
+      setEntryError(deletePaymentsResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    let nextSessionPayments = sessionPayments.filter(
+      (payment) => payment.session_entry_id !== result.data.id,
+    );
+
+    if (paymentLines.length > 0) {
+      const paymentResult = await supabase
+        .from("session_payments")
+        .insert(
+          paymentLines.map((line) => ({
+            session_entry_id: result.data.id,
+            payment_method: line.paymentMethod,
+            amount: line.amount,
+            created_by: userData.user?.id ?? null,
+          })),
+        )
+        .select("id, session_entry_id, payment_method, amount, memo");
+
+      if (paymentResult.error) {
+        setEntryError(
+          `${paymentResult.error.message}. Run docs/supabase_session_payments.sql in Supabase SQL Editor.`,
+        );
+        setSaving(false);
+        return;
+      }
+
+      nextSessionPayments = [
+        ...((paymentResult.data ?? []) as SessionPaymentRecord[]),
+        ...nextSessionPayments,
+      ];
     }
 
     const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
@@ -1207,6 +1394,7 @@ export default function ProjectsPage() {
     }
 
     setDepositApplications(nextDepositApplications);
+    setSessionPayments(nextSessionPayments);
     setSessions((current) =>
       editingSession
         ? current.map((session) =>
@@ -1241,6 +1429,17 @@ export default function ProjectsPage() {
         setSaving(false);
         return;
       }
+    }
+
+    const paymentResult = await supabase
+      .from("session_payments")
+      .delete()
+      .eq("session_entry_id", session.id);
+
+    if (paymentResult.error) {
+      setError(paymentResult.error.message);
+      setSaving(false);
+      return;
     }
 
     const result = await supabase.from("session_entries").delete().eq("id", session.id);
@@ -1288,6 +1487,9 @@ export default function ProjectsPage() {
     }
 
     setDepositApplications(nextApplications);
+    setSessionPayments((current) =>
+      current.filter((payment) => payment.session_entry_id !== session.id),
+    );
     if (updatedDeposits.length > 0) {
       setDeposits((current) =>
         current.map((deposit) => updatedDeposits.find((item) => item.id === deposit.id) ?? deposit),
@@ -1588,7 +1790,13 @@ export default function ProjectsPage() {
                         <div>
                           <p className="font-semibold">{money(session.tattoo_amount)} tattoo</p>
                           <p className="text-[#697178]">
-                            {paymentLabel(session.tattoo_payment_method)}
+                            {sessionPayments
+                              .filter((payment) => payment.session_entry_id === session.id)
+                              .map(
+                                (payment) =>
+                                  `${paymentLabel(payment.payment_method)} ${money(payment.amount)}`,
+                              )
+                              .join(" / ") || paymentLabel(session.tattoo_payment_method)}
                           </p>
                         </div>
                         <div>
@@ -1755,6 +1963,7 @@ export default function ProjectsPage() {
           project={selectedProject}
           saving={saving}
           session={editingSession}
+          sessionPayments={sessionPayments}
         />
       ) : null}
 
