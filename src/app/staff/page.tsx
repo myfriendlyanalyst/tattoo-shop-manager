@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
   id: string;
+  profile_id: string | null;
   display_name: string;
   legal_name: string | null;
   role: string;
@@ -45,6 +46,8 @@ type InviteUserForm = {
   role: string;
   permissionKeys: string[];
 };
+
+type ManageStaffMode = "deactivate" | "delete";
 
 const permissions = [
   { key: "artistSchedule", label: "Artist Schedule" },
@@ -262,6 +265,83 @@ function InviteUserModal({
   );
 }
 
+function ManageStaffUserModal({
+  person,
+  mode,
+  error,
+  saving,
+  onClose,
+  onConfirm,
+}: {
+  person: StaffRecord;
+  mode: ManageStaffMode;
+  error: string;
+  saving: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const isDelete = mode === "delete";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-lg rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">
+              {isDelete ? "Delete user" : "Deactivate user"}
+            </p>
+            <h3 className="mt-1 text-xl font-semibold">{person.display_name}</h3>
+            <p className="mt-1 text-sm text-[#697178]">{person.email || "No email"}</p>
+          </div>
+          <button
+            aria-label="Close staff user management"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <p className="text-sm text-[#4d555c]">
+            {isDelete
+              ? "This removes the staff record and the linked Supabase Auth user. Use this for test invites or mistaken duplicate accounts."
+              : "This keeps historical records but removes this person from active staff workflows."}
+          </p>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+              disabled={saving}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className={`h-10 rounded-md px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
+                isDelete ? "bg-[#8a3030] hover:bg-[#6f2424]" : "bg-[#1f2428] hover:bg-[#30373d]"
+              }`}
+              disabled={saving}
+              onClick={onConfirm}
+              type="button"
+            >
+              {saving ? "Working..." : isDelete ? "Delete user" : "Deactivate"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
@@ -274,6 +354,8 @@ export default function StaffPage() {
   const [message, setMessage] = useState("");
   const [showInviteUser, setShowInviteUser] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [manageMode, setManageMode] = useState<ManageStaffMode | null>(null);
+  const [manageError, setManageError] = useState("");
 
   useEffect(() => {
     async function loadStaff() {
@@ -291,7 +373,7 @@ export default function StaffPage() {
       const [staffResult, scheduleResult, permissionResult] = await Promise.all([
         supabase
           .from("staff")
-          .select("id, display_name, legal_name, role, email, phone, start_date, active")
+          .select("id, profile_id, display_name, legal_name, role, email, phone, start_date, active")
           .order("sort_order", { ascending: true }),
         supabase
           .from("staff_schedules")
@@ -549,6 +631,78 @@ export default function StaffPage() {
     setSaving(false);
   }
 
+  async function manageStaffUser(mode: ManageStaffMode) {
+    if (!selectedStaff) {
+      return;
+    }
+
+    setSaving(true);
+    setManageError("");
+    setError("");
+    setMessage("");
+
+    const sessionResult = await supabase.auth.getSession();
+    const accessToken = sessionResult.data.session?.access_token;
+
+    if (!accessToken) {
+      setManageError("Please log in again before managing this user.");
+      setSaving(false);
+      return;
+    }
+
+    const response = await fetch("/api/staff-user", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        staffId: selectedStaff.id,
+        mode,
+      }),
+    });
+
+    const result = (await response.json()) as { staffId?: string; error?: string };
+
+    if (!response.ok || !result.staffId) {
+      setManageError(result.error ?? "Could not update staff user.");
+      setSaving(false);
+      return;
+    }
+
+    if (mode === "deactivate") {
+      setStaff((current) =>
+        current.map((person) =>
+          person.id === selectedStaff.id ? { ...person, active: false } : person,
+        ),
+      );
+      setMessage(`${selectedStaff.display_name} was deactivated.`);
+    } else {
+      const nextStaff = staff.filter((person) => person.id !== selectedStaff.id);
+      setStaff(nextStaff);
+      setStaffPermissions((current) =>
+        current.filter((permission) => permission.staff_id !== selectedStaff.id),
+      );
+      setSchedules((current) => current.filter((slot) => slot.staff_id !== selectedStaff.id));
+      const nextSelected = nextStaff[0];
+      setSelectedStaffId(nextSelected?.id ?? "");
+      setForm(
+        nextSelected
+          ? {
+              displayName: nextSelected.display_name,
+              role: nextSelected.role,
+              schedule: scheduleForStaff(nextSelected.id, schedules),
+              permissionKeys: permissionKeysForStaff(nextSelected.id, staffPermissions),
+            }
+          : null,
+      );
+      setMessage(`${selectedStaff.display_name} was deleted.`);
+    }
+
+    setManageMode(null);
+    setSaving(false);
+  }
+
   return (
     <AppShell
       active="Staff"
@@ -796,13 +950,38 @@ export default function StaffPage() {
                   </div>
                 </div>
 
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving}
+                    onClick={saveStaffRecord}
+                    type="button"
+                  >
+                    {saving ? "Saving..." : "Save staff record"}
+                  </button>
+                  <button
+                    className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving || !selectedStaff.active}
+                    onClick={() => {
+                      setManageError("");
+                      setManageMode("deactivate");
+                    }}
+                    type="button"
+                  >
+                    Deactivate
+                  </button>
+                </div>
+
                 <button
-                  className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-10 w-full rounded-md border border-[#d6b8b8] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={saving}
-                  onClick={saveStaffRecord}
+                  onClick={() => {
+                    setManageError("");
+                    setManageMode("delete");
+                  }}
                   type="button"
                 >
-                  {saving ? "Saving..." : "Save staff record"}
+                  Delete user
                 </button>
               </div>
             </section>
@@ -823,6 +1002,17 @@ export default function StaffPage() {
           error={inviteError}
           onClose={() => setShowInviteUser(false)}
           onInvite={inviteUser}
+          saving={saving}
+        />
+      ) : null}
+
+      {manageMode && selectedStaff ? (
+        <ManageStaffUserModal
+          error={manageError}
+          mode={manageMode}
+          onClose={() => setManageMode(null)}
+          onConfirm={() => manageStaffUser(manageMode)}
+          person={selectedStaff}
           saving={saving}
         />
       ) : null}
