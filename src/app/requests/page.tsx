@@ -54,7 +54,15 @@ type RequestFile = {
   url?: string;
 };
 
+type CustomerRecord = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
+
 type NewRequestForm = {
+  customerId: string;
   clientName: string;
   email: string;
   phone: string;
@@ -107,6 +115,10 @@ function isValidPhone(value: string) {
 function isValidPositiveNumber(value: string) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
+}
+
+function normalizeEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
 }
 
 function statusLabel(status: string) {
@@ -238,18 +250,21 @@ async function filesWithSignedUrls(files: RequestFile[]) {
 
 function NewRequestModal({
   artists,
+  customers,
   error,
   saving,
   onClose,
   onSave,
 }: {
   artists: StaffRecord[];
+  customers: CustomerRecord[];
   error: string;
   saving: boolean;
   onClose: () => void;
   onSave: (form: NewRequestForm) => void;
 }) {
   const [form, setForm] = useState<NewRequestForm>({
+    customerId: "",
     clientName: "",
     email: "",
     phone: "",
@@ -291,23 +306,68 @@ function NewRequestModal({
             </p>
           ) : null}
 
+          <label className="block text-sm font-semibold">
+            Existing customer
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => {
+                const customer = customers.find((item) => item.id === event.target.value);
+
+                setForm((current) => ({
+                  ...current,
+                  customerId: event.target.value,
+                  clientName: customer?.name ?? "",
+                  email: customer?.email ?? "",
+                  phone: customer?.phone ?? "",
+                }));
+              }}
+              value={form.customerId}
+            >
+              <option value="">New customer from this request</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                  {customer.email ? ` / ${customer.email}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <input
             className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, clientName: event.target.value }))}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                customerId: "",
+                clientName: event.target.value,
+              }))
+            }
             placeholder="Client name"
             value={form.clientName}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  customerId: "",
+                  email: event.target.value,
+                }))
+              }
               placeholder="Email"
               type="email"
               value={form.email}
             />
             <input
               className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  customerId: "",
+                  phone: event.target.value,
+                }))
+              }
               placeholder="Phone"
               value={form.phone}
             />
@@ -415,6 +475,7 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [requestFiles, setRequestFiles] = useState<RequestFile[]>([]);
   const [artists, setArtists] = useState<StaffRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [artistFilter, setArtistFilter] = useState("all");
@@ -465,7 +526,7 @@ export default function RequestsPage() {
         return;
       }
 
-      const [requestResult, staffResult, permissionResult, fileResult] = await Promise.all([
+      const [requestResult, staffResult, permissionResult, customerResult, fileResult] = await Promise.all([
         supabase
           .from("requests")
           .select(requestSelect)
@@ -479,6 +540,10 @@ export default function RequestsPage() {
           .from("staff_permissions")
           .select("staff_id, permission_key, enabled")
           .eq("permission_key", "calendarBooking"),
+        supabase
+          .from("customers")
+          .select("id, name, email, phone")
+          .order("name", { ascending: true }),
         supabase
           .from("files")
           .select("id, request_id, file_type, storage_path, original_name, mime_type, size_bytes")
@@ -505,6 +570,12 @@ export default function RequestsPage() {
         return;
       }
 
+      if (customerResult.error) {
+        setError(customerResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       if (fileResult.error) {
         setError(fileResult.error.message);
         setLoading(false);
@@ -520,6 +591,7 @@ export default function RequestsPage() {
 
       setRequests(nextRequests);
       setArtists(nextArtists);
+      setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setRequestFiles(nextFiles);
       setSelectedRequestId(nextRequests[0]?.id ?? "");
       setLoading(false);
@@ -613,9 +685,15 @@ export default function RequestsPage() {
     setSaving(true);
     setNewRequestError("");
 
+    const existingCustomer = customers.find(
+      (customer) =>
+        customer.id === form.customerId || normalizeEmail(customer.email) === normalizeEmail(email),
+    );
+
     const result = await supabase
       .from("requests")
       .insert({
+        customer_id: existingCustomer?.id ?? null,
         client_name: clientName,
         email,
         phone,
@@ -750,6 +828,14 @@ export default function RequestsPage() {
     let customerId = selectedRequest.customer_id;
 
     if (!customerId) {
+      const matchingCustomer = customers.find(
+        (customer) => normalizeEmail(customer.email) === normalizeEmail(selectedRequest.email),
+      );
+
+      customerId = matchingCustomer?.id ?? null;
+    }
+
+    if (!customerId) {
       const customerResult = await supabase
         .from("customers")
         .insert({
@@ -758,7 +844,7 @@ export default function RequestsPage() {
           phone: selectedRequest.phone,
           notes: requestDetailMemo(selectedRequest),
         })
-        .select("id")
+        .select("id, name, email, phone")
         .single();
 
       if (customerResult.error) {
@@ -768,6 +854,7 @@ export default function RequestsPage() {
       }
 
       customerId = customerResult.data.id;
+      setCustomers((current) => [...current, customerResult.data as CustomerRecord]);
     }
 
     const projectResult = await supabase
@@ -1153,6 +1240,7 @@ export default function RequestsPage() {
       {showNewRequest ? (
         <NewRequestModal
           artists={artists}
+          customers={customers}
           error={newRequestError}
           onClose={() => setShowNewRequest(false)}
           onSave={createRequest}
