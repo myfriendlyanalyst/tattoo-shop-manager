@@ -64,6 +64,15 @@ type DepositRecord = {
   memo: string | null;
 };
 
+type DepositApplicationRecord = {
+  id: string;
+  deposit_id: string;
+  session_entry_id: string;
+  amount: number;
+  applied_at: string;
+  memo: string | null;
+};
+
 type SessionEntryRecord = {
   id: string;
   appointment_id: string | null;
@@ -91,6 +100,7 @@ type SessionForm = {
   startsAt: string;
   endsAt: string;
   depositId: string;
+  depositAppliedAmount: string;
   tattooAmount: string;
   tattooPaymentMethod: string;
   tipAmount: string;
@@ -146,12 +156,26 @@ function money(value: number | null | undefined) {
   }).format(value ?? 0);
 }
 
+function numberInputValue(value: number | null | undefined) {
+  return value && value > 0 ? String(value) : "";
+}
+
 function paymentLabel(value: string | null | undefined) {
   return paymentMethods.find((method) => method.value === value)?.label ?? value ?? "-";
 }
 
 function appointmentLabel(appointment: AppointmentRecord) {
   return `${displayDateTime(appointment.starts_at)} / ${appointment.appointment_type}`;
+}
+
+function depositAppliedTotal(depositId: string, applications: DepositApplicationRecord[]) {
+  return applications
+    .filter((application) => application.deposit_id === depositId)
+    .reduce((sum, application) => sum + Number(application.amount), 0);
+}
+
+function depositRemaining(deposit: DepositRecord, applications: DepositApplicationRecord[]) {
+  return Math.max(Number(deposit.amount) - depositAppliedTotal(deposit.id, applications), 0);
 }
 
 function projectStatusLabel(status: string) {
@@ -222,20 +246,24 @@ function DepositEntryModal({
   error,
   saving,
   project,
+  deposit,
+  appliedAmount,
   onClose,
   onSave,
 }: {
   error: string;
   saving: boolean;
   project: ProjectRecord;
+  deposit?: DepositRecord | null;
+  appliedAmount?: number;
   onClose: () => void;
   onSave: (form: DepositForm) => void;
 }) {
   const [form, setForm] = useState<DepositForm>({
-    amount: "",
-    paymentMethod: "cash",
-    receivedAt: localDateTimeInput(),
-    memo: "",
+    amount: numberInputValue(deposit?.amount),
+    paymentMethod: deposit?.payment_method ?? "cash",
+    receivedAt: deposit ? localDateTimeInput(new Date(deposit.received_at)) : localDateTimeInput(),
+    memo: deposit?.memo ?? "",
   });
 
   return (
@@ -244,7 +272,14 @@ function DepositEntryModal({
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">Deposit entry</p>
-            <h3 className="mt-1 text-xl font-semibold">{project.subject}</h3>
+            <h3 className="mt-1 text-xl font-semibold">
+              {deposit ? "Edit deposit" : project.subject}
+            </h3>
+            {deposit && appliedAmount ? (
+              <p className="mt-1 text-sm text-[#697178]">
+                Already applied: {money(appliedAmount)}
+              </p>
+            ) : null}
           </div>
           <button
             aria-label="Close deposit entry"
@@ -321,7 +356,7 @@ function DepositEntryModal({
             onClick={() => onSave(form)}
             type="button"
           >
-            {saving ? "Saving..." : "Save deposit"}
+            {saving ? "Saving..." : deposit ? "Update deposit" : "Save deposit"}
           </button>
         </div>
       </section>
@@ -333,35 +368,71 @@ function SessionEntryModal({
   error,
   saving,
   project,
+  session,
   appointments,
   availableDeposits,
+  depositApplications,
   onClose,
   onSave,
 }: {
   error: string;
   saving: boolean;
   project: ProjectRecord;
+  session?: SessionEntryRecord | null;
   appointments: AppointmentRecord[];
   availableDeposits: DepositRecord[];
+  depositApplications: DepositApplicationRecord[];
   onClose: () => void;
   onSave: (form: SessionForm) => void;
 }) {
+  const sessionDepositApplication = session
+    ? depositApplications.find((application) => application.session_entry_id === session.id)
+    : null;
+  const selectedDepositPool = sessionDepositApplication
+    ? availableDeposits.some((deposit) => deposit.id === sessionDepositApplication.deposit_id)
+      ? availableDeposits
+      : [
+          ...availableDeposits,
+          {
+            id: sessionDepositApplication.deposit_id,
+            customer_id: project.customer_id,
+            project_id: project.id,
+            artist_id: project.artist_id,
+            amount: sessionDepositApplication.amount,
+            payment_method: null,
+            received_at: sessionDepositApplication.applied_at,
+            available: true,
+            used_at: null,
+            used_session_entry_id: session?.id ?? null,
+            memo: "Previously applied deposit",
+          },
+        ]
+    : availableDeposits;
   const [form, setForm] = useState<SessionForm>(() => {
     const startsAt = new Date();
     const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
 
     return {
-      appointmentId: appointments[0]?.id ?? "",
+      appointmentId: session?.appointment_id ?? appointments[0]?.id ?? "",
       startsAt: localDateTimeInput(startsAt),
       endsAt: localDateTimeInput(endsAt),
-      depositId: "",
-      tattooAmount: "",
-      tattooPaymentMethod: "cash",
-      tipAmount: "",
-      tipPaymentMethod: "cash",
-      memo: "",
+      depositId: sessionDepositApplication?.deposit_id ?? "",
+      depositAppliedAmount: numberInputValue(sessionDepositApplication?.amount),
+      tattooAmount: numberInputValue(session?.tattoo_amount),
+      tattooPaymentMethod: session?.tattoo_payment_method ?? "cash",
+      tipAmount: numberInputValue(session?.tip_amount),
+      tipPaymentMethod: session?.tip_payment_method ?? "cash",
+      memo: session?.memo ?? "",
     };
   });
+  const selectedDeposit = selectedDepositPool.find((deposit) => deposit.id === form.depositId);
+  const currentAppliedAmount =
+    sessionDepositApplication && sessionDepositApplication.deposit_id === form.depositId
+      ? Number(sessionDepositApplication.amount)
+      : 0;
+  const selectedDepositAvailable = selectedDeposit
+    ? depositRemaining(selectedDeposit, depositApplications) + currentAppliedAmount
+    : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
@@ -369,7 +440,9 @@ function SessionEntryModal({
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">Session entry</p>
-            <h3 className="mt-1 text-xl font-semibold">{project.subject}</h3>
+            <h3 className="mt-1 text-xl font-semibold">
+              {session ? "Edit session" : project.subject}
+            </h3>
           </div>
           <button
             aria-label="Close session entry"
@@ -392,6 +465,7 @@ function SessionEntryModal({
             Appointment
             <select
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              disabled={Boolean(session)}
               onChange={(event) =>
                 setForm((current) => ({ ...current, appointmentId: event.target.value }))
               }
@@ -435,28 +509,59 @@ function SessionEntryModal({
             </div>
           ) : null}
 
-          <label className="block text-sm font-semibold">
-            Apply deposit
-            <select
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, depositId: event.target.value }))
-              }
-              value={form.depositId}
-            >
-              <option value="">No deposit applied</option>
-              {availableDeposits.map((deposit) => (
-                <option key={deposit.id} value={deposit.id}>
-                  {money(deposit.amount)} / {displayDate(deposit.received_at)}
-                </option>
-              ))}
-            </select>
-            {availableDeposits.length === 0 ? (
-              <span className="mt-2 block text-xs font-medium text-[#697178]">
-                No available deposits for this project.
-              </span>
-            ) : null}
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Apply deposit
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    depositId: event.target.value,
+                    depositAppliedAmount: "",
+                  }))
+                }
+                value={form.depositId}
+              >
+                <option value="">No deposit applied</option>
+                {selectedDepositPool.map((deposit) => (
+                  <option key={deposit.id} value={deposit.id}>
+                    {money(
+                      depositRemaining(deposit, depositApplications) +
+                        (sessionDepositApplication?.deposit_id === deposit.id
+                          ? Number(sessionDepositApplication.amount)
+                          : 0),
+                    )}{" "}
+                    available / {displayDate(deposit.received_at)}
+                  </option>
+                ))}
+              </select>
+              {selectedDepositPool.length === 0 ? (
+                <span className="mt-2 block text-xs font-medium text-[#697178]">
+                  No available deposits for this project.
+                </span>
+              ) : null}
+            </label>
+            <label className="text-sm font-semibold">
+              Apply amount
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                disabled={!form.depositId}
+                max={selectedDeposit ? selectedDepositAvailable : undefined}
+                min="0"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    depositAppliedAmount: event.target.value,
+                  }))
+                }
+                placeholder="0.00"
+                step="0.01"
+                type="number"
+                value={form.depositAppliedAmount}
+              />
+            </label>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-semibold">
@@ -537,7 +642,7 @@ function SessionEntryModal({
             onClick={() => onSave(form)}
             type="button"
           >
-            {saving ? "Saving..." : "Save session"}
+            {saving ? "Saving..." : session ? "Update session" : "Save session"}
           </button>
         </div>
       </section>
@@ -550,6 +655,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
+  const [depositApplications, setDepositApplications] = useState<DepositApplicationRecord[]>([]);
   const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [artistFilter, setArtistFilter] = useState("all");
@@ -562,6 +668,8 @@ export default function ProjectsPage() {
   const [entryError, setEntryError] = useState("");
   const [showDepositEntry, setShowDepositEntry] = useState(false);
   const [showSessionEntry, setShowSessionEntry] = useState(false);
+  const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
+  const [editingSession, setEditingSession] = useState<SessionEntryRecord | null>(null);
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -628,8 +736,15 @@ export default function ProjectsPage() {
   }, [selectedProject, sessions]);
 
   const availableSelectedDeposits = useMemo(() => {
-    return selectedDeposits.filter((deposit) => deposit.available);
-  }, [selectedDeposits]);
+    return selectedDeposits.filter(
+      (deposit) => depositRemaining(deposit, depositApplications) > 0,
+    );
+  }, [depositApplications, selectedDeposits]);
+
+  const selectedDepositApplications = useMemo(() => {
+    const depositIds = new Set(selectedDeposits.map((deposit) => deposit.id));
+    return depositApplications.filter((application) => depositIds.has(application.deposit_id));
+  }, [depositApplications, selectedDeposits]);
 
   const unenteredSelectedAppointments = useMemo(() => {
     const enteredAppointmentIds = new Set(
@@ -649,8 +764,7 @@ export default function ProjectsPage() {
   ).length;
   const waiverMissingCount = projects.filter((project) => waiverLabel(project) !== "Signed").length;
   const availableDepositTotal = deposits
-    .filter((deposit) => deposit.available)
-    .reduce((sum, deposit) => sum + Number(deposit.amount), 0);
+    .reduce((sum, deposit) => sum + depositRemaining(deposit, depositApplications), 0);
 
   useEffect(() => {
     async function loadProjects() {
@@ -665,7 +779,14 @@ export default function ProjectsPage() {
         return;
       }
 
-      const [staffResult, projectResult, appointmentResult, depositResult, sessionResult] =
+      const [
+        staffResult,
+        projectResult,
+        appointmentResult,
+        depositResult,
+        depositApplicationResult,
+        sessionResult,
+      ] =
         await Promise.all([
           supabase
             .from("staff")
@@ -682,6 +803,10 @@ export default function ProjectsPage() {
               "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
             )
             .order("received_at", { ascending: false }),
+          supabase
+            .from("deposit_applications")
+            .select("id, deposit_id, session_entry_id, amount, applied_at, memo")
+            .order("applied_at", { ascending: false }),
           supabase
             .from("session_entries")
             .select(
@@ -714,6 +839,14 @@ export default function ProjectsPage() {
         return;
       }
 
+      if (depositApplicationResult.error) {
+        setError(
+          `${depositApplicationResult.error.message}. Run docs/supabase_deposit_applications.sql in Supabase SQL Editor.`,
+        );
+        setLoading(false);
+        return;
+      }
+
       if (sessionResult.error) {
         setError(sessionResult.error.message);
         setLoading(false);
@@ -726,6 +859,9 @@ export default function ProjectsPage() {
       setProjects(nextProjects);
       setAppointments((appointmentResult.data ?? []) as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
+      setDepositApplications(
+        (depositApplicationResult.data ?? []) as DepositApplicationRecord[],
+      );
       setSessions((sessionResult.data ?? []) as SessionEntryRecord[]);
       setSelectedProjectId(nextProjects[0]?.id ?? "");
       setLoading(false);
@@ -771,15 +907,23 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
-  async function createDeposit(form: DepositForm) {
+  async function saveDeposit(form: DepositForm) {
     if (!selectedProject) {
       return;
     }
 
     const amount = Number(form.amount);
+    const alreadyApplied = editingDeposit
+      ? depositAppliedTotal(editingDeposit.id, depositApplications)
+      : 0;
 
     if (!Number.isFinite(amount) || amount <= 0) {
       setEntryError("Deposit amount must be greater than 0.");
+      return;
+    }
+
+    if (editingDeposit && amount < alreadyApplied) {
+      setEntryError(`Deposit amount cannot be less than already applied amount ${money(alreadyApplied)}.`);
       return;
     }
 
@@ -789,23 +933,36 @@ export default function ProjectsPage() {
     setMessage("");
 
     const { data: userData } = await supabase.auth.getUser();
-    const result = await supabase
-      .from("deposits")
-      .insert({
-        project_id: selectedProject.id,
-        customer_id: selectedProject.customer_id,
-        artist_id: selectedProject.artist_id,
-        amount,
-        payment_method: form.paymentMethod,
-        received_at: new Date(form.receivedAt).toISOString(),
-        available: true,
-        memo: form.memo.trim() || null,
-        created_by: userData.user?.id ?? null,
-      })
-      .select(
-        "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
-      )
-      .single();
+    const payload = {
+      amount,
+      payment_method: form.paymentMethod,
+      received_at: new Date(form.receivedAt).toISOString(),
+      available: amount - alreadyApplied > 0,
+      used_at: amount - alreadyApplied > 0 ? null : new Date().toISOString(),
+      memo: form.memo.trim() || null,
+    };
+    const result = editingDeposit
+      ? await supabase
+          .from("deposits")
+          .update(payload)
+          .eq("id", editingDeposit.id)
+          .select(
+            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+          )
+          .single()
+      : await supabase
+          .from("deposits")
+          .insert({
+            project_id: selectedProject.id,
+            customer_id: selectedProject.customer_id,
+            artist_id: selectedProject.artist_id,
+            ...payload,
+            created_by: userData.user?.id ?? null,
+          })
+          .select(
+            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+          )
+          .single();
 
     if (result.error) {
       setEntryError(result.error.message);
@@ -813,18 +970,27 @@ export default function ProjectsPage() {
       return;
     }
 
-    setDeposits((current) => [result.data as DepositRecord, ...current]);
+    setDeposits((current) =>
+      editingDeposit
+        ? current.map((deposit) =>
+            deposit.id === editingDeposit.id ? (result.data as DepositRecord) : deposit,
+          )
+        : [result.data as DepositRecord, ...current],
+    );
+    setEditingDeposit(null);
     setShowDepositEntry(false);
-    setMessage("Deposit entry saved.");
+    setMessage(editingDeposit ? "Deposit updated." : "Deposit entry saved.");
     setSaving(false);
   }
 
-  async function createSession(form: SessionForm) {
+  async function saveSession(form: SessionForm) {
     if (!selectedProject) {
       return;
     }
 
-    const appointment = selectedAppointments.find((item) => item.id === form.appointmentId);
+    const appointment = editingSession
+      ? selectedAppointments.find((item) => item.id === editingSession.appointment_id)
+      : selectedAppointments.find((item) => item.id === form.appointmentId);
     const startsAt = appointment?.starts_at ?? form.startsAt;
     const endsAt = appointment?.ends_at ?? form.endsAt;
     const startsDate = new Date(startsAt);
@@ -832,19 +998,50 @@ export default function ProjectsPage() {
 
     const tattooAmount = Number(form.tattooAmount || 0);
     const tipAmount = Number(form.tipAmount || 0);
+    const depositAppliedAmount = Number(form.depositAppliedAmount || 0);
+    const priorDepositApplications = editingSession
+      ? depositApplications.filter((application) => application.session_entry_id === editingSession.id)
+      : [];
+    const currentDepositApplication = priorDepositApplications.find(
+      (application) => application.deposit_id === form.depositId,
+    );
+    const selectedDeposit = deposits.find((deposit) => deposit.id === form.depositId);
+    const selectedDepositAvailable = selectedDeposit
+      ? depositRemaining(selectedDeposit, depositApplications) +
+        Number(currentDepositApplication?.amount ?? 0)
+      : 0;
 
-    if (!appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
+    if (!editingSession && !appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
       setEntryError("Manual sessions need a valid start and end time.");
       return;
     }
 
-    if (!Number.isFinite(tattooAmount) || !Number.isFinite(tipAmount)) {
+    if (
+      !Number.isFinite(tattooAmount) ||
+      !Number.isFinite(tipAmount) ||
+      !Number.isFinite(depositAppliedAmount)
+    ) {
       setEntryError("Amounts must be valid numbers.");
       return;
     }
 
     if (tattooAmount <= 0 && tipAmount <= 0) {
       setEntryError("Enter a tattoo amount or a tip amount.");
+      return;
+    }
+
+    if (form.depositId && depositAppliedAmount <= 0) {
+      setEntryError("Enter the deposit amount to apply.");
+      return;
+    }
+
+    if (!form.depositId && depositAppliedAmount > 0) {
+      setEntryError("Select a deposit before entering an applied amount.");
+      return;
+    }
+
+    if (form.depositId && depositAppliedAmount > selectedDepositAvailable) {
+      setEntryError(`Applied deposit cannot exceed available balance ${money(selectedDepositAvailable)}.`);
       return;
     }
 
@@ -856,7 +1053,7 @@ export default function ProjectsPage() {
     const { data: userData } = await supabase.auth.getUser();
     let sessionAppointment = appointment;
 
-    if (!sessionAppointment) {
+    if (!editingSession && !sessionAppointment) {
       const appointmentResult = await supabase
         .from("appointments")
         .insert({
@@ -882,26 +1079,38 @@ export default function ProjectsPage() {
       setAppointments((current) => [sessionAppointment!, ...current]);
     }
 
-    const result = await supabase
-      .from("session_entries")
-      .insert({
-        project_id: selectedProject.id,
-        customer_id: selectedProject.customer_id,
-        appointment_id: sessionAppointment.id,
-        artist_id: sessionAppointment.artist_id ?? selectedProject.artist_id,
-        entry_type: "session",
-        entered_at: new Date(sessionAppointment.starts_at).toISOString(),
-        tattoo_amount: tattooAmount,
-        tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
-        tip_amount: tipAmount,
-        tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
-        memo: form.memo.trim() || null,
-        created_by: userData.user?.id ?? null,
-      })
-      .select(
-        "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
-      )
-      .single();
+    const sessionPayload = {
+      tattoo_amount: tattooAmount,
+      tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
+      tip_amount: tipAmount,
+      tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
+      memo: form.memo.trim() || null,
+    };
+    const result = editingSession
+      ? await supabase
+          .from("session_entries")
+          .update(sessionPayload)
+          .eq("id", editingSession.id)
+          .select(
+            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+          )
+          .single()
+      : await supabase
+          .from("session_entries")
+          .insert({
+            project_id: selectedProject.id,
+            customer_id: selectedProject.customer_id,
+            appointment_id: sessionAppointment!.id,
+            artist_id: sessionAppointment!.artist_id ?? selectedProject.artist_id,
+            entry_type: "session",
+            entered_at: new Date(sessionAppointment!.starts_at).toISOString(),
+            ...sessionPayload,
+            created_by: userData.user?.id ?? null,
+          })
+          .select(
+            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+          )
+          .single();
 
     if (result.error) {
       setEntryError(result.error.message);
@@ -909,15 +1118,74 @@ export default function ProjectsPage() {
       return;
     }
 
+    const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
+
     if (form.depositId) {
+      affectedDepositIds.add(form.depositId);
+    }
+
+    let nextDepositApplications = depositApplications.filter(
+      (application) => application.session_entry_id !== result.data.id,
+    );
+
+    if (priorDepositApplications.length > 0) {
+      const deleteApplicationResult = await supabase
+        .from("deposit_applications")
+        .delete()
+        .eq("session_entry_id", result.data.id);
+
+      if (deleteApplicationResult.error) {
+        setEntryError(deleteApplicationResult.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (form.depositId && depositAppliedAmount > 0) {
+      const applicationResult = await supabase
+        .from("deposit_applications")
+        .insert({
+          deposit_id: form.depositId,
+          session_entry_id: result.data.id,
+          amount: depositAppliedAmount,
+          memo: form.memo.trim() || null,
+          created_by: userData.user?.id ?? null,
+        })
+        .select("id, deposit_id, session_entry_id, amount, applied_at, memo")
+        .single();
+
+      if (applicationResult.error) {
+        setEntryError(
+          `${applicationResult.error.message}. Run docs/supabase_deposit_applications.sql in Supabase SQL Editor.`,
+        );
+        setSaving(false);
+        return;
+      }
+
+      nextDepositApplications = [
+        applicationResult.data as DepositApplicationRecord,
+        ...nextDepositApplications,
+      ];
+    }
+
+    const updatedDeposits: DepositRecord[] = [];
+
+    for (const depositId of affectedDepositIds) {
+      const deposit = deposits.find((item) => item.id === depositId);
+
+      if (!deposit) {
+        continue;
+      }
+
+      const remaining = depositRemaining(deposit, nextDepositApplications);
       const depositResult = await supabase
         .from("deposits")
         .update({
-          available: false,
-          used_at: new Date().toISOString(),
-          used_session_entry_id: result.data.id,
+          available: remaining > 0,
+          used_at: remaining > 0 ? null : new Date().toISOString(),
+          used_session_entry_id: remaining > 0 ? null : result.data.id,
         })
-        .eq("id", form.depositId)
+        .eq("id", depositId)
         .select(
           "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
         )
@@ -929,16 +1197,130 @@ export default function ProjectsPage() {
         return;
       }
 
+      updatedDeposits.push(depositResult.data as DepositRecord);
+    }
+
+    if (updatedDeposits.length > 0) {
       setDeposits((current) =>
-        current.map((deposit) =>
-          deposit.id === form.depositId ? (depositResult.data as DepositRecord) : deposit,
-        ),
+        current.map((deposit) => updatedDeposits.find((item) => item.id === deposit.id) ?? deposit),
       );
     }
 
-    setSessions((current) => [result.data as SessionEntryRecord, ...current]);
+    setDepositApplications(nextDepositApplications);
+    setSessions((current) =>
+      editingSession
+        ? current.map((session) =>
+            session.id === editingSession.id ? (result.data as SessionEntryRecord) : session,
+          )
+        : [result.data as SessionEntryRecord, ...current],
+    );
+    setEditingSession(null);
     setShowSessionEntry(false);
-    setMessage("Session entry saved.");
+    setMessage(editingSession ? "Session entry updated." : "Session entry saved.");
+    setSaving(false);
+  }
+
+  async function deleteSession(session: SessionEntryRecord) {
+    const relatedApplications = depositApplications.filter(
+      (application) => application.session_entry_id === session.id,
+    );
+
+    setSaving(true);
+    setEntryError("");
+    setError("");
+    setMessage("");
+
+    if (relatedApplications.length > 0) {
+      const applicationResult = await supabase
+        .from("deposit_applications")
+        .delete()
+        .eq("session_entry_id", session.id);
+
+      if (applicationResult.error) {
+        setError(applicationResult.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    const result = await supabase.from("session_entries").delete().eq("id", session.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const nextApplications = depositApplications.filter(
+      (application) => application.session_entry_id !== session.id,
+    );
+    const affectedDepositIds = new Set(relatedApplications.map((application) => application.deposit_id));
+    const updatedDeposits: DepositRecord[] = [];
+
+    for (const depositId of affectedDepositIds) {
+      const deposit = deposits.find((item) => item.id === depositId);
+
+      if (!deposit) {
+        continue;
+      }
+
+      const remaining = depositRemaining(deposit, nextApplications);
+      const depositResult = await supabase
+        .from("deposits")
+        .update({
+          available: remaining > 0,
+          used_at: remaining > 0 ? null : new Date().toISOString(),
+          used_session_entry_id: null,
+        })
+        .eq("id", depositId)
+        .select(
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+        )
+        .single();
+
+      if (depositResult.error) {
+        setError(depositResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      updatedDeposits.push(depositResult.data as DepositRecord);
+    }
+
+    setDepositApplications(nextApplications);
+    if (updatedDeposits.length > 0) {
+      setDeposits((current) =>
+        current.map((deposit) => updatedDeposits.find((item) => item.id === deposit.id) ?? deposit),
+      );
+    }
+    setSessions((current) => current.filter((item) => item.id !== session.id));
+    setMessage("Session entry deleted.");
+    setSaving(false);
+  }
+
+  async function deleteDeposit(deposit: DepositRecord) {
+    const appliedAmount = depositAppliedTotal(deposit.id, depositApplications);
+
+    if (appliedAmount > 0) {
+      setError("Deposits with applied amounts cannot be deleted. Delete or edit the linked session first.");
+      return;
+    }
+
+    setSaving(true);
+    setEntryError("");
+    setError("");
+    setMessage("");
+
+    const result = await supabase.from("deposits").delete().eq("id", deposit.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setDeposits((current) => current.filter((item) => item.id !== deposit.id));
+    setMessage("Deposit deleted.");
     setSaving(false);
   }
 
@@ -1172,6 +1554,7 @@ export default function ProjectsPage() {
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
                       onClick={() => {
                         setEntryError("");
+                        setEditingSession(null);
                         setShowSessionEntry(true);
                       }}
                       type="button"
@@ -1188,7 +1571,7 @@ export default function ProjectsPage() {
                     {selectedSessions.map((session) => (
                       <div
                         key={session.id}
-                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.9fr_0.9fr_1fr]"
+                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_1fr_auto]"
                       >
                         <div>
                           <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
@@ -1212,7 +1595,40 @@ export default function ProjectsPage() {
                           <p className="font-semibold">{money(session.tip_amount)} tip</p>
                           <p className="text-[#697178]">{paymentLabel(session.tip_payment_method)}</p>
                         </div>
+                        <div>
+                          <p className="font-semibold">
+                            {money(
+                              depositApplications
+                                .filter((application) => application.session_entry_id === session.id)
+                                .reduce((sum, application) => sum + Number(application.amount), 0),
+                            )}{" "}
+                            deposit
+                          </p>
+                          <p className="text-[#697178]">Applied</p>
+                        </div>
                         <p className="text-[#4d555c]">{session.memo || "-"}</p>
+                        <div className="flex gap-2 md:justify-end">
+                          <button
+                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                            disabled={saving}
+                            onClick={() => {
+                              setEntryError("");
+                              setEditingSession(session);
+                              setShowSessionEntry(true);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
+                            disabled={saving}
+                            onClick={() => deleteSession(session)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1225,6 +1641,7 @@ export default function ProjectsPage() {
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
                       onClick={() => {
                         setEntryError("");
+                        setEditingDeposit(null);
                         setShowDepositEntry(true);
                       }}
                       type="button"
@@ -1241,16 +1658,47 @@ export default function ProjectsPage() {
                     {selectedDeposits.map((deposit) => (
                       <div
                         key={deposit.id}
-                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.7fr_0.6fr_0.7fr_1fr]"
+                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.7fr_0.65fr_0.65fr_0.7fr_1fr_auto]"
                       >
                         <p className="font-semibold">{displayDate(deposit.received_at)}</p>
-                        <p className="font-semibold">{money(deposit.amount)}</p>
-                        <p className={deposit.available ? "text-[#2f6658]" : "text-[#697178]"}>
-                          {deposit.available ? "Available" : "Used"}
+                        <p className="font-semibold">{money(deposit.amount)} original</p>
+                        <p className="font-semibold text-[#8a5130]">
+                          {money(depositAppliedTotal(deposit.id, depositApplications))} applied
+                        </p>
+                        <p
+                          className={
+                            depositRemaining(deposit, depositApplications) > 0
+                              ? "text-[#2f6658]"
+                              : "text-[#697178]"
+                          }
+                        >
+                          {money(depositRemaining(deposit, depositApplications))} left
                         </p>
                         <p className="text-[#4d555c]">
                           {deposit.memo || paymentLabel(deposit.payment_method)}
                         </p>
+                        <div className="flex gap-2 md:justify-end">
+                          <button
+                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                            disabled={saving}
+                            onClick={() => {
+                              setEntryError("");
+                              setEditingDeposit(deposit);
+                              setShowDepositEntry(true);
+                            }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
+                            disabled={saving}
+                            onClick={() => deleteDeposit(deposit)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1295,21 +1743,33 @@ export default function ProjectsPage() {
 
       {showSessionEntry && selectedProject ? (
         <SessionEntryModal
-          appointments={unenteredSelectedAppointments}
+          appointments={editingSession ? selectedAppointments : unenteredSelectedAppointments}
           availableDeposits={availableSelectedDeposits}
+          depositApplications={selectedDepositApplications}
           error={entryError}
-          onClose={() => setShowSessionEntry(false)}
-          onSave={createSession}
+          onClose={() => {
+            setEditingSession(null);
+            setShowSessionEntry(false);
+          }}
+          onSave={saveSession}
           project={selectedProject}
           saving={saving}
+          session={editingSession}
         />
       ) : null}
 
       {showDepositEntry && selectedProject ? (
         <DepositEntryModal
+          appliedAmount={
+            editingDeposit ? depositAppliedTotal(editingDeposit.id, depositApplications) : 0
+          }
+          deposit={editingDeposit}
           error={entryError}
-          onClose={() => setShowDepositEntry(false)}
-          onSave={createDeposit}
+          onClose={() => {
+            setEditingDeposit(null);
+            setShowDepositEntry(false);
+          }}
+          onSave={saveDeposit}
           project={selectedProject}
           saving={saving}
         />
