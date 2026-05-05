@@ -70,11 +70,37 @@ type SessionEntryRecord = {
   entered_at: string;
   entry_type: string;
   tattoo_amount: number | null;
+  tattoo_payment_method: string | null;
   tip_amount: number | null;
+  tip_payment_method: string | null;
+  memo: string | null;
+};
+
+type DepositForm = {
+  amount: string;
+  paymentMethod: string;
+  receivedAt: string;
+  memo: string;
+};
+
+type SessionForm = {
+  enteredAt: string;
+  tattooAmount: string;
+  tattooPaymentMethod: string;
+  tipAmount: string;
+  tipPaymentMethod: string;
+  memo: string;
 };
 
 const projectSelect =
   "id, customer_id, artist_id, subject, size, session_type, waiver_signed, waiver_status, waiver_sent_at, waiver_signed_at, status, memo, created_at, customer:customers(name, email, phone), artist:staff(display_name)";
+
+const paymentMethods = [
+  { value: "cash", label: "Cash" },
+  { value: "credit_card", label: "Credit card" },
+  { value: "app", label: "App" },
+  { value: "other", label: "Other" },
+];
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -101,11 +127,21 @@ function displayDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function localDateTimeInput(value = new Date()) {
+  const offset = value.getTimezoneOffset();
+  const local = new Date(value.getTime() - offset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+}
+
 function money(value: number | null | undefined) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(value ?? 0);
+}
+
+function paymentLabel(value: string | null | undefined) {
+  return paymentMethods.find((method) => method.value === value)?.label ?? value ?? "-";
 }
 
 function projectStatusLabel(status: string) {
@@ -172,6 +208,263 @@ function groupLabel(project: ProjectRecord) {
   return artistName(project);
 }
 
+function DepositEntryModal({
+  error,
+  saving,
+  project,
+  onClose,
+  onSave,
+}: {
+  error: string;
+  saving: boolean;
+  project: ProjectRecord;
+  onClose: () => void;
+  onSave: (form: DepositForm) => void;
+}) {
+  const [form, setForm] = useState<DepositForm>({
+    amount: "",
+    paymentMethod: "cash",
+    receivedAt: localDateTimeInput(),
+    memo: "",
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-lg rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">Deposit entry</p>
+            <h3 className="mt-1 text-xl font-semibold">{project.subject}</h3>
+          </div>
+          <button
+            aria-label="Close deposit entry"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Amount
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                min="0"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, amount: event.target.value }))
+                }
+                placeholder="0.00"
+                step="0.01"
+                type="number"
+                value={form.amount}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Payment method
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, paymentMethod: event.target.value }))
+                }
+                value={form.paymentMethod}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method.value} value={method.value}>
+                    {method.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block text-sm font-semibold">
+            Received at
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, receivedAt: event.target.value }))
+              }
+              type="datetime-local"
+              value={form.receivedAt}
+            />
+          </label>
+
+          <textarea
+            className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
+            placeholder="Memo"
+            value={form.memo}
+          />
+
+          <button
+            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onSave(form)}
+            type="button"
+          >
+            {saving ? "Saving..." : "Save deposit"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SessionEntryModal({
+  error,
+  saving,
+  project,
+  onClose,
+  onSave,
+}: {
+  error: string;
+  saving: boolean;
+  project: ProjectRecord;
+  onClose: () => void;
+  onSave: (form: SessionForm) => void;
+}) {
+  const [form, setForm] = useState<SessionForm>({
+    enteredAt: localDateTimeInput(),
+    tattooAmount: "",
+    tattooPaymentMethod: "cash",
+    tipAmount: "",
+    tipPaymentMethod: "cash",
+    memo: "",
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">Session entry</p>
+            <h3 className="mt-1 text-xl font-semibold">{project.subject}</h3>
+          </div>
+          <button
+            aria-label="Close session entry"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <label className="block text-sm font-semibold">
+            Entered at
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, enteredAt: event.target.value }))
+              }
+              type="datetime-local"
+              value={form.enteredAt}
+            />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Tattoo amount
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                min="0"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, tattooAmount: event.target.value }))
+                }
+                placeholder="0.00"
+                step="0.01"
+                type="number"
+                value={form.tattooAmount}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Tattoo payment
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, tattooPaymentMethod: event.target.value }))
+                }
+                value={form.tattooPaymentMethod}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method.value} value={method.value}>
+                    {method.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Tip amount
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                min="0"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, tipAmount: event.target.value }))
+                }
+                placeholder="0.00"
+                step="0.01"
+                type="number"
+                value={form.tipAmount}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Tip payment
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, tipPaymentMethod: event.target.value }))
+                }
+                value={form.tipPaymentMethod}
+              >
+                {paymentMethods.map((method) => (
+                  <option key={method.value} value={method.value}>
+                    {method.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <textarea
+            className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+            onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
+            placeholder="Memo"
+            value={form.memo}
+          />
+
+          <button
+            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onSave(form)}
+            type="button"
+          >
+            {saving ? "Saving..." : "Save session"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function ProjectsPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -186,6 +479,9 @@ export default function ProjectsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [entryError, setEntryError] = useState("");
+  const [showDepositEntry, setShowDepositEntry] = useState(false);
+  const [showSessionEntry, setShowSessionEntry] = useState(false);
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -292,7 +588,7 @@ export default function ProjectsPage() {
           supabase
             .from("session_entries")
             .select(
-              "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tip_amount",
+              "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
             )
             .order("entered_at", { ascending: false }),
         ]);
@@ -375,6 +671,108 @@ export default function ProjectsPage() {
       ),
     );
     setMessage("Waiver marked as signed.");
+    setSaving(false);
+  }
+
+  async function createDeposit(form: DepositForm) {
+    if (!selectedProject) {
+      return;
+    }
+
+    const amount = Number(form.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setEntryError("Deposit amount must be greater than 0.");
+      return;
+    }
+
+    setSaving(true);
+    setEntryError("");
+    setError("");
+    setMessage("");
+
+    const { data: userData } = await supabase.auth.getUser();
+    const result = await supabase
+      .from("deposits")
+      .insert({
+        project_id: selectedProject.id,
+        customer_id: selectedProject.customer_id,
+        artist_id: selectedProject.artist_id,
+        amount,
+        payment_method: form.paymentMethod,
+        received_at: new Date(form.receivedAt).toISOString(),
+        available: true,
+        memo: form.memo.trim() || null,
+        created_by: userData.user?.id ?? null,
+      })
+      .select("id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, memo")
+      .single();
+
+    if (result.error) {
+      setEntryError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setDeposits((current) => [result.data as DepositRecord, ...current]);
+    setShowDepositEntry(false);
+    setMessage("Deposit entry saved.");
+    setSaving(false);
+  }
+
+  async function createSession(form: SessionForm) {
+    if (!selectedProject) {
+      return;
+    }
+
+    const tattooAmount = Number(form.tattooAmount || 0);
+    const tipAmount = Number(form.tipAmount || 0);
+
+    if (!Number.isFinite(tattooAmount) || !Number.isFinite(tipAmount)) {
+      setEntryError("Amounts must be valid numbers.");
+      return;
+    }
+
+    if (tattooAmount <= 0 && tipAmount <= 0) {
+      setEntryError("Enter a tattoo amount or a tip amount.");
+      return;
+    }
+
+    setSaving(true);
+    setEntryError("");
+    setError("");
+    setMessage("");
+
+    const { data: userData } = await supabase.auth.getUser();
+    const result = await supabase
+      .from("session_entries")
+      .insert({
+        project_id: selectedProject.id,
+        customer_id: selectedProject.customer_id,
+        artist_id: selectedProject.artist_id,
+        entry_type: "session",
+        entered_at: new Date(form.enteredAt).toISOString(),
+        tattoo_amount: tattooAmount,
+        tattoo_payment_method: tattooAmount > 0 ? form.tattooPaymentMethod : null,
+        tip_amount: tipAmount,
+        tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
+        memo: form.memo.trim() || null,
+        created_by: userData.user?.id ?? null,
+      })
+      .select(
+        "id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+      )
+      .single();
+
+    if (result.error) {
+      setEntryError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setSessions((current) => [result.data as SessionEntryRecord, ...current]);
+    setShowSessionEntry(false);
+    setMessage("Session entry saved.");
     setSaving(false);
   }
 
@@ -483,7 +881,7 @@ export default function ProjectsPage() {
                   <div key={artist} className="border-b border-[#eee8dd] last:border-b-0">
                     <div className="bg-[#f7f2e9] px-4 py-2">
                       <p className="text-xs font-bold uppercase text-[#6f7275]">
-                        {artist} · {artistProjects.length}
+                        {artist} / {artistProjects.length}
                       </p>
                     </div>
                     <div className="divide-y divide-[#eee8dd]">
@@ -497,6 +895,7 @@ export default function ProjectsPage() {
                             setSelectedProjectId(project.id);
                             setMessage("");
                             setError("");
+                            setEntryError("");
                           }}
                           type="button"
                         >
@@ -601,8 +1000,18 @@ export default function ProjectsPage() {
                 </section>
 
                 <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-                  <div className="border-b border-[#e5dfd4] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
+                    <button
+                      className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
+                      onClick={() => {
+                        setEntryError("");
+                        setShowSessionEntry(true);
+                      }}
+                      type="button"
+                    >
+                      Add session
+                    </button>
                   </div>
                   <div className="divide-y divide-[#eee8dd]">
                     {selectedSessions.length === 0 ? (
@@ -613,22 +1022,41 @@ export default function ProjectsPage() {
                     {selectedSessions.map((session) => (
                       <div
                         key={session.id}
-                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.8fr_1fr]"
+                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.9fr_0.9fr_1fr]"
                       >
                         <div>
                           <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
                           <p className="text-[#697178]">{session.entry_type}</p>
                         </div>
-                        <p className="font-semibold">{money(session.tattoo_amount)} tattoo</p>
-                        <p className="text-[#4d555c]">{money(session.tip_amount)} tip</p>
+                        <div>
+                          <p className="font-semibold">{money(session.tattoo_amount)} tattoo</p>
+                          <p className="text-[#697178]">
+                            {paymentLabel(session.tattoo_payment_method)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold">{money(session.tip_amount)} tip</p>
+                          <p className="text-[#697178]">{paymentLabel(session.tip_payment_method)}</p>
+                        </div>
+                        <p className="text-[#4d555c]">{session.memo || "-"}</p>
                       </div>
                     ))}
                   </div>
                 </section>
 
                 <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-                  <div className="border-b border-[#e5dfd4] px-4 py-4">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Deposits</h3>
+                    <button
+                      className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
+                      onClick={() => {
+                        setEntryError("");
+                        setShowDepositEntry(true);
+                      }}
+                      type="button"
+                    >
+                      Add deposit
+                    </button>
                   </div>
                   <div className="divide-y divide-[#eee8dd]">
                     {selectedDeposits.length === 0 ? (
@@ -646,7 +1074,9 @@ export default function ProjectsPage() {
                         <p className={deposit.available ? "text-[#2f6658]" : "text-[#697178]"}>
                           {deposit.available ? "Available" : "Used"}
                         </p>
-                        <p className="text-[#4d555c]">{deposit.memo || deposit.payment_method || "-"}</p>
+                        <p className="text-[#4d555c]">
+                          {deposit.memo || paymentLabel(deposit.payment_method)}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -687,6 +1117,26 @@ export default function ProjectsPage() {
             )}
           </section>
         </div>
+      ) : null}
+
+      {showSessionEntry && selectedProject ? (
+        <SessionEntryModal
+          error={entryError}
+          onClose={() => setShowSessionEntry(false)}
+          onSave={createSession}
+          project={selectedProject}
+          saving={saving}
+        />
+      ) : null}
+
+      {showDepositEntry && selectedProject ? (
+        <DepositEntryModal
+          error={entryError}
+          onClose={() => setShowDepositEntry(false)}
+          onSave={createDeposit}
+          project={selectedProject}
+          saving={saving}
+        />
       ) : null}
     </AppShell>
   );
