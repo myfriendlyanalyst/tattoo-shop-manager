@@ -84,25 +84,24 @@ type NewAppointmentForm = {
   end: string;
 };
 
-const dayStartHour = 10;
-const dayEndHour = 18;
+const dayStartHour = 12;
+const dayEndHour = 24;
 const pixelsPerHour = 88;
 const timelineHeight = (dayEndHour - dayStartHour) * pixelsPerHour;
 const defaultDate = "2026-05-03";
 
 const appointmentTypes = [
-  "Consultation",
   "Walk-in",
   "One-Done",
   "On-Going",
-  "Closing",
-  "Deposit",
 ];
 
 const hourMarkers = Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, index) => {
   const hour = dayStartHour + index;
-  const displayHour = hour > 12 ? hour - 12 : hour;
-  const period = hour >= 12 ? "PM" : "AM";
+  const normalizedHour = hour === 24 ? 0 : hour;
+  const displayHour =
+    normalizedHour === 0 ? 12 : normalizedHour > 12 ? normalizedHour - 12 : normalizedHour;
+  const period = normalizedHour >= 12 ? "PM" : "AM";
 
   return {
     label: `${displayHour}:00 ${period}`,
@@ -116,7 +115,8 @@ function normalizeTime(value: string | null) {
 
 function minutesFromStart(time: string) {
   const [hour, minute] = time.split(":").map(Number);
-  return (hour - dayStartHour) * 60 + minute;
+  const normalizedHour = hour === 0 && dayEndHour === 24 ? 24 : hour;
+  return (normalizedHour - dayStartHour) * 60 + minute;
 }
 
 function minutesToTime(minutesFromDayStart: number) {
@@ -145,8 +145,8 @@ function scheduleStyle(schedule: ArtistSchedule) {
     };
   }
 
-  const startMinutes = minutesFromStart(schedule.start);
-  const endMinutes = minutesFromStart(schedule.end);
+  const startMinutes = Math.max(minutesFromStart(schedule.start), 0);
+  const endMinutes = Math.min(minutesFromStart(schedule.end), timelineHeight / pixelsPerHour * 60);
 
   return {
     top: `${(startMinutes / 60) * pixelsPerHour}px`,
@@ -157,8 +157,10 @@ function scheduleStyle(schedule: ArtistSchedule) {
 function formatTime(time: string) {
   const [hourText, minute] = time.split(":");
   const hour = Number(hourText);
-  const displayHour = hour > 12 ? hour - 12 : hour;
-  const period = hour >= 12 ? "PM" : "AM";
+  const normalizedHour = hour === 24 ? 0 : hour;
+  const displayHour =
+    normalizedHour === 0 ? 12 : normalizedHour > 12 ? normalizedHour - 12 : normalizedHour;
+  const period = normalizedHour >= 12 ? "PM" : "AM";
 
   return `${displayHour}:${minute} ${period}`;
 }
@@ -200,7 +202,14 @@ function dayOfWeek(date: string) {
 }
 
 function timestampFor(date: string, time: string) {
-  return new Date(`${date}T${time}:00`).toISOString();
+  const [hourText] = time.split(":");
+  const timestamp = new Date(`${date}T${time}:00`);
+
+  if (dayEndHour === 24 && Number(hourText) === 0) {
+    timestamp.setDate(timestamp.getDate() + 1);
+  }
+
+  return timestamp.toISOString();
 }
 
 function timeFromTimestamp(value: string) {
@@ -390,7 +399,7 @@ function NewAppointmentModal({
   const [form, setForm] = useState<NewAppointmentForm>({
     customerId: firstProject?.customer_id ?? "",
     projectId: firstProject?.id ?? "",
-    type: "Consultation",
+    type: "Walk-in",
     notes: "",
     start: draft.start,
     end: draft.end,
@@ -488,15 +497,18 @@ function NewAppointmentModal({
               value={selectedCustomer?.name ?? "Select a project"}
             />
           </label>
-          <select
-            className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
-            value={form.type}
-          >
-            {appointmentTypes.map((type) => (
-              <option key={type}>{type}</option>
-            ))}
-          </select>
+          <label className="block text-sm font-semibold">
+            Appointment type
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
+              value={form.type}
+            >
+              {appointmentTypes.map((type) => (
+                <option key={type}>{type}</option>
+              ))}
+            </select>
+          </label>
           <textarea
             className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
             onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
@@ -709,7 +721,7 @@ export default function CalendarPage() {
       active="Calendar"
       eyebrow="Appointments"
       title="Calendar and booking"
-      description="Book consultations and tattoo sessions by artist. Staff schedules now come from Supabase."
+      description="Book tattoo sessions by artist. Staff schedules now come from Supabase."
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
@@ -722,8 +734,8 @@ export default function CalendarPage() {
                 artistId: artist.id,
                 artist: artist.display_name,
                 date: selectedDate,
-                start: "10:00",
-                end: "11:00",
+                start: "12:00",
+                end: "13:00",
               });
             }
           }}
@@ -806,7 +818,7 @@ export default function CalendarPage() {
             <div className="flex items-center justify-between border-b border-[#e5dfd4] px-4 py-4">
               <div>
                 <h3 className="text-base font-semibold">{formatDateLabel(selectedDate)}</h3>
-                <p className="mt-1 text-sm text-[#697178]">Artist timeline, 10:00 AM - 6:00 PM</p>
+                <p className="mt-1 text-sm text-[#697178]">Artist timeline, 12:00 PM - 12:00 AM</p>
               </div>
               <span className="rounded-md bg-[#f1eadc] px-2 py-1 text-xs font-semibold text-[#775f36]">
                 {visibleAppointments.length} appointments

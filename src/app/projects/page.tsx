@@ -822,9 +822,6 @@ export default function ProjectsPage() {
     ["lead", "consultation", "booked", "in_progress"].includes(project.status),
   ).length;
   const waiverMissingCount = projects.filter((project) => waiverLabel(project) !== "Signed").length;
-  const availableDepositTotal = deposits
-    .reduce((sum, deposit) => sum + depositRemaining(deposit, depositApplications), 0);
-
   useEffect(() => {
     async function loadProjects() {
       setLoading(true);
@@ -1512,7 +1509,7 @@ export default function ProjectsPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
-          <section className="grid gap-3 md:grid-cols-4">
+          <section className="grid gap-3 md:grid-cols-3">
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <p className="text-sm text-[#697178]">Total projects</p>
               <p className="mt-2 text-2xl font-semibold">{projects.length}</p>
@@ -1524,10 +1521,6 @@ export default function ProjectsPage() {
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <p className="text-sm text-[#697178]">Waiver pending</p>
               <p className="mt-2 text-2xl font-semibold">{waiverMissingCount}</p>
-            </div>
-            <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
-              <p className="text-sm text-[#697178]">Available deposits</p>
-              <p className="mt-2 text-2xl font-semibold">{money(availableDepositTotal)}</p>
             </div>
           </section>
 

@@ -71,7 +71,6 @@ type NewRequestForm = {
   placement: string;
   referenceFile: File | null;
   requestedArtistLabel: string;
-  ageConfirmed: boolean;
   artistId: string;
   notes: string;
 };
@@ -219,11 +218,10 @@ function requestDetailMemo(request: RequestRecord) {
   return [
     request.notes,
     request.tattoo_description ? `Tattoo description: ${request.tattoo_description}` : null,
-    request.approximate_size ? `Approximate size: ${request.approximate_size}` : null,
+    request.approximate_size ? `Approximate size: ${request.approximate_size} inch` : null,
     request.placement ? `Placement: ${request.placement}` : null,
     request.reference_image_url ? `Reference image: ${request.reference_image_url}` : null,
     request.requested_artist_label ? `Requested artist: ${request.requested_artist_label}` : null,
-    `Age confirmed: ${request.age_confirmed ? "Yes" : "No"}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -273,7 +271,6 @@ function NewRequestModal({
     placement: "",
     referenceFile: null,
     requestedArtistLabel: artists[0]?.display_name ?? "",
-    ageConfirmed: true,
     artistId: artists[0]?.id ?? "",
     notes: "",
   });
@@ -386,7 +383,7 @@ function NewRequestModal({
               onChange={(event) =>
                 setForm((current) => ({ ...current, approximateSize: event.target.value }))
               }
-              placeholder="Approximate size"
+              placeholder="Approximate size (inch)"
               step="0.1"
               type="number"
               value={form.approximateSize}
@@ -440,16 +437,6 @@ function NewRequestModal({
                 </option>
               ))}
             </select>
-            <label className="flex h-10 items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 text-sm font-semibold">
-              <input
-                checked={form.ageConfirmed}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, ageConfirmed: event.target.checked }))
-                }
-                type="checkbox"
-              />
-              18+
-            </label>
           </div>
           <textarea
             className="min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
@@ -703,7 +690,7 @@ export default function RequestsPage() {
         placement,
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
-        age_confirmed: form.ageConfirmed,
+        age_confirmed: false,
         artist_id: form.artistId,
         priority: "normal",
         notes: form.notes.trim() || null,
@@ -1108,7 +1095,9 @@ export default function RequestsPage() {
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Size</p>
                         <p className="mt-1 font-semibold">
-                          {selectedRequest.approximate_size || "-"}
+                          {selectedRequest.approximate_size
+                            ? `${selectedRequest.approximate_size} inch`
+                            : "-"}
                         </p>
                       </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
@@ -1119,12 +1108,6 @@ export default function RequestsPage() {
                         <p className="text-[#697178]">Requested artist</p>
                         <p className="mt-1 font-semibold">
                           {selectedRequest.requested_artist_label || "Any available"}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Age confirmed</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.age_confirmed ? "Yes" : "No"}
                         </p>
                       </div>
                     </div>
