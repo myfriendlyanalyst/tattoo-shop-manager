@@ -227,6 +227,13 @@ function requestDetailMemo(request: RequestRecord) {
     .join("\n");
 }
 
+function projectSubjectFromRequest(request: RequestRecord) {
+  const placement = request.placement?.trim();
+  const projectType = placement ? `${placement} tattoo` : "Tattoo project";
+
+  return `${request.client_name} - ${projectType}`;
+}
+
 function safeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
 }
@@ -849,7 +856,7 @@ export default function RequestsPage() {
       .insert({
         customer_id: customerId,
         artist_id: selectedRequest.artist_id,
-        subject: selectedRequest.subject,
+        subject: projectSubjectFromRequest(selectedRequest),
         status: "consultation",
         waiver_signed: false,
         waiver_status: "missing",
@@ -1016,10 +1023,7 @@ export default function RequestsPage() {
                           }}
                         >
                           <td className="px-4 py-4">
-                            <p className="text-xs font-semibold text-[#8a6f4d]">
-                              {request.id.slice(0, 8)}
-                            </p>
-                            <p className="mt-1 font-semibold">{request.client_name}</p>
+                            <p className="font-semibold">{request.client_name}</p>
                             <p className="mt-1 text-[#4d555c]">{request.subject}</p>
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
@@ -1052,10 +1056,7 @@ export default function RequestsPage() {
             {selectedRequest ? (
               <aside className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                 <div className="border-b border-[#e5dfd4] px-4 py-4">
-                  <p className="text-xs font-semibold text-[#8a6f4d]">
-                    {selectedRequest.id.slice(0, 8)}
-                  </p>
-                  <h3 className="mt-1 text-lg font-semibold">{selectedRequest.client_name}</h3>
+                  <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
                   <p className="mt-1 text-sm text-[#697178]">{selectedRequest.subject}</p>
                 </div>
 
@@ -1213,6 +1214,10 @@ export default function RequestsPage() {
                       {selectedRequest.project_id ? "Project created" : "Convert to project"}
                     </button>
                   </div>
+
+                  <p className="border-t border-[#eee8dd] pt-3 text-[11px] text-[#9a9183]">
+                    Internal request ID: {selectedRequest.id.slice(0, 8)}
+                  </p>
                 </div>
               </aside>
             ) : null}

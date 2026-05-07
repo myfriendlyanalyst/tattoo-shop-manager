@@ -214,6 +214,16 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function customerSearchLabel(
+  customer: { name: string; email?: string | null; phone?: string | null } | null | undefined,
+) {
+  if (!customer) {
+    return "";
+  }
+
+  return [customer.name, customer.email, customer.phone].filter(Boolean).join(" / ");
+}
+
 function dayOfWeek(date: string) {
   return new Date(`${date}T00:00:00`).getDay();
 }
@@ -416,9 +426,11 @@ function NewAppointmentModal({
 }) {
   const firstProject = projects[0];
   const firstCustomer = customers[0];
+  const firstProjectCustomer = relatedOne(firstProject?.customer ?? null);
+  const initialCustomer = firstProjectCustomer ?? firstCustomer;
   const [form, setForm] = useState<NewAppointmentForm>({
     mode: firstProject ? "project" : "walk_in",
-    customerId: firstProject?.customer_id ?? "",
+    customerId: firstProject?.customer_id ?? firstCustomer?.id ?? "",
     projectId: firstProject?.id ?? "",
     customerMode: firstCustomer ? "existing" : "new",
     newCustomerName: "",
@@ -430,10 +442,26 @@ function NewAppointmentModal({
     start: draft.start,
     end: draft.end,
   });
+  const [customerSearch, setCustomerSearch] = useState(customerSearchLabel(initialCustomer));
   const selectedProject = projects.find((project) => project.id === form.projectId) ?? firstProject;
   const selectedProjectCustomer = relatedOne(selectedProject?.customer ?? null);
-  const selectedCustomer = customers.find((customer) => customer.id === form.customerId) ?? firstCustomer;
+  const selectedCustomer = customers.find((customer) => customer.id === form.customerId) ?? null;
   const canUseExistingCustomer = customers.length > 0;
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearch.trim().toLowerCase();
+
+    if (!term) {
+      return customers.slice(0, 8);
+    }
+
+    return customers
+      .filter((customer) =>
+        [customer.name, customer.email, customer.phone]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(term)),
+      )
+      .slice(0, 8);
+  }, [customerSearch, customers]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
@@ -501,15 +529,23 @@ function NewAppointmentModal({
               onChange={(event) => {
                 const mode = event.target.value as NewAppointmentForm["mode"];
                 const project = projects[0];
+                const projectCustomer = relatedOne(project?.customer ?? null);
+                const nextCustomerId =
+                  mode === "project"
+                    ? project?.customer_id ?? ""
+                    : form.customerId || (firstCustomer?.id ?? "");
+                const nextCustomer =
+                  mode === "project"
+                    ? projectCustomer
+                    : customers.find((customer) => customer.id === nextCustomerId) ?? firstCustomer;
+
+                setCustomerSearch(customerSearchLabel(nextCustomer));
 
                 setForm((current) => ({
                   ...current,
                   mode,
                   projectId: mode === "project" ? project?.id ?? "" : "",
-                  customerId:
-                    mode === "project"
-                      ? project?.customer_id ?? ""
-                      : current.customerId || (firstCustomer?.id ?? ""),
+                  customerId: nextCustomerId,
                 }));
               }}
               value={form.mode}
@@ -527,6 +563,9 @@ function NewAppointmentModal({
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => {
                     const project = projects.find((item) => item.id === event.target.value);
+                    const customer = relatedOne(project?.customer ?? null);
+
+                    setCustomerSearch(customerSearchLabel(customer));
 
                     setForm((current) => ({
                       ...current,
@@ -559,16 +598,19 @@ function NewAppointmentModal({
                   Customer
                   <select
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextMode = event.target.value as NewAppointmentForm["customerMode"];
+                      const nextCustomerId =
+                        nextMode === "existing" ? form.customerId || (firstCustomer?.id ?? "") : "";
+                      const nextCustomer = customers.find((customer) => customer.id === nextCustomerId);
+
+                      setCustomerSearch(nextMode === "existing" ? customerSearchLabel(nextCustomer) : "");
                       setForm((current) => ({
                         ...current,
-                        customerMode: event.target.value as NewAppointmentForm["customerMode"],
-                        customerId:
-                          event.target.value === "existing"
-                            ? current.customerId || (firstCustomer?.id ?? "")
-                            : "",
-                      }))
-                    }
+                        customerMode: nextMode,
+                        customerId: nextCustomerId,
+                      }));
+                    }}
                     value={form.customerMode}
                   >
                     {canUseExistingCustomer ? <option value="existing">Existing customer</option> : null}
@@ -576,22 +618,45 @@ function NewAppointmentModal({
                   </select>
                 </label>
                 {form.customerMode === "existing" ? (
-                  <label className="block text-sm font-semibold">
-                    Select customer
-                    <select
+                  <div className="relative block text-sm font-semibold">
+                    Find customer
+                    <input
+                      autoComplete="off"
                       className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, customerId: event.target.value }))
-                      }
-                      value={form.customerId || (firstCustomer?.id ?? "")}
-                    >
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      onChange={(event) => {
+                        setCustomerSearch(event.target.value);
+                        setForm((current) => ({ ...current, customerId: "" }));
+                      }}
+                      placeholder="Type name, email, or phone"
+                      value={customerSearch}
+                    />
+                    <div className="absolute left-0 right-0 top-[72px] z-20 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white shadow-lg">
+                      {filteredCustomers.length > 0 ? (
+                        filteredCustomers.map((customer) => (
+                          <button
+                            className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#f7f2e9] ${
+                              customer.id === form.customerId ? "bg-[#f1eadc] font-semibold" : ""
+                            }`}
+                            key={customer.id}
+                            onClick={() => {
+                              setForm((current) => ({ ...current, customerId: customer.id }));
+                              setCustomerSearch(customerSearchLabel(customer));
+                            }}
+                            type="button"
+                          >
+                            <span className="block font-semibold">{customer.name}</span>
+                            <span className="mt-0.5 block text-xs font-normal text-[#697178]">
+                              {[customer.email, customer.phone].filter(Boolean).join(" / ") || "No contact info"}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-sm font-normal text-[#697178]">
+                          No matching customers
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : null}
               </div>
 

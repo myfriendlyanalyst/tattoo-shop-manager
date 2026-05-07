@@ -724,6 +724,8 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [entryError, setEntryError] = useState("");
+  const [editingProjectName, setEditingProjectName] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState("");
   const [showDepositEntry, setShowDepositEntry] = useState(false);
   const [showSessionEntry, setShowSessionEntry] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
@@ -822,6 +824,7 @@ export default function ProjectsPage() {
     ["lead", "consultation", "booked", "in_progress"].includes(project.status),
   ).length;
   const waiverMissingCount = projects.filter((project) => waiverLabel(project) !== "Signed").length;
+
   useEffect(() => {
     async function loadProjects() {
       setLoading(true);
@@ -939,6 +942,43 @@ export default function ProjectsPage() {
 
     loadProjects();
   }, []);
+
+  async function saveProjectName() {
+    if (!selectedProject) {
+      return;
+    }
+
+    const subject = projectNameDraft.trim();
+
+    if (!subject) {
+      setError("Project name is required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("projects")
+      .update({ subject })
+      .eq("id", selectedProject.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === selectedProject.id ? { ...project, subject } : project,
+      ),
+    );
+    setEditingProjectName(false);
+    setMessage("Project name updated.");
+    setSaving(false);
+  }
 
   async function markWaiverSigned(project: ProjectRecord) {
     setSaving(true);
@@ -1601,6 +1641,8 @@ export default function ProjectsPage() {
                           }`}
                           onClick={() => {
                             setSelectedProjectId(project.id);
+                            setEditingProjectName(false);
+                            setProjectNameDraft("");
                             setMessage("");
                             setError("");
                             setEntryError("");
@@ -1650,7 +1692,51 @@ export default function ProjectsPage() {
                       <p className="text-xs font-semibold text-[#8a6f4d]">
                         {selectedProject.id.slice(0, 8)}
                       </p>
-                      <h3 className="mt-1 text-xl font-semibold">{selectedProject.subject}</h3>
+                      {editingProjectName ? (
+                        <div className="mt-2 flex max-w-2xl flex-col gap-2 sm:flex-row">
+                          <input
+                            className="h-10 min-w-0 flex-1 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
+                            disabled={saving}
+                            onChange={(event) => setProjectNameDraft(event.target.value)}
+                            value={projectNameDraft}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={saving}
+                              onClick={saveProjectName}
+                              type="button"
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={saving}
+                              onClick={() => {
+                                setProjectNameDraft(selectedProject.subject);
+                                setEditingProjectName(false);
+                              }}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <h3 className="text-xl font-semibold">{selectedProject.subject}</h3>
+                          <button
+                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                            onClick={() => {
+                              setProjectNameDraft(selectedProject.subject);
+                              setEditingProjectName(true);
+                            }}
+                            type="button"
+                          >
+                            Edit name
+                          </button>
+                        </div>
+                      )}
                       <p className="mt-1 text-sm text-[#697178]">
                         {selectedProject.memo || "Project details"}
                       </p>
