@@ -54,6 +54,13 @@ type ProjectRecord = {
   customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
 };
 
+type CustomerRecord = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
+
 type AppointmentRow = {
   id: string;
   artist_id: string | null;
@@ -76,8 +83,14 @@ type DraftAppointment = {
 };
 
 type NewAppointmentForm = {
+  mode: "project" | "walk_in";
   customerId: string;
   projectId: string;
+  customerMode: "existing" | "new";
+  newCustomerName: string;
+  newCustomerEmail: string;
+  newCustomerPhone: string;
+  projectSubject: string;
   type: string;
   notes: string;
   start: string;
@@ -195,6 +208,10 @@ function statusClasses(status: string) {
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function dayOfWeek(date: string) {
@@ -383,6 +400,7 @@ function AppointmentDetailModal({
 function NewAppointmentModal({
   draft,
   projects,
+  customers,
   saving,
   error,
   onClose,
@@ -390,22 +408,32 @@ function NewAppointmentModal({
 }: {
   draft: DraftAppointment;
   projects: ProjectRecord[];
+  customers: CustomerRecord[];
   saving: boolean;
   error: string;
   onClose: () => void;
   onSave: (form: NewAppointmentForm) => void;
 }) {
   const firstProject = projects[0];
+  const firstCustomer = customers[0];
   const [form, setForm] = useState<NewAppointmentForm>({
+    mode: firstProject ? "project" : "walk_in",
     customerId: firstProject?.customer_id ?? "",
     projectId: firstProject?.id ?? "",
+    customerMode: firstCustomer ? "existing" : "new",
+    newCustomerName: "",
+    newCustomerEmail: "",
+    newCustomerPhone: "",
+    projectSubject: "",
     type: "Walk-in",
     notes: "",
     start: draft.start,
     end: draft.end,
   });
   const selectedProject = projects.find((project) => project.id === form.projectId) ?? firstProject;
-  const selectedCustomer = relatedOne(selectedProject?.customer ?? null);
+  const selectedProjectCustomer = relatedOne(selectedProject?.customer ?? null);
+  const selectedCustomer = customers.find((customer) => customer.id === form.customerId) ?? firstCustomer;
+  const canUseExistingCustomer = customers.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
@@ -430,7 +458,7 @@ function NewAppointmentModal({
           </button>
         </div>
 
-        <div className="space-y-3 px-5 py-5">
+        <div className="max-h-[75vh] space-y-3 overflow-y-auto px-5 py-5">
           {error ? (
             <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
               {error}
@@ -467,36 +495,158 @@ function NewAppointmentModal({
           </div>
 
           <label className="block text-sm font-semibold">
-            Project
+            Booking source
             <select
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
               onChange={(event) => {
-                const project = projects.find((item) => item.id === event.target.value);
+                const mode = event.target.value as NewAppointmentForm["mode"];
+                const project = projects[0];
 
                 setForm((current) => ({
                   ...current,
-                  projectId: event.target.value,
-                  customerId: project?.customer_id ?? "",
+                  mode,
+                  projectId: mode === "project" ? project?.id ?? "" : "",
+                  customerId:
+                    mode === "project"
+                      ? project?.customer_id ?? ""
+                      : current.customerId || (firstCustomer?.id ?? ""),
                 }));
               }}
-              value={form.projectId}
+              value={form.mode}
             >
-              {projects.length === 0 ? <option value="">No projects for this artist</option> : null}
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.subject}
-                </option>
-              ))}
+              {projects.length > 0 ? <option value="project">Existing project</option> : null}
+              <option value="walk_in">Walk-in / create project</option>
             </select>
           </label>
-          <label className="block text-sm font-semibold">
-            Customer
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm"
-              readOnly
-              value={selectedCustomer?.name ?? "Select a project"}
-            />
-          </label>
+
+          {form.mode === "project" ? (
+            <>
+              <label className="block text-sm font-semibold">
+                Project
+                <select
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) => {
+                    const project = projects.find((item) => item.id === event.target.value);
+
+                    setForm((current) => ({
+                      ...current,
+                      projectId: event.target.value,
+                      customerId: project?.customer_id ?? "",
+                    }));
+                  }}
+                  value={form.projectId}
+                >
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.subject}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Customer
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm"
+                  readOnly
+                  value={selectedProjectCustomer?.name ?? "Select a project"}
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-semibold">
+                  Customer
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        customerMode: event.target.value as NewAppointmentForm["customerMode"],
+                        customerId:
+                          event.target.value === "existing"
+                            ? current.customerId || (firstCustomer?.id ?? "")
+                            : "",
+                      }))
+                    }
+                    value={form.customerMode}
+                  >
+                    {canUseExistingCustomer ? <option value="existing">Existing customer</option> : null}
+                    <option value="new">New customer</option>
+                  </select>
+                </label>
+                {form.customerMode === "existing" ? (
+                  <label className="block text-sm font-semibold">
+                    Select customer
+                    <select
+                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, customerId: event.target.value }))
+                      }
+                      value={form.customerId || (firstCustomer?.id ?? "")}
+                    >
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              {form.customerMode === "new" ? (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="text-sm font-semibold">
+                    Name
+                    <input
+                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, newCustomerName: event.target.value }))
+                      }
+                      placeholder="Customer name"
+                      value={form.newCustomerName}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Email
+                    <input
+                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, newCustomerEmail: event.target.value }))
+                      }
+                      placeholder="Optional"
+                      type="email"
+                      value={form.newCustomerEmail}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Phone
+                    <input
+                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, newCustomerPhone: event.target.value }))
+                      }
+                      placeholder="Optional"
+                      value={form.newCustomerPhone}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              <label className="block text-sm font-semibold">
+                Project subject
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, projectSubject: event.target.value }))
+                  }
+                  placeholder={`Walk-in - ${selectedCustomer?.name ?? "customer"}`}
+                  value={form.projectSubject}
+                />
+              </label>
+            </>
+          )}
           <label className="block text-sm font-semibold">
             Appointment type
             <select
@@ -532,6 +682,7 @@ function NewAppointmentModal({
 export default function CalendarPage() {
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(defaultDate);
@@ -589,7 +740,14 @@ export default function CalendarPage() {
       const dayStart = timestampFor(selectedDate, "00:00");
       const dayEnd = timestampFor(selectedDate, "23:59");
 
-      const [staffResult, scheduleResult, permissionResult, projectResult, appointmentResult] = await Promise.all([
+      const [
+        staffResult,
+        scheduleResult,
+        permissionResult,
+        customerResult,
+        projectResult,
+        appointmentResult,
+      ] = await Promise.all([
         supabase
           .from("staff")
           .select("id, display_name, role, active")
@@ -602,6 +760,10 @@ export default function CalendarPage() {
           .from("staff_permissions")
           .select("staff_id, permission_key, enabled")
           .eq("permission_key", "calendarBooking"),
+        supabase
+          .from("customers")
+          .select("id, name, email, phone")
+          .order("name", { ascending: true }),
         supabase
           .from("projects")
           .select("id, customer_id, artist_id, subject, status, customer:customers(name, email)")
@@ -635,6 +797,12 @@ export default function CalendarPage() {
         return;
       }
 
+      if (customerResult.error) {
+        setError(customerResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       if (projectResult.error) {
         setError(projectResult.error.message);
         setLoading(false);
@@ -650,6 +818,7 @@ export default function CalendarPage() {
       const nextPermissions = permissionResult.data ?? [];
 
       setArtists((staffResult.data ?? []).filter((staff) => canShowInCalendar(staff, nextPermissions)));
+      setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setProjects((projectResult.data ?? []) as unknown as ProjectRecord[]);
       setSchedules(scheduleResult.data ?? []);
       setAppointments(((appointmentResult.data ?? []) as unknown as AppointmentRow[]).map(mapAppointment));
@@ -668,15 +837,6 @@ export default function CalendarPage() {
       return;
     }
 
-    const project = projects.find(
-      (item) => item.id === form.projectId && item.artist_id === draftAppointment.artistId,
-    );
-
-    if (!project || !form.customerId) {
-      setModalError("Customer and project are required.");
-      return;
-    }
-
     if (minutesFromStart(form.end) <= minutesFromStart(form.start)) {
       setModalError("End time must be later than start time.");
       return;
@@ -685,11 +845,104 @@ export default function CalendarPage() {
     setSaving(true);
     setModalError("");
 
+    let project: ProjectRecord | null =
+      projects.find(
+        (item) => item.id === form.projectId && item.artist_id === draftAppointment.artistId,
+      ) ?? null;
+    let customerId = project?.customer_id ?? form.customerId;
+
+    if (form.mode === "project" && !project) {
+      setModalError("Select a project for this artist.");
+      setSaving(false);
+      return;
+    }
+
+    if (form.mode === "walk_in") {
+      if (form.customerMode === "new") {
+        const customerName = form.newCustomerName.trim();
+        const customerEmail = form.newCustomerEmail.trim();
+
+        if (!customerName) {
+          setModalError("Customer name is required for a walk-in.");
+          setSaving(false);
+          return;
+        }
+
+        if (customerEmail && !isValidEmail(customerEmail)) {
+          setModalError("Enter a valid customer email address.");
+          setSaving(false);
+          return;
+        }
+
+        const customerResult = await supabase
+          .from("customers")
+          .insert({
+            name: customerName,
+            email: customerEmail || null,
+            phone: form.newCustomerPhone.trim() || null,
+            notes: `Created from calendar walk-in on ${draftAppointment.date}.`,
+          })
+          .select("id, name, email, phone")
+          .single();
+
+        if (customerResult.error) {
+          setModalError(customerResult.error.message);
+          setSaving(false);
+          return;
+        }
+
+        const customer = customerResult.data as CustomerRecord;
+
+        customerId = customer.id;
+        setCustomers((current) => [customer, ...current]);
+      }
+
+      if (!customerId) {
+        setModalError("Select or create a customer for this walk-in.");
+        setSaving(false);
+        return;
+      }
+
+      const customerName =
+        form.customerMode === "new"
+          ? form.newCustomerName.trim()
+          : customers.find((customer) => customer.id === customerId)?.name ?? "Customer";
+      const projectSubject = form.projectSubject.trim() || `Walk-in - ${customerName}`;
+      const projectResult = await supabase
+        .from("projects")
+        .insert({
+          customer_id: customerId,
+          artist_id: draftAppointment.artistId,
+          subject: projectSubject,
+          status: "booked",
+          waiver_signed: false,
+          waiver_status: "missing",
+          memo: `Auto-created from calendar walk-in for ${formatDateLabel(draftAppointment.date)}.`,
+        })
+        .select("id, customer_id, artist_id, subject, status, customer:customers(name, email)")
+        .single();
+
+      if (projectResult.error) {
+        setModalError(projectResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      project = projectResult.data as unknown as ProjectRecord;
+      setProjects((current) => [project!, ...current]);
+    }
+
+    if (!project || !customerId) {
+      setModalError("Customer and project are required.");
+      setSaving(false);
+      return;
+    }
+
     const appointmentResult = await supabase
       .from("appointments")
       .insert({
         project_id: project.id,
-        customer_id: project.customer_id,
+        customer_id: customerId,
         artist_id: draftAppointment.artistId,
         starts_at: timestampFor(draftAppointment.date, form.start),
         ends_at: timestampFor(draftAppointment.date, form.end),
@@ -990,6 +1243,7 @@ export default function CalendarPage() {
           draft={draftAppointment}
           error={modalError}
           onClose={() => setDraftAppointment(null)}
+          customers={customers}
           projects={draftProjects}
           onSave={saveAppointment}
           saving={saving}
