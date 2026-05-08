@@ -995,7 +995,57 @@ export default function RequestsPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-[#eee8dd] md:hidden">
+                {filteredRequests.map((request) => {
+                  const artist = relatedOne(request.artist);
+
+                  return (
+                    <button
+                      className={`block w-full px-4 py-4 text-left ${
+                        request.id === selectedRequest?.id ? "bg-[#fffaf1]" : ""
+                      }`}
+                      key={request.id}
+                      onClick={() => {
+                        setSelectedRequestId(request.id);
+                        setError("");
+                        setMessage("");
+                      }}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold">{request.client_name}</p>
+                          <p className="mt-1 line-clamp-2 text-sm text-[#4d555c]">
+                            {request.subject}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${statusClasses(
+                            request.status,
+                          )}`}
+                        >
+                          {statusLabel(request.status)}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm text-[#697178]">
+                        <p>{request.email || "-"}</p>
+                        <p>{request.phone || "-"}</p>
+                        <p className="font-semibold text-[#4d555c]">
+                          {artist?.display_name ?? "Any available"}
+                        </p>
+                        <p>
+                          Last touch:{" "}
+                          {displayDateTime(
+                            request.artist_reply_at ?? request.forwarded_at ?? request.received_at,
+                          )}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
                     <tr>

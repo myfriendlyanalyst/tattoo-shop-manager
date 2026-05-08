@@ -587,7 +587,46 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="divide-y divide-[#eee8dd] md:hidden">
+                {selectedProjects.length === 0 ? (
+                  <p className="px-4 py-6 text-sm font-semibold text-[#697178]">
+                    No projects yet.
+                  </p>
+                ) : null}
+                {selectedProjects.map((project) => {
+                  const artist = relatedOne(project.artist);
+
+                  return (
+                    <div key={project.id} className="px-4 py-4 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold">{project.subject}</p>
+                          <p className="mt-1 text-[#697178]">
+                            {artist?.display_name ?? "-"} / {project.size || "Size not set"}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
+                            project.status,
+                          )}`}
+                        >
+                          {projectStatusLabel(project.status)}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className={`rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(project)}`}>
+                          Waiver {waiverLabel(project)}
+                        </span>
+                        <span className="rounded-md bg-[#eee8dd] px-2 py-1 text-xs font-semibold text-[#4d555c]">
+                          Deposit {projectDepositLabel(project, deposits)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
                     <tr>

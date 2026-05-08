@@ -989,6 +989,19 @@ export default function CalendarPage() {
     return artists.filter((artist) => artist.id === artistFilter);
   }, [artistFilter, artists]);
 
+  const mobileArtist = useMemo(() => {
+    if (artistFilter !== "all") {
+      return artists.find((artist) => artist.id === artistFilter) ?? artists[0];
+    }
+
+    return artists[0];
+  }, [artistFilter, artists]);
+
+  const mobileVisibleArtists = useMemo(
+    () => (mobileArtist ? [mobileArtist] : []),
+    [mobileArtist],
+  );
+
   const visibleAppointments = useMemo(() => {
     if (typeFilter === "all") {
       return appointments;
@@ -1412,7 +1425,9 @@ export default function CalendarPage() {
                     onChange={(event) => setArtistFilter(event.target.value)}
                     value={artistFilter}
                   >
-                    <option value="all">All calendar staff</option>
+                    <option className="hidden md:block" value="all">
+                      All calendar staff
+                    </option>
                     {artists.map((artist) => (
                       <option key={artist.id} value={artist.id}>
                         {artist.display_name}
@@ -1458,7 +1473,7 @@ export default function CalendarPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <div style={{ minWidth: `${Math.max(visibleArtists.length, 1) * 132 + 76}px` }}>
                 <div
                   className="border-b border-[#e5dfd4] bg-[#f7f2e9]"
@@ -1528,6 +1543,166 @@ export default function CalendarPage() {
                   </div>
 
                   {visibleArtists.map((artist) => {
+                    const schedule = dailySchedules[artist.id] ?? {
+                      available: false,
+                      start: "10:00",
+                      end: "18:00",
+                    };
+                    const availableStyle = scheduleStyle(schedule);
+
+                    return (
+                      <div
+                        key={artist.id}
+                        className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
+                        onClick={(event) => {
+                          const draft = draftFromClick(artist, selectedDate, event, timeInterval);
+
+                          if (isWithinSchedule(schedule, draft.start, draft.end)) {
+                            setModalError("");
+                            setDraftAppointment(draft);
+                          }
+                        }}
+                        role="presentation"
+                      >
+                        {schedule.available ? (
+                          <div
+                            className="absolute left-0 right-0 bg-white"
+                            style={{
+                              ...availableStyle,
+                              backgroundImage:
+                                "linear-gradient(to bottom, transparent 87px, #eee8dd 88px)",
+                              backgroundSize: `100% ${pixelsPerHour}px`,
+                            }}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs font-semibold text-[#8a8174]">
+                            Off schedule
+                          </div>
+                        )}
+
+                        {appointmentsForArtist(artist.id).map((appointment) => {
+                          const inSchedule = isWithinSchedule(
+                            schedule,
+                            appointment.start,
+                            appointment.end,
+                          );
+
+                          return (
+                            <button
+                              key={appointment.id}
+                              className={`absolute left-2 right-2 overflow-hidden rounded-md border px-2 py-2 text-left text-xs shadow-sm transition hover:border-[#9f5c3c] hover:bg-[#fffaf1] ${
+                                inSchedule
+                                  ? "border-[#e4dccf] bg-[#fdfbf7]"
+                                  : "border-[#c66f5a] bg-[#fff2ed]"
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setModalError("");
+                                setSelectedAppointment(appointment);
+                              }}
+                              style={appointmentStyle(appointment.start, appointment.end)}
+                              type="button"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-bold leading-4">{appointment.client}</p>
+                                <span
+                                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${statusClasses(
+                                    appointment.status,
+                                  )}`}
+                                >
+                                  {statusLabel(appointment.status)}
+                                </span>
+                              </div>
+                              <p className="mt-1 truncate text-[#4d555c]">
+                                {appointment.project}
+                              </p>
+                              <p className="mt-1 font-semibold text-[#7d684d]">
+                                {formatTime(appointment.start)} - {formatTime(appointment.end)}
+                              </p>
+                              {!inSchedule ? (
+                                <p className="mt-1 text-[10px] font-bold uppercase text-[#9f5c3c]">
+                                  Outside schedule
+                                </p>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="md:hidden">
+              <div style={{ minWidth: `${Math.max(mobileVisibleArtists.length, 1) * 132 + 76}px` }}>
+                <div
+                  className="border-b border-[#e5dfd4] bg-[#f7f2e9]"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `76px repeat(${Math.max(mobileVisibleArtists.length, 1)}, minmax(0, 1fr))`,
+                  }}
+                >
+                  <div className="px-3 py-3 text-xs font-semibold uppercase text-[#6f7275]">
+                    Time
+                  </div>
+                  {mobileVisibleArtists.map((artist) => {
+                    const schedule = dailySchedules[artist.id] ?? {
+                      available: false,
+                      start: "10:00",
+                      end: "18:00",
+                    };
+
+                    return (
+                      <div
+                        key={artist.id}
+                        className="border-l border-[#e5dfd4] px-3 py-3 text-center text-xs font-bold uppercase text-[#4d555c]"
+                      >
+                        <span className="block">{artist.display_name}</span>
+                        <span className="mt-1 block text-[10px] font-semibold normal-case text-[#8a6f4d]">
+                          {scheduleLabel(schedule)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {mobileVisibleArtists.length === 0 ? (
+                  <div className="flex h-72 items-center justify-center border-t border-[#eee8dd] px-4 text-center text-sm font-semibold text-[#697178]">
+                    No staff are enabled for Calendar / Booking.
+                  </div>
+                ) : null}
+
+                <div
+                  className={`relative ${mobileVisibleArtists.length === 0 ? "hidden" : ""}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `76px repeat(${Math.max(mobileVisibleArtists.length, 1)}, minmax(0, 1fr))`,
+                    height: `${timelineHeight}px`,
+                  }}
+                >
+                  {currentTimeTop !== null ? (
+                    <div
+                      className="pointer-events-none absolute right-0 z-30 border-t-2 border-[#d33b2f]"
+                      style={{ left: "76px", top: `${currentTimeTop}px` }}
+                    >
+                      <span className="absolute -left-[38px] -top-[9px] rounded bg-[#d33b2f] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        Now
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="relative border-r border-[#e5dfd4] bg-[#fdfbf7]">
+                    {hourMarkers.map((marker) => (
+                      <p
+                        key={marker.label}
+                        className="absolute left-3 text-xs font-semibold text-[#697178]"
+                        style={{ top: `${marker.top - 7}px` }}
+                      >
+                        {marker.label}
+                      </p>
+                    ))}
+                  </div>
+
+                  {mobileVisibleArtists.map((artist) => {
                     const schedule = dailySchedules[artist.id] ?? {
                       available: false,
                       start: "10:00",

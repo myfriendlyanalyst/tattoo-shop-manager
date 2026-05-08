@@ -809,6 +809,58 @@ export default function ProjectsPage() {
     return depositApplications.filter((application) => depositIds.has(application.deposit_id));
   }, [depositApplications, selectedDeposits]);
 
+  const selectedDepositWalletRows = useMemo(() => {
+    const rows = [
+      ...selectedDeposits.map((deposit) => ({
+        id: deposit.id,
+        type: "deposit" as const,
+        date: deposit.received_at,
+        amount: Number(deposit.amount),
+        deposit,
+        application: null,
+      })),
+      ...selectedDepositApplications.map((application) => ({
+        id: application.id,
+        type: "application" as const,
+        date: application.applied_at,
+        amount: Number(application.amount),
+        deposit: null,
+        application,
+      })),
+    ].sort((a, b) => {
+      const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+
+      return a.type === "deposit" ? -1 : 1;
+    });
+
+    return rows.reduce<
+      Array<
+        (typeof rows)[number] & {
+          balance: number;
+          session: SessionEntryRecord | null;
+        }
+      >
+    >((accumulator, row) => {
+      const previousBalance = accumulator.at(-1)?.balance ?? 0;
+      const balance = previousBalance + (row.type === "deposit" ? row.amount : -row.amount);
+
+      return [
+        ...accumulator,
+        {
+          ...row,
+          balance,
+          session: row.application
+            ? selectedSessions.find((item) => item.id === row.application!.session_entry_id) ?? null
+            : null,
+        },
+      ];
+    }, []);
+  }, [selectedDepositApplications, selectedDeposits, selectedSessions]);
+
   const unenteredSelectedAppointments = useMemo(() => {
     const enteredAppointmentIds = new Set(
       selectedSessions
@@ -1822,6 +1874,7 @@ export default function ProjectsPage() {
                         className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_1fr_auto]"
                       >
                         <div>
+                          <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Session</p>
                           <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
                           <p className="text-[#697178]">
                             {selectedAppointments.find((item) => item.id === session.appointment_id)
@@ -1834,6 +1887,7 @@ export default function ProjectsPage() {
                           </p>
                         </div>
                         <div>
+                          <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Tattoo</p>
                           <p className="font-semibold">{money(session.tattoo_amount)} tattoo</p>
                           <p className="text-[#697178]">
                             {sessionPayments
@@ -1846,10 +1900,12 @@ export default function ProjectsPage() {
                           </p>
                         </div>
                         <div>
+                          <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Tip</p>
                           <p className="font-semibold">{money(session.tip_amount)} tip</p>
                           <p className="text-[#697178]">{paymentLabel(session.tip_payment_method)}</p>
                         </div>
                         <div>
+                          <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Deposit</p>
                           <p className="font-semibold">
                             {money(
                               depositApplications
@@ -1860,7 +1916,10 @@ export default function ProjectsPage() {
                           </p>
                           <p className="text-[#697178]">Applied</p>
                         </div>
-                        <p className="text-[#4d555c]">{session.memo || "-"}</p>
+                        <div>
+                          <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Memo</p>
+                          <p className="text-[#4d555c]">{session.memo || "-"}</p>
+                        </div>
                         <div className="flex gap-2 md:justify-end">
                           <button
                             className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
@@ -1911,7 +1970,83 @@ export default function ProjectsPage() {
                     ) : null}
                     {selectedDeposits.length > 0 ? (
                       <div className="px-4 py-4 text-sm">
-                        <div className="overflow-hidden rounded-md border border-[#e4dccf]">
+                        <div className="space-y-3 md:hidden">
+                          {selectedDepositWalletRows.map((row) => (
+                            <div
+                              key={`${row.type}-${row.id}`}
+                              className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-semibold text-[#8a8174]">
+                                    {displayDate(row.date)}
+                                  </p>
+                                  <p
+                                    className={`mt-1 font-semibold ${
+                                      row.type === "deposit" ? "text-[#2f6658]" : "text-[#8a5130]"
+                                    }`}
+                                  >
+                                    {row.type === "deposit"
+                                      ? "Deposit received"
+                                      : `Applied to ${
+                                          row.session ? displayDateTime(row.session.entered_at) : "session"
+                                        }`}
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#697178]">
+                                    {row.type === "deposit"
+                                      ? `${paymentLabel(row.deposit!.payment_method)}${
+                                          row.deposit!.memo ? ` / ${row.deposit!.memo}` : ""
+                                        }`
+                                      : "Edit the linked session to change this application."}
+                                  </p>
+                                </div>
+                                <p
+                                  className={`shrink-0 font-semibold ${
+                                    row.type === "deposit" ? "text-[#2f6658]" : "text-[#8a5130]"
+                                  }`}
+                                >
+                                  {row.type === "deposit" ? "+" : "-"}
+                                  {money(row.amount)}
+                                </p>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#eee8dd] pt-3">
+                                <p className="text-sm font-semibold">
+                                  Balance {money(row.balance)}
+                                </p>
+                                {row.type === "deposit" ? (
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
+                                      disabled={saving}
+                                      onClick={() => {
+                                        setEntryError("");
+                                        setEditingDeposit(row.deposit);
+                                        setShowDepositEntry(true);
+                                      }}
+                                      type="button"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
+                                      disabled={saving}
+                                      onClick={() => deleteDeposit(row.deposit!)}
+                                      type="button"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                          <div className="rounded-md border border-[#e4dccf] bg-[#f7f2e9] px-3 py-3 font-semibold">
+                            Remaining balance{" "}
+                            {money(selectedDepositWalletRows.at(-1)?.balance ?? 0)}
+                          </div>
+                        </div>
+
+                        <div className="hidden overflow-hidden rounded-md border border-[#e4dccf] md:block">
                           <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] bg-[#f7f2e9] px-3 py-2 text-xs font-bold uppercase text-[#6f7275]">
                             <span>Date</span>
                             <span>History</span>
@@ -1919,48 +2054,8 @@ export default function ProjectsPage() {
                             <span className="text-right">Balance</span>
                             <span className="text-right">Actions</span>
                           </div>
-                          {(() => {
-                            let runningBalance = 0;
-                            const walletRows = [
-                              ...selectedDeposits.map((deposit) => ({
-                                id: deposit.id,
-                                type: "deposit" as const,
-                                date: deposit.received_at,
-                                amount: Number(deposit.amount),
-                                deposit,
-                                application: null,
-                              })),
-                              ...selectedDepositApplications.map((application) => ({
-                                id: application.id,
-                                type: "application" as const,
-                                date: application.applied_at,
-                                amount: Number(application.amount),
-                                deposit: null,
-                                application,
-                              })),
-                            ].sort((a, b) => {
-                              const dateDiff =
-                                new Date(a.date).getTime() - new Date(b.date).getTime();
-
-                              if (dateDiff !== 0) {
-                                return dateDiff;
-                              }
-
-                              return a.type === "deposit" ? -1 : 1;
-                            });
-
-                            return (
-                              <>
-                                {walletRows.map((row) => {
-                                  runningBalance +=
-                                    row.type === "deposit" ? row.amount : -row.amount;
-                                  const session = row.application
-                                    ? selectedSessions.find(
-                                        (item) => item.id === row.application!.session_entry_id,
-                                      )
-                                    : null;
-
-                                  return (
+                          <>
+                                {selectedDepositWalletRows.map((row) => (
                                     <div
                                       key={`${row.type}-${row.id}`}
                                       className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] border-t border-[#eee8dd] px-3 py-2"
@@ -1980,7 +2075,7 @@ export default function ProjectsPage() {
                                         ) : (
                                           <>
                                             Applied to{" "}
-                                            {session ? displayDateTime(session.entered_at) : "session"}
+                                            {row.session ? displayDateTime(row.session.entered_at) : "session"}
                                           </>
                                         )}
                                       </span>
@@ -1995,7 +2090,7 @@ export default function ProjectsPage() {
                                         {money(row.amount)}
                                       </span>
                                       <span className="text-right font-semibold">
-                                        {money(runningBalance)}
+                                        {money(row.balance)}
                                       </span>
                                       <span className="flex justify-end gap-2">
                                         {row.type === "deposit" ? (
@@ -2028,24 +2123,23 @@ export default function ProjectsPage() {
                                         )}
                                       </span>
                                     </div>
-                                  );
-                                })}
+                                ))}
                                 <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] border-t border-[#e4dccf] bg-[#fdfbf7] px-3 py-2 font-semibold">
                                   <span />
                                   <span>Remaining balance</span>
                                   <span />
                                   <span
                                     className={`text-right ${
-                                      runningBalance > 0 ? "text-[#2f6658]" : "text-[#697178]"
+                                      (selectedDepositWalletRows.at(-1)?.balance ?? 0) > 0
+                                        ? "text-[#2f6658]"
+                                        : "text-[#697178]"
                                     }`}
                                   >
-                                    {money(runningBalance)}
+                                    {money(selectedDepositWalletRows.at(-1)?.balance ?? 0)}
                                   </span>
                                   <span />
                                 </div>
                               </>
-                            );
-                          })()}
                         </div>
                       </div>
                     ) : null}

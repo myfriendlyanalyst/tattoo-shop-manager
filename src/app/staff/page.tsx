@@ -774,7 +774,52 @@ export default function StaffPage() {
               </select>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="divide-y divide-[#eee8dd] md:hidden">
+              {staff.map((person) => (
+                <button
+                  key={person.id}
+                  className={`block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9] ${
+                    person.id === selectedStaff.id ? "bg-[#fffaf1]" : ""
+                  }`}
+                  onClick={() => selectStaff(person)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{person.display_name}</p>
+                      <p className="mt-1 truncate text-sm text-[#697178]">
+                        {person.legal_name || person.email || "-"}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(
+                        person.role,
+                      )}`}
+                    >
+                      {person.role}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-1 text-sm text-[#4d555c]">
+                    <p>{person.email || "-"}</p>
+                    <p>{person.phone || "-"}</p>
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <span>Started {displayDate(person.start_date)}</span>
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                          person.active
+                            ? "bg-[#e4f1df] text-[#476b33]"
+                            : "bg-[#f3e1e1] text-[#8a3030]"
+                        }`}
+                      >
+                        {person.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[780px] text-left text-sm">
                 <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
                   <tr>
@@ -911,24 +956,41 @@ export default function StaffPage() {
                     {form.schedule.map((slot) => (
                       <div
                         key={slot.day_of_week}
-                        className="grid grid-cols-[54px_1fr_1fr_56px] items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                        className="grid gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm sm:grid-cols-[54px_1fr_1fr_56px] sm:items-center"
                       >
-                        <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
-                        <TimeSelect
-                          className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
-                          disabled={!slot.available}
-                          onChange={(value) => updateSchedule(slot.day_of_week, { starts_at: value })}
-                          startHour={8}
-                          value={normalizeTime(slot.starts_at)}
-                        />
-                        <TimeSelect
-                          className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
-                          disabled={!slot.available}
-                          onChange={(value) => updateSchedule(slot.day_of_week, { ends_at: value })}
-                          startHour={8}
-                          value={normalizeTime(slot.ends_at)}
-                        />
-                        <label className="flex items-center justify-end gap-2 text-xs font-semibold text-[#4d555c]">
+                        <div className="flex items-center justify-between gap-2 sm:block">
+                          <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
+                          <span className="text-xs font-semibold text-[#697178] sm:hidden">
+                            {slot.available
+                              ? `${normalizeTime(slot.starts_at)} - ${normalizeTime(slot.ends_at)}`
+                              : "Off"}
+                          </span>
+                        </div>
+                        <label className="text-xs font-semibold text-[#697178] sm:contents">
+                          <span className="sm:hidden">Start</span>
+                          <TimeSelect
+                            className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
+                            disabled={!slot.available}
+                            onChange={(value) =>
+                              updateSchedule(slot.day_of_week, { starts_at: value })
+                            }
+                            startHour={8}
+                            value={normalizeTime(slot.starts_at)}
+                          />
+                        </label>
+                        <label className="text-xs font-semibold text-[#697178] sm:contents">
+                          <span className="sm:hidden">End</span>
+                          <TimeSelect
+                            className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
+                            disabled={!slot.available}
+                            onChange={(value) =>
+                              updateSchedule(slot.day_of_week, { ends_at: value })
+                            }
+                            startHour={8}
+                            value={normalizeTime(slot.ends_at)}
+                          />
+                        </label>
+                        <label className="flex items-center justify-start gap-2 text-xs font-semibold text-[#4d555c] sm:justify-end">
                           <input
                             checked={slot.available}
                             onChange={(event) =>
