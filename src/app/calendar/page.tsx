@@ -510,8 +510,8 @@ function AppointmentDetailModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="max-h-[92vh] w-full max-w-xl overflow-hidden rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/35 md:items-center md:px-4 md:py-6">
+      <section className="h-full w-full overflow-hidden bg-white shadow-xl md:h-auto md:max-h-[92vh] md:max-w-xl md:rounded-md md:border md:border-[#d9d3c7]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">Selected appointment</p>
@@ -528,7 +528,7 @@ function AppointmentDetailModal({
           </button>
         </div>
 
-        <div className="max-h-[72vh] space-y-4 overflow-y-auto px-5 py-5">
+        <div className="h-[calc(100vh-92px)] space-y-4 overflow-y-auto px-5 py-5 md:h-auto md:max-h-[72vh]">
           {error ? (
             <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
               {error}
@@ -683,8 +683,8 @@ function NewAppointmentModal({
   }, [customerSearch, customers]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="max-h-[92vh] w-full max-w-xl overflow-hidden rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/35 md:items-center md:px-4 md:py-6">
+      <section className="h-full w-full overflow-hidden bg-white shadow-xl md:h-auto md:max-h-[92vh] md:max-w-xl md:rounded-md md:border md:border-[#d9d3c7]">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">New appointment</p>
@@ -705,7 +705,7 @@ function NewAppointmentModal({
           </button>
         </div>
 
-        <div className="max-h-[75vh] space-y-3 overflow-y-auto px-5 py-5">
+        <div className="h-[calc(100vh-92px)] space-y-3 overflow-y-auto px-5 py-5 md:h-auto md:max-h-[75vh]">
           {error ? (
             <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
               {error}

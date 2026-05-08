@@ -89,11 +89,16 @@ export function AppShell({
                 <p className="mt-1 text-lg font-semibold">Tattoo Manager</p>
               </div>
               <button
-                className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                aria-label="Open navigation"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
                 onClick={() => setMobileMenuOpen(true)}
                 type="button"
               >
-                Menu
+                <span className="flex w-5 flex-col gap-1.5">
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                </span>
               </button>
             </div>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -115,36 +120,45 @@ export function AppShell({
         </section>
       </div>
 
-      {mobileMenuOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            aria-label="Close navigation"
-            className="absolute inset-0 bg-black/35"
-            onClick={() => setMobileMenuOpen(false)}
-            type="button"
-          />
-          <aside className="absolute bottom-0 left-0 top-0 w-[min(82vw,320px)] border-r border-[#d9d3c7] bg-[#fdfbf7] px-5 py-6 shadow-xl">
-            <div className="mb-8 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
-                  Oyabun
-                </p>
-                <h1 className="mt-2 text-2xl font-semibold">Tattoo Manager</h1>
-              </div>
-              <button
-                aria-label="Close menu"
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
-                onClick={() => setMobileMenuOpen(false)}
-                type="button"
-              >
-                x
-              </button>
+      <div
+        aria-hidden={!mobileMenuOpen}
+        className={`fixed inset-0 z-50 lg:hidden ${
+          mobileMenuOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <button
+          aria-label="Close navigation"
+          className={`absolute inset-0 bg-black/35 transition-opacity duration-200 ${
+            mobileMenuOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={() => setMobileMenuOpen(false)}
+          type="button"
+        />
+        <aside
+          className={`absolute bottom-0 left-0 top-0 w-[min(82vw,320px)] border-r border-[#d9d3c7] bg-[#fdfbf7] px-5 py-6 shadow-xl transition-transform duration-300 ease-out ${
+            mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="mb-8 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
+                Oyabun
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold">Tattoo Manager</h1>
             </div>
+            <button
+              aria-label="Close menu"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+              onClick={() => setMobileMenuOpen(false)}
+              type="button"
+            >
+              x
+            </button>
+          </div>
 
-            {nav}
-          </aside>
-        </div>
-      ) : null}
+          {nav}
+        </aside>
+      </div>
     </main>
   );
 }

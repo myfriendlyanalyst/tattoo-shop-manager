@@ -732,6 +732,7 @@ export default function ProjectsPage() {
   const [showSessionEntry, setShowSessionEntry] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
   const [editingSession, setEditingSession] = useState<SessionEntryRecord | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -1603,7 +1604,9 @@ export default function ProjectsPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
-          <section className="grid gap-3 md:grid-cols-3">
+          <section
+            className={`${mobileDetailOpen ? "hidden md:grid" : "grid"} gap-3 md:grid-cols-3`}
+          >
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <p className="text-sm text-[#697178]">Total projects</p>
               <p className="mt-2 text-2xl font-semibold">{projects.length}</p>
@@ -1618,17 +1621,25 @@ export default function ProjectsPage() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+          <section
+            className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm`}
+          >
             <div className="grid gap-3 md:grid-cols-[1fr_0.7fr_0.7fr]">
               <input
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setMobileDetailOpen(false);
+                }}
                 placeholder="Search project, customer, artist, email"
                 value={search}
               />
               <select
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setArtistFilter(event.target.value)}
+                onChange={(event) => {
+                  setArtistFilter(event.target.value);
+                  setMobileDetailOpen(false);
+                }}
                 value={artistFilter}
               >
                 <option value="all">All artists</option>
@@ -1642,7 +1653,10 @@ export default function ProjectsPage() {
               </select>
               <select
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setMobileDetailOpen(false);
+                }}
                 value={statusFilter}
               >
                 <option value="active">Active statuses</option>
@@ -1664,7 +1678,9 @@ export default function ProjectsPage() {
           ) : null}
 
           <section className="grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">
-            <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div
+              className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white shadow-sm`}
+            >
               <div className="border-b border-[#e5dfd4] px-4 py-4">
                 <h3 className="text-base font-semibold">Artist project list</h3>
                 <p className="mt-1 text-sm text-[#697178]">
@@ -1700,6 +1716,7 @@ export default function ProjectsPage() {
                             setMessage("");
                             setError("");
                             setEntryError("");
+                            setMobileDetailOpen(true);
                           }}
                           type="button"
                         >
@@ -1739,10 +1756,24 @@ export default function ProjectsPage() {
             </div>
 
             {selectedProject ? (
-              <div className="space-y-6">
+              <div className={`${mobileDetailOpen ? "block" : "hidden"} space-y-6 md:block`}>
                 <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex flex-col gap-4 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-start md:justify-between">
                     <div>
+                      <button
+                        className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] md:hidden"
+                        onClick={() => {
+                          setMobileDetailOpen(false);
+                          setEditingProjectName(false);
+                          setProjectNameDraft("");
+                          setMessage("");
+                          setError("");
+                          setEntryError("");
+                        }}
+                        type="button"
+                      >
+                        {"<"} Project list
+                      </button>
                       <p className="text-xs font-semibold text-[#8a6f4d]">
                         {selectedProject.id.slice(0, 8)}
                       </p>

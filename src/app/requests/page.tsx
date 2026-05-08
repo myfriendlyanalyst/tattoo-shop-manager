@@ -479,6 +479,7 @@ export default function RequestsPage() {
   const [message, setMessage] = useState("");
   const [showNewRequest, setShowNewRequest] = useState(false);
   const [newRequestError, setNewRequestError] = useState("");
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? requests[0],
@@ -755,6 +756,7 @@ export default function RequestsPage() {
 
     setRequests((current) => [request, ...current]);
     setSelectedRequestId(request.id);
+    setMobileDetailOpen(true);
     setShowNewRequest(false);
     setMessage("Request created.");
     setSaving(false);
@@ -946,7 +948,9 @@ export default function RequestsPage() {
 
       {!loading && requests.length > 0 ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <section
+            className={`${mobileDetailOpen ? "hidden md:grid" : "grid"} gap-3 sm:grid-cols-2 xl:grid-cols-5`}
+          >
             {statusSummary.map((item) => (
               <div
                 key={item.label}
@@ -959,7 +963,9 @@ export default function RequestsPage() {
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
-            <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div
+              className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white shadow-sm`}
+            >
               <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-base font-semibold">Request queue</h3>
@@ -970,7 +976,10 @@ export default function RequestsPage() {
                 <div className="flex gap-2">
                   <select
                     className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) => setStatusFilter(event.target.value)}
+                    onChange={(event) => {
+                      setStatusFilter(event.target.value);
+                      setMobileDetailOpen(false);
+                    }}
                     value={statusFilter}
                   >
                     <option value="all">All statuses</option>
@@ -982,7 +991,10 @@ export default function RequestsPage() {
                   </select>
                   <select
                     className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) => setArtistFilter(event.target.value)}
+                    onChange={(event) => {
+                      setArtistFilter(event.target.value);
+                      setMobileDetailOpen(false);
+                    }}
                     value={artistFilter}
                   >
                     <option value="all">All artists</option>
@@ -1007,6 +1019,7 @@ export default function RequestsPage() {
                       key={request.id}
                       onClick={() => {
                         setSelectedRequestId(request.id);
+                        setMobileDetailOpen(true);
                         setError("");
                         setMessage("");
                       }}
@@ -1104,8 +1117,21 @@ export default function RequestsPage() {
             </div>
 
             {selectedRequest ? (
-              <aside className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+              <aside
+                className={`${mobileDetailOpen ? "block" : "hidden"} rounded-md border border-[#d9d3c7] bg-white shadow-sm md:block`}
+              >
                 <div className="border-b border-[#e5dfd4] px-4 py-4">
+                  <button
+                    className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] md:hidden"
+                    onClick={() => {
+                      setMobileDetailOpen(false);
+                      setError("");
+                      setMessage("");
+                    }}
+                    type="button"
+                  >
+                    {"<"} Request queue
+                  </button>
                   <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
                   <p className="mt-1 text-sm text-[#697178]">{selectedRequest.subject}</p>
                 </div>
