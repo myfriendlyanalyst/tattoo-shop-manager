@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppShell } from "@/components/app-shell";
+import { TimeSelect, useTimeInterval } from "@/components/time-select";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -97,17 +98,42 @@ type NewAppointmentForm = {
   end: string;
 };
 
+type AppointmentEditForm = {
+  type: string;
+  status: string;
+  notes: string;
+  start: string;
+  end: string;
+};
+
 const dayStartHour = 12;
 const dayEndHour = 24;
 const pixelsPerHour = 88;
 const timelineHeight = (dayEndHour - dayStartHour) * pixelsPerHour;
-const defaultDate = "2026-05-03";
 
 const appointmentTypes = [
   "Walk-in",
   "One-Done",
   "On-Going",
 ];
+
+const appointmentStatusOptions = [
+  "scheduled",
+  "checked_in",
+  "completed",
+  "cancelled",
+  "no_show",
+];
+
+const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function localDateValue(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 const hourMarkers = Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, index) => {
   const hour = dayStartHour + index;
@@ -186,6 +212,43 @@ function formatDateLabel(date: string) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
+function formatMonthLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${date}T00:00:00`));
+}
+
+function addMonths(date: string, amount: number) {
+  const nextDate = new Date(`${date}T00:00:00`);
+
+  nextDate.setMonth(nextDate.getMonth() + amount);
+
+  return localDateValue(nextDate);
+}
+
+function monthDays(date: string) {
+  const selected = new Date(`${date}T00:00:00`);
+  const year = selected.getFullYear();
+  const month = selected.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const start = new Date(firstDay);
+
+  start.setDate(firstDay.getDate() - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start);
+
+    day.setDate(start.getDate() + index);
+
+    return {
+      date: localDateValue(day),
+      day: day.getDate(),
+      currentMonth: day.getMonth() === month,
+    };
+  });
+}
+
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     scheduled: "Scheduled",
@@ -251,12 +314,13 @@ function draftFromClick(
   artist: StaffRecord,
   date: string,
   event: MouseEvent<HTMLDivElement>,
+  interval: number,
 ): DraftAppointment {
   const rect = event.currentTarget.getBoundingClientRect();
   const y = Math.max(0, Math.min(event.clientY - rect.top, timelineHeight));
   const rawMinutes = (y / pixelsPerHour) * 60;
   const startMinutes = Math.min(
-    Math.round(rawMinutes / 30) * 30,
+    Math.round(rawMinutes / interval) * interval,
     (dayEndHour - dayStartHour - 1) * 60,
   );
   const endMinutes = Math.min(startMinutes + 60, (dayEndHour - dayStartHour) * 60);
@@ -347,16 +411,107 @@ function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]
   return staff.role === "Artist";
 }
 
+function MiniDatePicker({
+  selectedDate,
+  onSelect,
+}: {
+  selectedDate: string;
+  onSelect: (date: string) => void;
+}) {
+  const today = localDateValue();
+  const days = monthDays(selectedDate);
+
+  return (
+    <div className="rounded-md border border-[#d9d3c7] bg-white px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          aria-label="Previous month"
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-sm font-bold hover:bg-[#eee8dd]"
+          onClick={() => onSelect(addMonths(selectedDate, -1))}
+          type="button"
+        >
+          {"<"}
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-semibold">{formatMonthLabel(selectedDate)}</p>
+          <button
+            className="mt-1 text-xs font-semibold text-[#8a6f4d] hover:text-[#1f2428]"
+            onClick={() => onSelect(today)}
+            type="button"
+          >
+            Today
+          </button>
+        </div>
+        <button
+          aria-label="Next month"
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-sm font-bold hover:bg-[#eee8dd]"
+          onClick={() => onSelect(addMonths(selectedDate, 1))}
+          type="button"
+        >
+          {">"}
+        </button>
+      </div>
+
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase text-[#8a8174]">
+        {weekdays.map((weekday) => (
+          <span key={weekday}>{weekday}</span>
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const selected = day.date === selectedDate;
+          const isToday = day.date === today;
+
+          return (
+            <button
+              className={`flex h-8 items-center justify-center rounded-md text-xs font-semibold transition ${
+                selected
+                  ? "bg-[#1f2428] text-white"
+                  : isToday
+                    ? "border border-[#9f5c3c] text-[#9f5c3c]"
+                    : day.currentMonth
+                      ? "text-[#30373d] hover:bg-[#eee8dd]"
+                      : "text-[#b8afa2] hover:bg-[#f7f2e9]"
+              }`}
+              key={day.date}
+              onClick={() => onSelect(day.date)}
+              type="button"
+            >
+              {day.day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AppointmentDetailModal({
   appointment,
+  saving,
+  error,
   onClose,
+  onDelete,
+  onSave,
 }: {
   appointment: Appointment;
+  saving: boolean;
+  error: string;
   onClose: () => void;
+  onDelete: (appointment: Appointment) => void;
+  onSave: (appointment: Appointment, form: AppointmentEditForm) => void;
 }) {
+  const [form, setForm] = useState<AppointmentEditForm>({
+    type: appointment.type,
+    status: appointment.status,
+    notes: appointment.notes,
+    start: appointment.start,
+    end: appointment.end,
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+      <section className="max-h-[92vh] w-full max-w-xl overflow-hidden rounded-md border border-[#d9d3c7] bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">Selected appointment</p>
@@ -373,21 +528,17 @@ function AppointmentDetailModal({
           </button>
         </div>
 
-        <div className="space-y-4 px-5 py-5">
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
               <p className="text-[#697178]">Artist</p>
               <p className="mt-1 font-semibold">{appointment.artist}</p>
-            </div>
-            <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-              <p className="text-[#697178]">Time</p>
-              <p className="mt-1 font-semibold">
-                {formatTime(appointment.start)} - {formatTime(appointment.end)}
-              </p>
-            </div>
-            <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-              <p className="text-[#697178]">Type</p>
-              <p className="mt-1 font-semibold">{appointment.type}</p>
             </div>
             <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
               <p className="text-[#697178]">Waiver</p>
@@ -395,11 +546,79 @@ function AppointmentDetailModal({
             </div>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold">Notes</h4>
-            <p className="mt-2 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#4d555c]">
-              {appointment.notes || "No notes yet."}
-            </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Start
+              <TimeSelect
+                endHour={dayEndHour}
+                onChange={(value) => setForm((current) => ({ ...current, start: value }))}
+                startHour={dayStartHour}
+                value={form.start}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              End
+              <TimeSelect
+                endHour={dayEndHour}
+                onChange={(value) => setForm((current) => ({ ...current, end: value }))}
+                startHour={dayStartHour}
+                value={form.end}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Type
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}
+                value={form.type}
+              >
+                {appointmentTypes.map((type) => (
+                  <option key={type}>{type}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              Status
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
+                value={form.status}
+              >
+                {appointmentStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block text-sm font-semibold">
+            Notes
+            <textarea
+              className="mt-2 min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              value={form.notes}
+            />
+          </label>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <button
+              className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
+              onClick={() => onSave(appointment, form)}
+              type="button"
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
+              onClick={() => onDelete(appointment)}
+              type="button"
+            >
+              Delete
+            </button>
           </div>
         </div>
       </section>
@@ -465,7 +684,7 @@ function NewAppointmentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+      <section className="max-h-[92vh] w-full max-w-xl overflow-hidden rounded-md border border-[#d9d3c7] bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">New appointment</p>
@@ -504,19 +723,19 @@ function NewAppointmentModal({
             </label>
             <label className="text-sm font-semibold">
               Start
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setForm((current) => ({ ...current, start: event.target.value }))}
-                type="time"
+              <TimeSelect
+                endHour={dayEndHour}
+                onChange={(value) => setForm((current) => ({ ...current, start: value }))}
+                startHour={dayStartHour}
                 value={form.start}
               />
             </label>
             <label className="text-sm font-semibold">
               End
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setForm((current) => ({ ...current, end: event.target.value }))}
-                type="time"
+              <TimeSelect
+                endHour={dayEndHour}
+                onChange={(value) => setForm((current) => ({ ...current, end: value }))}
+                startHour={dayStartHour}
                 value={form.end}
               />
             </label>
@@ -750,15 +969,17 @@ export default function CalendarPage() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedDate, setSelectedDate] = useState(defaultDate);
+  const [selectedDate, setSelectedDate] = useState(() => localDateValue());
   const [artistFilter, setArtistFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointment | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const timeInterval = useTimeInterval();
 
   const visibleArtists = useMemo(() => {
     if (artistFilter === "all") {
@@ -788,6 +1009,27 @@ export default function CalendarPage() {
 
     return projects.filter((project) => project.artist_id === draftAppointment.artistId);
   }, [draftAppointment, projects]);
+
+  const currentTimeTop = useMemo(() => {
+    if (selectedDate !== localDateValue(now)) {
+      return null;
+    }
+
+    const currentMinutes = (now.getHours() - dayStartHour) * 60 + now.getMinutes();
+    const timelineMinutes = (dayEndHour - dayStartHour) * 60;
+
+    if (currentMinutes < 0 || currentMinutes > timelineMinutes) {
+      return null;
+    }
+
+    return (currentMinutes / 60) * pixelsPerHour;
+  }, [now, selectedDate]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     async function loadCalendar() {
@@ -1034,6 +1276,68 @@ export default function CalendarPage() {
     setSaving(false);
   }
 
+  async function updateAppointment(appointment: Appointment, form: AppointmentEditForm) {
+    if (minutesFromStart(form.end) <= minutesFromStart(form.start)) {
+      setModalError("End time must be later than start time.");
+      return;
+    }
+
+    setSaving(true);
+    setModalError("");
+
+    const appointmentResult = await supabase
+      .from("appointments")
+      .update({
+        starts_at: timestampFor(selectedDate, form.start),
+        ends_at: timestampFor(selectedDate, form.end),
+        appointment_type: form.type,
+        status: form.status,
+        notes: form.notes.trim() || null,
+      })
+      .eq("id", appointment.id)
+      .select(
+        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+      )
+      .single();
+
+    if (appointmentResult.error) {
+      setModalError(appointmentResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const updatedAppointment = mapAppointment(appointmentResult.data as unknown as AppointmentRow);
+
+    setAppointments((current) =>
+      current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
+    );
+    setSelectedAppointment(updatedAppointment);
+    setSaving(false);
+  }
+
+  async function deleteAppointment(appointment: Appointment) {
+    const confirmed = window.confirm(`Delete appointment for ${appointment.client}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setModalError("");
+
+    const result = await supabase.from("appointments").delete().eq("id", appointment.id);
+
+    if (result.error) {
+      setModalError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setAppointments((current) => current.filter((item) => item.id !== appointment.id));
+    setSelectedAppointment(null);
+    setSaving(false);
+  }
+
   return (
     <AppShell
       active="Calendar"
@@ -1081,15 +1385,26 @@ export default function CalendarPage() {
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <h3 className="text-base font-semibold">Filters</h3>
               <div className="mt-4 space-y-3">
-                <label className="block text-sm font-semibold">
+                <div className="block text-sm font-semibold">
                   Date
+                  <div className="mt-2">
+                    <MiniDatePicker
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        setSelectedAppointment(null);
+                        setDraftAppointment(null);
+                        setModalError("");
+                      }}
+                      selectedDate={selectedDate}
+                    />
+                  </div>
                   <input
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    className="sr-only"
                     onChange={(event) => setSelectedDate(event.target.value)}
                     type="date"
                     value={selectedDate}
                   />
-                </label>
+                </div>
                 <label className="block text-sm font-semibold">
                   Artist
                   <select
@@ -1190,6 +1505,16 @@ export default function CalendarPage() {
                     height: `${timelineHeight}px`,
                   }}
                 >
+                  {currentTimeTop !== null ? (
+                    <div
+                      className="pointer-events-none absolute right-0 z-30 border-t-2 border-[#d33b2f]"
+                      style={{ left: "76px", top: `${currentTimeTop}px` }}
+                    >
+                      <span className="absolute -left-[38px] -top-[9px] rounded bg-[#d33b2f] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        Now
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="relative border-r border-[#e5dfd4] bg-[#fdfbf7]">
                     {hourMarkers.map((marker) => (
                       <p
@@ -1215,7 +1540,7 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          const draft = draftFromClick(artist, selectedDate, event);
+                          const draft = draftFromClick(artist, selectedDate, event, timeInterval);
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
                             setModalError("");
@@ -1257,6 +1582,7 @@ export default function CalendarPage() {
                               }`}
                               onClick={(event) => {
                                 event.stopPropagation();
+                                setModalError("");
                                 setSelectedAppointment(appointment);
                               }}
                               style={appointmentStyle(appointment.start, appointment.end)}
@@ -1299,7 +1625,14 @@ export default function CalendarPage() {
       {selectedAppointment ? (
         <AppointmentDetailModal
           appointment={selectedAppointment}
-          onClose={() => setSelectedAppointment(null)}
+          error={modalError}
+          onClose={() => {
+            setSelectedAppointment(null);
+            setModalError("");
+          }}
+          onDelete={deleteAppointment}
+          onSave={updateAppointment}
+          saving={saving}
         />
       ) : null}
 

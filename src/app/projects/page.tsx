@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { DateTimeSelect } from "@/components/time-select";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -355,14 +356,15 @@ function DepositEntryModal({
 
           <label className="block text-sm font-semibold">
             Received at
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, receivedAt: event.target.value }))
-              }
-              type="datetime-local"
-              value={form.receivedAt}
-            />
+            <div className="mt-2">
+              <DateTimeSelect
+                onChange={(value) =>
+                  setForm((current) => ({ ...current, receivedAt: value }))
+                }
+                startHour={8}
+                value={form.receivedAt}
+              />
+            </div>
           </label>
 
           <textarea
@@ -500,27 +502,27 @@ function SessionEntryModal({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-semibold">
                 Starts at
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, startsAt: event.target.value }))
-                  }
-                  step={1800}
-                  type="datetime-local"
-                  value={form.startsAt}
-                />
+                <div className="mt-2">
+                  <DateTimeSelect
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, startsAt: value }))
+                    }
+                    startHour={12}
+                    value={form.startsAt}
+                  />
+                </div>
               </label>
               <label className="text-sm font-semibold">
                 Ends at
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, endsAt: event.target.value }))
-                  }
-                  step={1800}
-                  type="datetime-local"
-                  value={form.endsAt}
-                />
+                <div className="mt-2">
+                  <DateTimeSelect
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, endsAt: value }))
+                    }
+                    startHour={12}
+                    value={form.endsAt}
+                  />
+                </div>
               </label>
             </div>
           ) : null}

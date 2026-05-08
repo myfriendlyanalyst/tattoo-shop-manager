@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { TimeSelect } from "@/components/time-select";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -913,22 +914,18 @@ export default function StaffPage() {
                         className="grid grid-cols-[54px_1fr_1fr_56px] items-center gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
                       >
                         <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
-                        <input
+                        <TimeSelect
                           className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
                           disabled={!slot.available}
-                          onChange={(event) =>
-                            updateSchedule(slot.day_of_week, { starts_at: event.target.value })
-                          }
-                          type="time"
+                          onChange={(value) => updateSchedule(slot.day_of_week, { starts_at: value })}
+                          startHour={8}
                           value={normalizeTime(slot.starts_at)}
                         />
-                        <input
+                        <TimeSelect
                           className="h-9 rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd]"
                           disabled={!slot.available}
-                          onChange={(event) =>
-                            updateSchedule(slot.day_of_week, { ends_at: event.target.value })
-                          }
-                          type="time"
+                          onChange={(value) => updateSchedule(slot.day_of_week, { ends_at: value })}
+                          startHour={8}
                           value={normalizeTime(slot.ends_at)}
                         />
                         <label className="flex items-center justify-end gap-2 text-xs font-semibold text-[#4d555c]">

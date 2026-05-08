@@ -1,4 +1,13 @@
+"use client";
+
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import {
+  readTimeInterval,
+  saveTimeInterval,
+  timeIntervalOptions,
+  type TimeInterval,
+} from "@/lib/time-settings";
 
 const paymentMethods = [
   { name: "Cash", enabled: true },
@@ -23,6 +32,14 @@ function statusClasses(tone: string) {
 }
 
 export default function SettingsPage() {
+  const [timeInterval, setTimeInterval] = useState<TimeInterval>(readTimeInterval);
+  const [message, setMessage] = useState("");
+
+  function saveSettings() {
+    saveTimeInterval(timeInterval);
+    setMessage("Settings saved.");
+  }
+
   return (
     <AppShell
       active="Settings"
@@ -32,12 +49,19 @@ export default function SettingsPage() {
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
+          onClick={saveSettings}
           type="button"
         >
           Save settings
         </button>
       }
     >
+      {message ? (
+        <p className="mb-6 rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
+          {message}
+        </p>
+      ) : null}
+
       <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <div className="space-y-6">
           <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
@@ -135,11 +159,16 @@ export default function SettingsPage() {
                 Booking interval
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  defaultValue="30 minutes"
+                  onChange={(event) =>
+                    setTimeInterval(Number(event.target.value) as TimeInterval)
+                  }
+                  value={timeInterval}
                 >
-                  <option>15 minutes</option>
-                  <option>30 minutes</option>
-                  <option>60 minutes</option>
+                  {timeIntervalOptions.map((interval) => (
+                    <option key={interval} value={interval}>
+                      {interval} minutes
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="text-sm font-semibold">
