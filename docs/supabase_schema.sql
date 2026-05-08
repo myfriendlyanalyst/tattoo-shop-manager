@@ -15,7 +15,7 @@ exception
 end $$;
 
 do $$ begin
-  create type public.project_status as enum ('lead', 'consultation', 'booked', 'in_progress', 'completed', 'cancelled');
+  create type public.project_status as enum ('consultation', 'booked', 'in_progress', 'completed', 'cancelled', 'on_hold');
 exception
   when duplicate_object then null;
 end $$;
@@ -172,7 +172,7 @@ create table if not exists public.projects (
   ),
   waiver_sent_at timestamptz,
   waiver_signed_at timestamptz,
-  status public.project_status not null default 'lead',
+  status public.project_status not null default 'consultation',
   memo text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

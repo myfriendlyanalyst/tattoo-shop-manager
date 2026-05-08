@@ -1281,6 +1281,25 @@ export default function CalendarPage() {
       return;
     }
 
+    if (project.status === "consultation" || project.status === "on_hold") {
+      const projectStatusResult = await supabase
+        .from("projects")
+        .update({ status: "booked" })
+        .eq("id", project.id);
+
+      if (projectStatusResult.error) {
+        setModalError(projectStatusResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      setProjects((current) =>
+        current.map((item) =>
+          item.id === project!.id ? { ...item, status: "booked" } : item,
+        ),
+      );
+    }
+
     setAppointments((current) => [
       ...current,
       mapAppointment(appointmentResult.data as unknown as AppointmentRow),

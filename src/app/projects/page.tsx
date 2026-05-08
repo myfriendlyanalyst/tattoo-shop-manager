@@ -133,6 +133,17 @@ const paymentMethods = [
   { value: "other", label: "Other" },
 ];
 
+const projectStatusOptions = [
+  { value: "consultation", label: "Consultation" },
+  { value: "booked", label: "Booked" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "on_hold", label: "On hold" },
+];
+
+const activeProjectStatuses = ["consultation", "booked", "in_progress", "on_hold"];
+
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
@@ -203,12 +214,12 @@ function newPaymentLine(method = "cash", amount = ""): PaymentLineForm {
 
 function projectStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    lead: "Lead",
     consultation: "Consultation",
     booked: "Booked",
     in_progress: "In progress",
     completed: "Completed",
     cancelled: "Cancelled",
+    on_hold: "On hold",
   };
 
   return labels[status] ?? status;
@@ -216,12 +227,12 @@ function projectStatusLabel(status: string) {
 
 function projectStatusClasses(status: string) {
   const variants: Record<string, string> = {
-    lead: "bg-[#f1eadc] text-[#775f36]",
     consultation: "bg-[#efe7f5] text-[#674b7a]",
     booked: "bg-[#e4f1df] text-[#476b33]",
     in_progress: "bg-[#e5edf4] text-[#315f82]",
     completed: "bg-[#e8f0ee] text-[#2f6658]",
     cancelled: "bg-[#f3e1e1] text-[#8a3030]",
+    on_hold: "bg-[#f4e7df] text-[#8a5130]",
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
@@ -743,7 +754,7 @@ export default function ProjectsPage() {
       const statusMatches =
         statusFilter === "all" ||
         (statusFilter === "active"
-          ? ["lead", "consultation", "booked", "in_progress"].includes(project.status)
+          ? activeProjectStatuses.includes(project.status)
           : project.status === statusFilter);
       const searchMatches =
         !term ||
@@ -876,7 +887,7 @@ export default function ProjectsPage() {
   }, [selectedAppointments, selectedSessions]);
 
   const activeCount = projects.filter((project) =>
-    ["lead", "consultation", "booked", "in_progress"].includes(project.status),
+    activeProjectStatuses.includes(project.status),
   ).length;
   const waiverMissingCount = projects.filter((project) => waiverLabel(project) !== "Signed").length;
 
@@ -1070,6 +1081,57 @@ export default function ProjectsPage() {
     );
     setMessage("Waiver marked as signed.");
     setSaving(false);
+  }
+
+  async function updateProjectStatus(project: ProjectRecord, status: string) {
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("projects")
+      .update({ status })
+      .eq("id", project.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((item) => (item.id === project.id ? { ...item, status } : item)),
+    );
+    setMessage("Project status updated.");
+    setSaving(false);
+  }
+
+  async function promoteSelectedProjectStatus(status: string) {
+    if (!selectedProject || selectedProject.status === status) {
+      return true;
+    }
+
+    if (selectedProject.status === "completed" || selectedProject.status === "cancelled") {
+      return true;
+    }
+
+    const result = await supabase
+      .from("projects")
+      .update({ status })
+      .eq("id", selectedProject.id);
+
+    if (result.error) {
+      setEntryError(result.error.message);
+      setSaving(false);
+      return false;
+    }
+
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === selectedProject.id ? { ...project, status } : project,
+      ),
+    );
+    return true;
   }
 
   async function saveDeposit(form: DepositForm) {
@@ -1450,6 +1512,12 @@ export default function ProjectsPage() {
       );
     }
 
+    const statusPromoted = await promoteSelectedProjectStatus("in_progress");
+
+    if (!statusPromoted) {
+      return;
+    }
+
     setDepositApplications(nextDepositApplications);
     setSessionPayments(nextSessionPayments);
     setSessions((current) =>
@@ -1661,12 +1729,11 @@ export default function ProjectsPage() {
               >
                 <option value="active">Active statuses</option>
                 <option value="all">All statuses</option>
-                <option value="lead">Lead</option>
-                <option value="consultation">Consultation</option>
-                <option value="booked">Booked</option>
-                <option value="in_progress">In progress</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                {projectStatusOptions.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
               </select>
             </div>
           </section>
@@ -1844,7 +1911,22 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 px-4 py-4 md:grid-cols-3">
+                  <div className="grid gap-3 px-4 py-4 md:grid-cols-4">
+                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                      <p className="text-sm text-[#697178]">Project status</p>
+                      <select
+                        className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
+                        disabled={saving}
+                        onChange={(event) => updateProjectStatus(selectedProject, event.target.value)}
+                        value={selectedProject.status}
+                      >
+                        {projectStatusOptions.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Customer</p>
                       <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
