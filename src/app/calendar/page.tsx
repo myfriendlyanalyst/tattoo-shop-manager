@@ -302,6 +302,16 @@ function timestampFor(date: string, time: string) {
   return timestamp.toISOString();
 }
 
+function dayRangeFor(date: string) {
+  const start = new Date(`${date}T00:00:00`);
+  const end = new Date(`${date}T23:59:59.999`);
+
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  };
+}
+
 function timeFromTimestamp(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     hour: "2-digit",
@@ -1057,8 +1067,7 @@ export default function CalendarPage() {
         return;
       }
 
-      const dayStart = timestampFor(selectedDate, "00:00");
-      const dayEnd = timestampFor(selectedDate, "23:59");
+      const dayRange = dayRangeFor(selectedDate);
 
       const [
         staffResult,
@@ -1094,8 +1103,8 @@ export default function CalendarPage() {
           .select(
             "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
           )
-          .gte("starts_at", dayStart)
-          .lte("starts_at", dayEnd)
+          .gte("starts_at", dayRange.start)
+          .lte("starts_at", dayRange.end)
           .order("starts_at", { ascending: true }),
       ]);
 

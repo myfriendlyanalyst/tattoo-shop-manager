@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { DateTimeSelect } from "@/components/time-select";
+import { TimeSelect } from "@/components/time-select";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -79,8 +79,9 @@ type NewRequestForm = {
 type BookingForm = {
   projectSubject: string;
   projectType: string;
-  startsAt: string;
-  endsAt: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
   appointmentNotes: string;
   depositAmount: string;
   depositPaymentMethod: string;
@@ -224,11 +225,23 @@ function displayDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function localDateTimeInput(value = new Date()) {
-  const offset = value.getTimezoneOffset();
-  const local = new Date(value.getTime() - offset * 60 * 1000);
+function localDateInput(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
 
-  return local.toISOString().slice(0, 16);
+  return `${year}-${month}-${day}`;
+}
+
+function localTimeInput(value = new Date()) {
+  const hour = String(value.getHours()).padStart(2, "0");
+  const minute = String(value.getMinutes()).padStart(2, "0");
+
+  return `${hour}:${minute}`;
+}
+
+function localDateTimeFromParts(date: string, time: string) {
+  return new Date(`${date}T${time}:00`);
 }
 
 function defaultBookingForm(request: RequestRecord): BookingForm {
@@ -240,8 +253,9 @@ function defaultBookingForm(request: RequestRecord): BookingForm {
   return {
     projectSubject: projectSubjectFromRequest(request),
     projectType: "Multiple Session",
-    startsAt: localDateTimeInput(start),
-    endsAt: localDateTimeInput(end),
+    appointmentDate: localDateInput(start),
+    startTime: localTimeInput(start),
+    endTime: localTimeInput(end),
     appointmentNotes: request.notes ?? "",
     depositAmount: "",
     depositPaymentMethod: "cash",
@@ -924,8 +938,8 @@ export default function RequestsPage() {
       return;
     }
 
-    const startsAt = new Date(bookingForm.startsAt);
-    const endsAt = new Date(bookingForm.endsAt);
+    const startsAt = localDateTimeFromParts(bookingForm.appointmentDate, bookingForm.startTime);
+    const endsAt = localDateTimeFromParts(bookingForm.appointmentDate, bookingForm.endTime);
     const depositAmount = Number(bookingForm.depositAmount || 0);
 
     if (!bookingForm.projectSubject.trim()) {
@@ -933,8 +947,8 @@ export default function RequestsPage() {
       return;
     }
 
-    if (!bookingForm.startsAt || !bookingForm.endsAt || endsAt <= startsAt) {
-      setError("First appointment needs a valid start and end time.");
+    if (!bookingForm.appointmentDate || !bookingForm.startTime || !bookingForm.endTime || endsAt <= startsAt) {
+      setError("First appointment needs a valid date, start time, and end time.");
       return;
     }
 
@@ -1332,36 +1346,46 @@ export default function RequestsPage() {
                               value={bookingForm.projectSubject}
                             />
                           </label>
+                          <label className="block text-sm font-semibold">
+                            Appointment date
+                            <input
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) =>
+                                setBookingForm((current) =>
+                                  current ? { ...current, appointmentDate: event.target.value } : current,
+                                )
+                              }
+                              type="date"
+                              value={bookingForm.appointmentDate}
+                            />
+                          </label>
                           <div className="grid gap-3 sm:grid-cols-2">
                             <label className="text-sm font-semibold">
-                              Starts
-                              <div className="mt-2">
-                                <DateTimeSelect
-                                  disabled={saving}
-                                  onChange={(value) =>
-                                    setBookingForm((current) =>
-                                      current ? { ...current, startsAt: value } : current,
-                                    )
-                                  }
-                                  startHour={12}
-                                  value={bookingForm.startsAt}
-                                />
-                              </div>
+                              Start time
+                              <TimeSelect
+                                disabled={saving}
+                                onChange={(value) =>
+                                  setBookingForm((current) =>
+                                    current ? { ...current, startTime: value } : current,
+                                  )
+                                }
+                                startHour={12}
+                                value={bookingForm.startTime}
+                              />
                             </label>
                             <label className="text-sm font-semibold">
-                              Ends
-                              <div className="mt-2">
-                                <DateTimeSelect
-                                  disabled={saving}
-                                  onChange={(value) =>
-                                    setBookingForm((current) =>
-                                      current ? { ...current, endsAt: value } : current,
-                                    )
-                                  }
-                                  startHour={12}
-                                  value={bookingForm.endsAt}
-                                />
-                              </div>
+                              End time
+                              <TimeSelect
+                                disabled={saving}
+                                onChange={(value) =>
+                                  setBookingForm((current) =>
+                                    current ? { ...current, endTime: value } : current,
+                                  )
+                                }
+                                startHour={12}
+                                value={bookingForm.endTime}
+                              />
                             </label>
                           </div>
                           <label className="block text-sm font-semibold">
