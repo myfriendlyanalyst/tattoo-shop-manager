@@ -1201,10 +1201,7 @@ export default function RequestsPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="font-semibold">{request.client_name}</p>
-                          <p className="mt-1 line-clamp-2 text-sm text-[#4d555c]">
-                            {request.subject}
-                          </p>
+                          <p className="line-clamp-2 font-semibold">{request.subject}</p>
                         </div>
                         <span
                           className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${statusClasses(
@@ -1264,11 +1261,11 @@ export default function RequestsPage() {
                           }}
                         >
                           <td className="px-4 py-4">
-                            <p className="font-semibold">{request.client_name}</p>
-                            <p className="mt-1 text-[#4d555c]">{request.subject}</p>
+                            <p className="font-semibold">{request.subject}</p>
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
-                            <p>{request.email || "-"}</p>
+                            <p className="font-semibold text-[#1f2428]">{request.client_name}</p>
+                            <p className="mt-1">{request.email || "-"}</p>
                             <p className="mt-1">{request.phone || "-"}</p>
                           </td>
                           <td className="px-4 py-4 font-semibold">
@@ -1301,11 +1298,11 @@ export default function RequestsPage() {
                 <div className="shrink-0 border-b border-[#e5dfd4] px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
+                      <h3 className="text-lg font-semibold">{selectedRequest.subject}</h3>
                       <p className="mt-1 text-sm text-[#697178]">
                         {bookingMode
                           ? "Book project, first appointment, and optional deposit."
-                          : selectedRequest.subject}
+                          : statusLabel(selectedRequest.status)}
                       </p>
                     </div>
                     <button
@@ -1508,6 +1505,69 @@ export default function RequestsPage() {
                   ) : (
                     <>
                   <div>
+                    <h4 className="text-sm font-semibold">Basic info</h4>
+                    <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Client name</p>
+                        <p className="mt-1 font-semibold">{selectedRequest.client_name}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Contact</p>
+                        <p className="mt-1 font-semibold">{selectedRequest.email || "-"}</p>
+                        <p className="mt-1 text-[#697178]">{selectedRequest.phone || "-"}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Size</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.approximate_size
+                            ? `${selectedRequest.approximate_size} inch`
+                            : "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Placement</p>
+                        <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
+                        <p className="text-[#697178]">Description</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.tattoo_description || selectedRequest.subject}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedFiles.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {selectedFiles.map((file) => (
+                          <a
+                            key={file.id}
+                            className="flex min-h-10 items-center justify-between gap-3 rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                            href={file.url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <span className="min-w-0 truncate">
+                              {file.original_name || "Reference image"}
+                            </span>
+                            <span className="shrink-0 text-xs font-medium text-[#697178]">
+                              {file.size_bytes ? `${Math.round(file.size_bytes / 1024)} KB` : ""}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+                    {selectedFiles.length === 0 && selectedRequest.reference_image_url ? (
+                      <a
+                        className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                        href={selectedRequest.reference_image_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Open legacy reference link
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
                     <div
                       className={`mt-3 grid gap-3 text-sm ${
@@ -1563,65 +1623,6 @@ export default function RequestsPage() {
                         </>
                       ) : null}
                     </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-semibold">Basic info</h4>
-                    <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
-                        <p className="text-[#697178]">Contact</p>
-                        <p className="mt-1 font-semibold">{selectedRequest.email || "-"}</p>
-                        <p className="mt-1 text-[#697178]">{selectedRequest.phone || "-"}</p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Size</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.approximate_size
-                            ? `${selectedRequest.approximate_size} inch`
-                            : "-"}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Placement</p>
-                        <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
-                        <p className="text-[#697178]">Description</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.tattoo_description || selectedRequest.subject}
-                        </p>
-                      </div>
-                    </div>
-                    {selectedFiles.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {selectedFiles.map((file) => (
-                          <a
-                            key={file.id}
-                            className="flex min-h-10 items-center justify-between gap-3 rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                            href={file.url}
-                            rel="noreferrer"
-                            target="_blank"
-                          >
-                            <span className="min-w-0 truncate">
-                              {file.original_name || "Reference image"}
-                            </span>
-                            <span className="shrink-0 text-xs font-medium text-[#697178]">
-                              {file.size_bytes ? `${Math.round(file.size_bytes / 1024)} KB` : ""}
-                            </span>
-                          </a>
-                        ))}
-                      </div>
-                    ) : null}
-                    {selectedFiles.length === 0 && selectedRequest.reference_image_url ? (
-                      <a
-                        className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                        href={selectedRequest.reference_image_url}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Open legacy reference link
-                      </a>
-                    ) : null}
                   </div>
 
                   <div>
