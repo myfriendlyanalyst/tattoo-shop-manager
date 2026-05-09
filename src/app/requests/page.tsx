@@ -78,9 +78,9 @@ type NewRequestForm = {
 
 type BookingForm = {
   projectSubject: string;
+  projectType: string;
   startsAt: string;
   endsAt: string;
-  appointmentType: string;
   appointmentNotes: string;
   depositAmount: string;
   depositPaymentMethod: string;
@@ -102,7 +102,7 @@ const referenceBucket = "request-references";
 const requestSelect =
   "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 
-const appointmentTypes = ["Walk-in", "One-Done", "On-Going"];
+const projectTypes = ["Walk-in", "One Done", "Multiple Session"];
 const paymentMethods = [
   { value: "cash", label: "Cash" },
   { value: "credit_card", label: "Credit card" },
@@ -201,9 +201,9 @@ function defaultBookingForm(request: RequestRecord): BookingForm {
 
   return {
     projectSubject: projectSubjectFromRequest(request),
+    projectType: "Multiple Session",
     startsAt: localDateTimeInput(start),
     endsAt: localDateTimeInput(end),
-    appointmentType: "On-Going",
     appointmentNotes: request.notes ?? "",
     depositAmount: "",
     depositPaymentMethod: "cash",
@@ -933,6 +933,7 @@ export default function RequestsPage() {
         customer_id: customerId,
         artist_id: selectedRequest.artist_id,
         subject: bookingForm.projectSubject.trim(),
+        session_type: bookingForm.projectType,
         status: "booked",
         waiver_signed: false,
         waiver_status: "missing",
@@ -955,7 +956,7 @@ export default function RequestsPage() {
         artist_id: selectedRequest.artist_id,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
-        appointment_type: bookingForm.appointmentType,
+        appointment_type: bookingForm.projectType,
         status: "scheduled",
         notes: bookingForm.appointmentNotes.trim() || null,
       });
@@ -1310,18 +1311,18 @@ export default function RequestsPage() {
                             </label>
                           </div>
                           <label className="block text-sm font-semibold">
-                            Appointment type
+                            Project type
                             <select
                               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                               disabled={saving}
                               onChange={(event) =>
                                 setBookingForm((current) =>
-                                  current ? { ...current, appointmentType: event.target.value } : current,
+                                  current ? { ...current, projectType: event.target.value } : current,
                                 )
                               }
-                              value={bookingForm.appointmentType}
+                              value={bookingForm.projectType}
                             >
-                              {appointmentTypes.map((type) => (
+                              {projectTypes.map((type) => (
                                 <option key={type}>{type}</option>
                               ))}
                             </select>

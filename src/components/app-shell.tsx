@@ -80,42 +80,46 @@ export function AppShell({
 
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 sm:px-6 lg:px-8">
-            <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
-                  Oyabun
-                </p>
-                <p className="mt-1 text-lg font-semibold">Tattoo Manager</p>
+            <div className="mx-auto w-full max-w-6xl">
+              <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
+                    Oyabun
+                  </p>
+                  <p className="mt-1 text-lg font-semibold">Tattoo Manager</p>
+                </div>
+                <button
+                  aria-label="Open navigation"
+                  className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
+                  onClick={() => setMobileMenuOpen(true)}
+                  type="button"
+                >
+                  <span className="flex w-5 flex-col gap-1.5">
+                    <span className="h-0.5 rounded bg-[#1f2428]" />
+                    <span className="h-0.5 rounded bg-[#1f2428]" />
+                    <span className="h-0.5 rounded bg-[#1f2428]" />
+                  </span>
+                </button>
               </div>
-              <button
-                aria-label="Open navigation"
-                className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
-                onClick={() => setMobileMenuOpen(true)}
-                type="button"
-              >
-                <span className="flex w-5 flex-col gap-1.5">
-                  <span className="h-0.5 rounded bg-[#1f2428]" />
-                  <span className="h-0.5 rounded bg-[#1f2428]" />
-                  <span className="h-0.5 rounded bg-[#1f2428]" />
-                </span>
-              </button>
-            </div>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#8a6f4d]">{eyebrow}</p>
-                <h2 className="text-2xl font-semibold">{title}</h2>
-                {description ? (
-                  <p className="mt-1 max-w-3xl text-sm text-[#697178]">{description}</p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                {actions}
-                <AuthButton />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[#8a6f4d]">{eyebrow}</p>
+                  <h2 className="text-2xl font-semibold">{title}</h2>
+                  {description ? (
+                    <p className="mt-1 max-w-3xl text-sm text-[#697178]">{description}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {actions}
+                  <AuthButton />
+                </div>
               </div>
             </div>
           </header>
 
-          <div className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
+          <div className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-6xl">{children}</div>
+          </div>
         </section>
       </div>
 

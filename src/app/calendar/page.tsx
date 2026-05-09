@@ -1234,6 +1234,7 @@ export default function CalendarPage() {
           customer_id: customerId,
           artist_id: draftAppointment.artistId,
           subject: projectSubject,
+          session_type: "Walk-in",
           status: "booked",
           waiver_signed: false,
           waiver_status: "missing",

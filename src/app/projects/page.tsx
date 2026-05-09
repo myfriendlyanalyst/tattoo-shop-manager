@@ -141,6 +141,7 @@ const projectStatusOptions = [
   { value: "on_hold", label: "On hold" },
 ];
 
+const projectTypeOptions = ["Walk-in", "One Done", "Multiple Session"];
 const activeProjectStatuses = ["booked", "in_progress", "on_hold"];
 
 function relatedOne<T>(value: T | T[] | null) {
@@ -1100,6 +1101,31 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
+  async function updateProjectType(project: ProjectRecord, sessionType: string) {
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("projects")
+      .update({ session_type: sessionType })
+      .eq("id", project.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((item) =>
+        item.id === project.id ? { ...item, session_type: sessionType } : item,
+      ),
+    );
+    setMessage("Project type updated.");
+    setSaving(false);
+  }
+
   async function promoteSelectedProjectStatus(status: string) {
     if (!selectedProject || selectedProject.status === status) {
       return true;
@@ -1890,7 +1916,7 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 px-4 py-4 md:grid-cols-4">
+                  <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-5">
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Project status</p>
                       <select
@@ -1916,9 +1942,19 @@ export default function ProjectsPage() {
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Artist</p>
                       <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
-                      <p className="mt-1 text-sm text-[#697178]">
-                        {selectedProject.session_type || "Session type not set"}
-                      </p>
+                    </div>
+                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                      <p className="text-sm text-[#697178]">Project type</p>
+                      <select
+                        className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
+                        disabled={saving}
+                        onChange={(event) => updateProjectType(selectedProject, event.target.value)}
+                        value={selectedProject.session_type || "Multiple Session"}
+                      >
+                        {projectTypeOptions.map((type) => (
+                          <option key={type}>{type}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Waiver signed</p>

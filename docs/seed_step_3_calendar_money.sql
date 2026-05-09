@@ -10,7 +10,7 @@ select
   p.artist_id,
   date_trunc('day', now()) + interval '14 hours',
   date_trunc('day', now()) + interval '17 hours',
-  'On-Going',
+  'Multiple Session',
   'completed',
   'First sample session completed.'
 from public.projects p
@@ -25,7 +25,7 @@ select
   p.artist_id,
   date_trunc('day', now()) + interval '1 day 15 hours',
   date_trunc('day', now()) + interval '1 day 18 hours',
-  'On-Going',
+  'Multiple Session',
   'scheduled',
   'Stencil and first pass.'
 from public.projects p
