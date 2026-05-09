@@ -154,20 +154,16 @@ function effectiveArtistId(request: RequestRecord, artists: StaffRecord[]) {
   );
 }
 
-function effectiveArtistName(request: RequestRecord, artists: StaffRecord[]) {
-  const assignedArtist = relatedOne(request.artist)?.display_name;
+function selectedArtistName(request: RequestRecord) {
+  return relatedOne(request.artist)?.display_name ?? "-";
+}
 
-  if (assignedArtist) {
-    return assignedArtist;
-  }
+function requestNameFromParts(clientName: string, placement: string) {
+  const cleanClient = clientName.trim();
+  const cleanPlacement = placement.trim();
+  const projectType = cleanPlacement ? `${cleanPlacement} tattoo` : "Tattoo project";
 
-  if (!isAnyAvailableLabel(request.requested_artist_label)) {
-    return request.requested_artist_label || "Unassigned";
-  }
-
-  const artistId = effectiveArtistId(request, artists);
-
-  return artists.find((artist) => artist.id === artistId)?.display_name ?? "Any available";
+  return cleanClient ? `${cleanClient} - ${projectType}` : projectType;
 }
 
 function statusLabel(status: string) {
@@ -179,8 +175,8 @@ function statusLabel(status: string) {
     consultation: "Booked",
     booked: "Booked",
     client_waiting_for_reply: "Waiting Client",
-    no_answer: "No Answer",
-    denied: "Denied",
+    no_answer: "No answer from client",
+    denied: "Declined by shop",
     sent: "Sent",
     interested: "Interested",
     passed: "Pass",
@@ -316,10 +312,7 @@ function requestDetailMemo(request: RequestRecord) {
 }
 
 function projectSubjectFromRequest(request: RequestRecord) {
-  const placement = request.placement?.trim();
-  const projectType = placement ? `${placement} tattoo` : "Tattoo project";
-
-  return `${request.client_name} - ${projectType}`;
+  return request.subject?.trim() || requestNameFromParts(request.client_name, request.placement ?? "");
 }
 
 function safeFileName(fileName: string) {
@@ -736,6 +729,7 @@ export default function RequestsPage() {
     const phone = form.phone.trim();
     const approximateSize = form.approximateSize.trim();
     const placement = form.placement.trim();
+    const requestName = requestNameFromParts(clientName, placement);
 
     if (
       !clientName ||
@@ -782,7 +776,7 @@ export default function RequestsPage() {
         client_name: clientName,
         email,
         phone,
-        subject: tattooDescription,
+        subject: requestName,
         tattoo_description: tattooDescription,
         approximate_size: approximateSize,
         placement,
@@ -1515,60 +1509,69 @@ export default function RequestsPage() {
                     <>
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-3">
+                    <div
+                      className={`mt-3 grid gap-3 text-sm ${
+                        isAnyAvailableLabel(selectedRequest.requested_artist_label)
+                          ? "lg:grid-cols-3"
+                          : "lg:grid-cols-1"
+                      }`}
+                    >
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Requested artist</p>
                         <p className="mt-1 font-semibold">
                           {selectedRequest.requested_artist_label || "Any available"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Selected artist</p>
-                        <p className="mt-1 font-semibold">
-                          {effectiveArtistName(selectedRequest, artists)}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Artist assignment</p>
-                        {needsArtistAssignment ? (
-                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
-                            <select
-                              className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                              disabled={saving}
-                              onChange={(event) => setAssignmentArtistId(event.target.value)}
-                              value={assignmentArtistId}
-                            >
-                              <option value="">Select artist</option>
-                              {artists.map((artist) => (
-                                <option key={artist.id} value={artist.id}>
-                                  {artist.display_name}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={saving || !assignmentArtistId}
-                              onClick={assignRequestArtist}
-                              type="button"
-                            >
-                              Confirm
-                            </button>
+                      {isAnyAvailableLabel(selectedRequest.requested_artist_label) ? (
+                        <>
+                          <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                            <p className="text-[#697178]">Selected artist</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedArtistName(selectedRequest)}
+                            </p>
                           </div>
-                        ) : (
-                          <p className="mt-1 font-semibold text-[#697178]">Not needed</p>
-                        )}
-                      </div>
+                          <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                            <p className="text-[#697178]">Artist assignment</p>
+                            {needsArtistAssignment ? (
+                              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
+                                <select
+                                  className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                                  disabled={saving}
+                                  onChange={(event) => setAssignmentArtistId(event.target.value)}
+                                  value={assignmentArtistId}
+                                >
+                                  <option value="">Select artist</option>
+                                  {artists.map((artist) => (
+                                    <option key={artist.id} value={artist.id}>
+                                      {artist.display_name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={saving || !assignmentArtistId}
+                                  onClick={assignRequestArtist}
+                                  type="button"
+                                >
+                                  Confirm
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="mt-1 font-semibold text-[#697178]">Assigned</p>
+                            )}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   </div>
 
                   <div>
-                    <h4 className="text-sm font-semibold">Tattoo details</h4>
+                    <h4 className="text-sm font-semibold">Basic info</h4>
                     <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 sm:col-span-2">
-                        <p className="text-[#697178]">Description</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.tattoo_description || selectedRequest.subject}
-                        </p>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                        <p className="text-[#697178]">Contact</p>
+                        <p className="mt-1 font-semibold">{selectedRequest.email || "-"}</p>
+                        <p className="mt-1 text-[#697178]">{selectedRequest.phone || "-"}</p>
                       </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Size</p>
@@ -1581,6 +1584,12 @@ export default function RequestsPage() {
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
+                        <p className="text-[#697178]">Description</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.tattoo_description || selectedRequest.subject}
+                        </p>
                       </div>
                     </div>
                     {selectedFiles.length > 0 ? (
@@ -1643,26 +1652,16 @@ export default function RequestsPage() {
                     </ol>
                   </div>
 
+                  {selectedRequest.notes ? (
                   <div>
                     <h4 className="text-sm font-semibold">Notes</h4>
                     <p className="mt-2 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#4d555c]">
-                      {selectedRequest.notes || "No notes yet."}
+                      {selectedRequest.notes}
                     </p>
                   </div>
+                  ) : null}
 
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                    <select
-                      className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      disabled={saving}
-                      onChange={(event) => updateRequestStatus(event.target.value)}
-                      value={selectedRequest.status}
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {statusLabel(status)}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
                     <button
                       className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={saving || Boolean(selectedRequest.project_id)}
@@ -1670,6 +1669,22 @@ export default function RequestsPage() {
                       type="button"
                     >
                       {selectedRequest.project_id ? "Project booked" : "Book project"}
+                    </button>
+                    <button
+                      className="h-10 rounded-md border border-[#b98238] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedRequest.status === "no_answer"}
+                      onClick={() => updateRequestStatus("no_answer")}
+                      type="button"
+                    >
+                      No answer from client
+                    </button>
+                    <button
+                      className="h-10 rounded-md border border-[#8a3030] px-3 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedRequest.status === "denied"}
+                      onClick={() => updateRequestStatus("denied")}
+                      type="button"
+                    >
+                      Declined by shop
                     </button>
                     <button
                       className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
