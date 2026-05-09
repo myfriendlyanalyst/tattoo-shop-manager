@@ -131,6 +131,44 @@ function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function isAnyAvailableLabel(value: string | null | undefined) {
+  return (value?.trim().toLowerCase() ?? "") === "any available";
+}
+
+function effectiveArtistId(request: RequestRecord, artists: StaffRecord[]) {
+  if (request.artist_id) {
+    return request.artist_id;
+  }
+
+  if (isAnyAvailableLabel(request.requested_artist_label)) {
+    return "";
+  }
+
+  return (
+    artists.find(
+      (artist) =>
+        artist.display_name.trim().toLowerCase() ===
+        (request.requested_artist_label?.trim().toLowerCase() ?? ""),
+    )?.id ?? ""
+  );
+}
+
+function effectiveArtistName(request: RequestRecord, artists: StaffRecord[]) {
+  const assignedArtist = relatedOne(request.artist)?.display_name;
+
+  if (assignedArtist) {
+    return assignedArtist;
+  }
+
+  if (!isAnyAvailableLabel(request.requested_artist_label)) {
+    return request.requested_artist_label || "Unassigned";
+  }
+
+  const artistId = effectiveArtistId(request, artists);
+
+  return artists.find((artist) => artist.id === artistId)?.display_name ?? "Any available";
+}
+
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
     new: "New",
@@ -313,8 +351,8 @@ function NewRequestModal({
     approximateSize: "",
     placement: "",
     referenceFile: null,
-    requestedArtistLabel: artists[0]?.display_name ?? "",
-    artistId: artists[0]?.id ?? "",
+    requestedArtistLabel: "Any available",
+    artistId: "",
     notes: "",
   });
 
@@ -468,12 +506,12 @@ function NewRequestModal({
                 setForm((current) => ({
                   ...current,
                   artistId: event.target.value,
-                  requestedArtistLabel: selectedArtist?.display_name ?? "",
+                  requestedArtistLabel: selectedArtist?.display_name ?? "Any available",
                 }));
               }}
               value={form.artistId}
             >
-              <option value="">Select artist</option>
+              <option value="">Any available</option>
               {artists.map((artist) => (
                 <option key={artist.id} value={artist.id}>
                   {artist.display_name}
@@ -518,6 +556,7 @@ export default function RequestsPage() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [bookingMode, setBookingMode] = useState(false);
   const [bookingForm, setBookingForm] = useState<BookingForm | null>(null);
+  const [assignmentArtistId, setAssignmentArtistId] = useState("");
 
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? requests[0],
@@ -540,6 +579,14 @@ export default function RequestsPage() {
 
     return requestFiles.filter((file) => file.request_id === selectedRequest.id);
   }, [requestFiles, selectedRequest]);
+
+  const needsArtistAssignment = useMemo(() => {
+    if (!selectedRequest) {
+      return false;
+    }
+
+    return isAnyAvailableLabel(selectedRequest.requested_artist_label) && !selectedRequest.artist_id;
+  }, [selectedRequest]);
 
   useEffect(() => {
     async function loadRequests() {
@@ -683,7 +730,7 @@ export default function RequestsPage() {
       !tattooDescription ||
       !approximateSize ||
       !placement ||
-      !form.artistId
+      !form.requestedArtistLabel
     ) {
       setNewRequestError(
         "Name, email, phone, tattoo description, size, placement, and artist are required.",
@@ -728,7 +775,7 @@ export default function RequestsPage() {
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
         age_confirmed: false,
-        artist_id: form.artistId,
+        artist_id: form.artistId || null,
         priority: "normal",
         notes: form.notes.trim() || null,
         status: "new",
@@ -791,15 +838,13 @@ export default function RequestsPage() {
     setSaving(false);
   }
 
-  async function assignRequestArtist(artistId: string) {
-    if (!selectedRequest || !artistId) {
+  async function assignRequestArtist() {
+    if (!selectedRequest || !assignmentArtistId) {
       return;
     }
 
-    const artist = artists.find((item) => item.id === artistId);
     const requestPatch = {
-      artist_id: artistId,
-      requested_artist_label: artist?.display_name ?? selectedRequest.requested_artist_label,
+      artist_id: assignmentArtistId,
       status: selectedRequest.status === "new" ? "forwarded" : selectedRequest.status,
       forwarded_at: selectedRequest.forwarded_at ?? new Date().toISOString(),
     };
@@ -822,7 +867,12 @@ export default function RequestsPage() {
           ? {
               ...request,
               ...requestPatch,
-              artist: artist ? { display_name: artist.display_name } : request.artist,
+              artist: artists.find((item) => item.id === assignmentArtistId)
+                ? {
+                    display_name: artists.find((item) => item.id === assignmentArtistId)!
+                      .display_name,
+                  }
+                : request.artist,
             }
           : request,
       ),
@@ -836,7 +886,7 @@ export default function RequestsPage() {
       return;
     }
 
-    if (!selectedRequest.artist_id) {
+    if (!effectiveArtistId(selectedRequest, artists)) {
       setError("Select an artist before booking this project.");
       return;
     }
@@ -862,7 +912,9 @@ export default function RequestsPage() {
       return;
     }
 
-    if (!selectedRequest.artist_id) {
+    const bookingArtistId = effectiveArtistId(selectedRequest, artists);
+
+    if (!bookingArtistId) {
       setError("Select an artist before booking this project.");
       return;
     }
@@ -931,7 +983,7 @@ export default function RequestsPage() {
       .from("projects")
       .insert({
         customer_id: customerId,
-        artist_id: selectedRequest.artist_id,
+        artist_id: bookingArtistId,
         subject: bookingForm.projectSubject.trim(),
         session_type: bookingForm.projectType,
         status: "booked",
@@ -953,7 +1005,7 @@ export default function RequestsPage() {
       .insert({
         customer_id: customerId,
         project_id: projectResult.data.id,
-        artist_id: selectedRequest.artist_id,
+        artist_id: bookingArtistId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         appointment_type: bookingForm.projectType,
@@ -973,7 +1025,7 @@ export default function RequestsPage() {
         .insert({
           customer_id: customerId,
           project_id: projectResult.data.id,
-          artist_id: selectedRequest.artist_id,
+          artist_id: bookingArtistId,
           amount: depositAmount,
           payment_method: bookingForm.depositPaymentMethod,
           received_at: new Date().toISOString(),
@@ -1123,6 +1175,7 @@ export default function RequestsPage() {
                       onClick={() => {
                         setSelectedRequestId(request.id);
                         setMobileDetailOpen(true);
+                        setAssignmentArtistId(request.artist_id ?? "");
                         setBookingMode(false);
                         setBookingForm(null);
                         setError("");
@@ -1187,6 +1240,7 @@ export default function RequestsPage() {
                           onClick={() => {
                             setSelectedRequestId(request.id);
                             setMobileDetailOpen(true);
+                            setAssignmentArtistId(request.artist_id ?? "");
                             setBookingMode(false);
                             setBookingForm(null);
                             setError("");
@@ -1425,7 +1479,7 @@ export default function RequestsPage() {
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Selected artist</p>
                         <p className="mt-1 font-semibold">
-                          {relatedOne(selectedRequest.artist)?.display_name ?? "Any available"}
+                          {effectiveArtistName(selectedRequest, artists)}
                         </p>
                       </div>
                     </div>
@@ -1491,27 +1545,34 @@ export default function RequestsPage() {
                     ) : null}
                   </div>
 
-                  <div>
-                    <h4 className="text-sm font-semibold">Artist assignment</h4>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <select
-                        className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                        disabled={saving}
-                        onChange={(event) => assignRequestArtist(event.target.value)}
-                        value={selectedRequest.artist_id ?? ""}
-                      >
-                        <option value="">Select artist</option>
-                        {artists.map((artist) => (
-                          <option key={artist.id} value={artist.id}>
-                            {artist.display_name}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="flex h-10 items-center rounded-md bg-[#f7f2e9] px-3 text-xs font-semibold text-[#697178]">
-                        Admin assigns
-                      </span>
+                  {needsArtistAssignment ? (
+                    <div>
+                      <h4 className="text-sm font-semibold">Artist assignment</h4>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                        <select
+                          className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                          disabled={saving}
+                          onChange={(event) => setAssignmentArtistId(event.target.value)}
+                          value={assignmentArtistId}
+                        >
+                          <option value="">Select artist</option>
+                          {artists.map((artist) => (
+                            <option key={artist.id} value={artist.id}>
+                              {artist.display_name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={saving || !assignmentArtistId}
+                          onClick={assignRequestArtist}
+                          type="button"
+                        >
+                          Confirm
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div>
                     <h4 className="text-sm font-semibold">Timeline</h4>

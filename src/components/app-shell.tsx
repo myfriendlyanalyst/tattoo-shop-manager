@@ -20,6 +20,7 @@ type AppShellProps = {
   description?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  wide?: boolean;
 };
 
 export function AppShell({
@@ -29,8 +30,10 @@ export function AppShell({
   description,
   actions,
   children,
+  wide = false,
 }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
 
   const nav = (
     <nav className="space-y-1">
@@ -80,7 +83,7 @@ export function AppShell({
 
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 sm:px-6 lg:px-8">
-            <div className="mx-auto w-full max-w-6xl">
+            <div className={`mx-auto w-full ${contentWidthClass}`}>
               <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
@@ -118,7 +121,7 @@ export function AppShell({
           </header>
 
           <div className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mx-auto w-full max-w-6xl">{children}</div>
+            <div className={`mx-auto w-full ${contentWidthClass}`}>{children}</div>
           </div>
         </section>
       </div>

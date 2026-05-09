@@ -1377,6 +1377,7 @@ export default function CalendarPage() {
       eyebrow="Appointments"
       title="Calendar and booking"
       description="Book tattoo sessions by artist. Staff schedules now come from Supabase."
+      wide
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
@@ -1413,8 +1414,8 @@ export default function CalendarPage() {
       ) : null}
 
       {!loading && !error ? (
-        <section className="grid gap-6 xl:grid-cols-[0.72fr_1.65fr]">
-          <aside className="space-y-6">
+        <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="space-y-6 xl:min-w-80">
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <h3 className="text-base font-semibold">Filters</h3>
               <div className="mt-4 space-y-3">
@@ -1493,13 +1494,13 @@ export default function CalendarPage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto hidden md:block">
-              <div style={{ minWidth: `${Math.max(visibleArtists.length, 1) * 132 + 76}px` }}>
+            <div className="hidden overflow-x-auto md:block">
+              <div style={{ minWidth: `${Math.max(visibleArtists.length, 1) * 150 + 76}px` }}>
                 <div
                   className="border-b border-[#e5dfd4] bg-[#f7f2e9]"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(112px, 1fr))`,
+                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(132px, 1fr))`,
                   }}
                 >
                   <div className="px-3 py-3 text-xs font-semibold uppercase text-[#6f7275]">
@@ -1536,7 +1537,7 @@ export default function CalendarPage() {
                   className={`relative ${visibleArtists.length === 0 ? "hidden" : ""}`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(112px, 1fr))`,
+                    gridTemplateColumns: `76px repeat(${Math.max(visibleArtists.length, 1)}, minmax(132px, 1fr))`,
                     height: `${timelineHeight}px`,
                   }}
                 >
