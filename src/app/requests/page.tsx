@@ -916,6 +916,14 @@ export default function RequestsPage() {
     setBookingMode(true);
   }
 
+  function closeRequestDetail() {
+    setMobileDetailOpen(false);
+    setBookingMode(false);
+    setBookingForm(null);
+    setError("");
+    setMessage("");
+  }
+
   async function bookProject() {
     if (!selectedRequest) {
       return;
@@ -1294,29 +1302,30 @@ export default function RequestsPage() {
 
             {selectedRequest ? (
               <aside
-                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 overflow-y-auto bg-white shadow-xl md:inset-6 md:left-1/2 md:max-w-3xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-6 md:left-1/2 md:max-h-[calc(100vh-3rem)] md:max-w-4xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
-                <div className="border-b border-[#e5dfd4] px-4 py-4">
-                  <button
-                    className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                    onClick={() => {
-                      setMobileDetailOpen(false);
-                      setBookingMode(false);
-                      setBookingForm(null);
-                      setError("");
-                      setMessage("");
-                    }}
-                    type="button"
-                  >
-                    Close
-                  </button>
-                  <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
-                  <p className="mt-1 text-sm text-[#697178]">
-                    {bookingMode ? "Book project, first appointment, and optional deposit." : selectedRequest.subject}
-                  </p>
+                <div className="shrink-0 border-b border-[#e5dfd4] px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
+                      <p className="mt-1 text-sm text-[#697178]">
+                        {bookingMode
+                          ? "Book project, first appointment, and optional deposit."
+                          : selectedRequest.subject}
+                      </p>
+                    </div>
+                    <button
+                      aria-label="Close request detail"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                      onClick={closeRequestDetail}
+                      type="button"
+                    >
+                      x
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-5 px-4 py-4">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
                   {error ? (
                     <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
                       {error}
@@ -1494,6 +1503,13 @@ export default function RequestsPage() {
                           {saving ? "Saving..." : "Save booking"}
                         </button>
                       </div>
+                      <button
+                        className="h-10 w-full rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                        onClick={closeRequestDetail}
+                        type="button"
+                      >
+                        Close
+                      </button>
                     </>
                   ) : (
                     <>
@@ -1511,7 +1527,7 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-sm font-semibold">Tattoo details</h4>
-                    <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3 sm:col-span-2">
                         <p className="text-[#697178]">Description</p>
                         <p className="mt-1 font-semibold">
@@ -1624,7 +1640,7 @@ export default function RequestsPage() {
                     </p>
                   </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                     <select
                       className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                       disabled={saving}
@@ -1644,6 +1660,13 @@ export default function RequestsPage() {
                       type="button"
                     >
                       {selectedRequest.project_id ? "Project booked" : "Book project"}
+                    </button>
+                    <button
+                      className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                      onClick={closeRequestDetail}
+                      type="button"
+                    >
+                      Close
                     </button>
                   </div>
 

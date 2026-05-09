@@ -739,6 +739,8 @@ export default function ProjectsPage() {
   const [entryError, setEntryError] = useState("");
   const [editingProjectName, setEditingProjectName] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState("");
+  const [editingProjectType, setEditingProjectType] = useState(false);
+  const [projectTypeDraft, setProjectTypeDraft] = useState("");
   const [showDepositEntry, setShowDepositEntry] = useState(false);
   const [showSessionEntry, setShowSessionEntry] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
@@ -1078,29 +1080,6 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
-  async function updateProjectStatus(project: ProjectRecord, status: string) {
-    setSaving(true);
-    setError("");
-    setMessage("");
-
-    const result = await supabase
-      .from("projects")
-      .update({ status })
-      .eq("id", project.id);
-
-    if (result.error) {
-      setError(result.error.message);
-      setSaving(false);
-      return;
-    }
-
-    setProjects((current) =>
-      current.map((item) => (item.id === project.id ? { ...item, status } : item)),
-    );
-    setMessage("Project status updated.");
-    setSaving(false);
-  }
-
   async function updateProjectType(project: ProjectRecord, sessionType: string) {
     setSaving(true);
     setError("");
@@ -1122,8 +1101,47 @@ export default function ProjectsPage() {
         item.id === project.id ? { ...item, session_type: sessionType } : item,
       ),
     );
+    setEditingProjectType(false);
     setMessage("Project type updated.");
     setSaving(false);
+  }
+
+  async function setProjectStatus(project: ProjectRecord, status: string) {
+    if (project.status === status) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("projects")
+      .update({ status })
+      .eq("id", project.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((item) => (item.id === project.id ? { ...item, status } : item)),
+    );
+    setMessage(`Project marked ${projectStatusLabel(status).toLowerCase()}.`);
+    setSaving(false);
+  }
+
+  function closeProjectDetail() {
+    setMobileDetailOpen(false);
+    setEditingProjectName(false);
+    setProjectNameDraft("");
+    setEditingProjectType(false);
+    setProjectTypeDraft("");
+    setMessage("");
+    setError("");
+    setEntryError("");
   }
 
   async function promoteSelectedProjectStatus(status: string) {
@@ -1783,6 +1801,8 @@ export default function ProjectsPage() {
                             setSelectedProjectId(project.id);
                             setEditingProjectName(false);
                             setProjectNameDraft("");
+                            setEditingProjectType(false);
+                            setProjectTypeDraft("");
                             setMessage("");
                             setError("");
                             setEntryError("");
@@ -1827,25 +1847,11 @@ export default function ProjectsPage() {
 
             {selectedProject ? (
               <div
-                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 space-y-6 overflow-y-auto bg-[#f6f4ef] p-4 shadow-xl md:inset-6 md:left-1/2 md:max-w-5xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-[#f6f4ef] shadow-xl md:inset-6 md:left-1/2 md:max-h-[calc(100vh-3rem)] md:max-w-5xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
-                <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                <section className="shrink-0 border-b border-[#d9d3c7] bg-white shadow-sm md:rounded-t-md">
                   <div className="flex flex-col gap-4 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <button
-                        className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                        onClick={() => {
-                          setMobileDetailOpen(false);
-                          setEditingProjectName(false);
-                          setProjectNameDraft("");
-                          setMessage("");
-                          setError("");
-                          setEntryError("");
-                        }}
-                        type="button"
-                      >
-                        Close
-                      </button>
                       <p className="text-xs font-semibold text-[#8a6f4d]">
                         {selectedProject.id.slice(0, 8)}
                       </p>
@@ -1898,7 +1904,8 @@ export default function ProjectsPage() {
                         {selectedProject.memo || "Project details"}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex flex-wrap gap-2">
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
                           selectedProject.status,
@@ -1913,25 +1920,19 @@ export default function ProjectsPage() {
                       >
                         Waiver {waiverLabel(selectedProject)}
                       </span>
+                      </div>
+                      <button
+                        aria-label="Close project detail"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                        onClick={closeProjectDetail}
+                        type="button"
+                      >
+                        x
+                      </button>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-5">
-                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <p className="text-sm text-[#697178]">Project status</p>
-                      <select
-                        className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
-                        disabled={saving}
-                        onChange={(event) => updateProjectStatus(selectedProject, event.target.value)}
-                        value={selectedProject.status}
-                      >
-                        {projectStatusOptions.map((status) => (
-                          <option key={status.value} value={status.value}>
-                            {status.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Customer</p>
                       <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
@@ -1944,17 +1945,68 @@ export default function ProjectsPage() {
                       <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
                     </div>
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <p className="text-sm text-[#697178]">Project type</p>
-                      <select
-                        className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
-                        disabled={saving}
-                        onChange={(event) => updateProjectType(selectedProject, event.target.value)}
-                        value={selectedProject.session_type || "Multiple Session"}
-                      >
-                        {projectTypeOptions.map((type) => (
-                          <option key={type}>{type}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-[#697178]">Project type</p>
+                          {editingProjectType ? (
+                            <select
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
+                              disabled={saving}
+                              onChange={(event) => setProjectTypeDraft(event.target.value)}
+                              value={projectTypeDraft}
+                            >
+                              {projectTypeOptions.map((type) => (
+                                <option key={type}>{type}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <p className="mt-1 font-semibold">
+                              {selectedProject.session_type || "Multiple Session"}
+                            </p>
+                          )}
+                        </div>
+                        {!editingProjectType ? (
+                          <button
+                            aria-label="Edit project type"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
+                            onClick={() => {
+                              setProjectTypeDraft(selectedProject.session_type || "Multiple Session");
+                              setEditingProjectType(true);
+                            }}
+                            type="button"
+                          >
+                            <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+                              <path
+                                d="M4 20h4l11-11-4-4L4 16v4Zm13-13 1-1a1.4 1.4 0 0 1 2 0l1 1a1.4 1.4 0 0 1 0 2l-1 1-3-3Z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                          </button>
+                        ) : null}
+                      </div>
+                      {editingProjectType ? (
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            className="h-8 rounded-md bg-[#1f2428] px-2 text-xs font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={saving}
+                            onClick={() => updateProjectType(selectedProject, projectTypeDraft)}
+                            type="button"
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={saving}
+                            onClick={() => {
+                              setProjectTypeDraft(selectedProject.session_type || "Multiple Session");
+                              setEditingProjectType(false);
+                            }}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Waiver signed</p>
@@ -1975,7 +2027,8 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+                  <section className="order-2 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
                     <button
@@ -2075,7 +2128,7 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Deposits</h3>
                     <button
@@ -2274,33 +2327,45 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-                  <div className="border-b border-[#e5dfd4] px-4 py-4">
-                    <h3 className="text-base font-semibold">Appointments</h3>
+                <div className="order-3 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+                  <p className="text-sm font-semibold">Project status actions</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <button
+                      className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedProject.status === "completed"}
+                      onClick={() => setProjectStatus(selectedProject, "completed")}
+                      type="button"
+                    >
+                      Completed
+                    </button>
+                    <button
+                      className="h-10 rounded-md border border-[#8a3030] px-3 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedProject.status === "cancelled"}
+                      onClick={() => setProjectStatus(selectedProject, "cancelled")}
+                      type="button"
+                    >
+                      Cancelled
+                    </button>
+                    <button
+                      className="h-10 rounded-md border border-[#b98238] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedProject.status === "on_hold"}
+                      onClick={() => setProjectStatus(selectedProject, "on_hold")}
+                      type="button"
+                    >
+                      On Hold
+                    </button>
                   </div>
-                  <div className="divide-y divide-[#eee8dd]">
-                    {selectedAppointments.length === 0 ? (
-                      <p className="px-4 py-6 text-sm font-semibold text-[#697178]">
-                        No appointments yet.
-                      </p>
-                    ) : null}
-                    {selectedAppointments.map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="grid gap-3 px-4 py-4 text-sm md:grid-cols-[0.8fr_0.8fr_0.6fr]"
-                      >
-                        <div>
-                          <p className="font-semibold">{displayDateTime(appointment.starts_at)}</p>
-                          <p className="text-[#697178]">
-                            {appointment.ends_at ? displayDateTime(appointment.ends_at) : "-"}
-                          </p>
-                        </div>
-                        <p className="font-semibold">{appointment.appointment_type}</p>
-                        <p className="text-[#4d555c]">{appointment.status}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                </div>
+
+                <button
+                  className="order-4 h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                  onClick={closeProjectDetail}
+                  type="button"
+                >
+                  Close
+                </button>
+
+              </div>
               </div>
             ) : (
               <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
