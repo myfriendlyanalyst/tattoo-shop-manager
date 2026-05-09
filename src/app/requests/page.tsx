@@ -1515,12 +1515,48 @@ export default function RequestsPage() {
                     <>
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div className="mt-3 grid gap-3 text-sm">
+                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-3">
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Requested artist</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.requested_artist_label || "Any available"}
+                        </p>
+                      </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Selected artist</p>
                         <p className="mt-1 font-semibold">
                           {effectiveArtistName(selectedRequest, artists)}
                         </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Artist assignment</p>
+                        {needsArtistAssignment ? (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
+                            <select
+                              className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) => setAssignmentArtistId(event.target.value)}
+                              value={assignmentArtistId}
+                            >
+                              <option value="">Select artist</option>
+                              {artists.map((artist) => (
+                                <option key={artist.id} value={artist.id}>
+                                  {artist.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={saving || !assignmentArtistId}
+                              onClick={assignRequestArtist}
+                              type="button"
+                            >
+                              Confirm
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="mt-1 font-semibold text-[#697178]">Not needed</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1545,12 +1581,6 @@ export default function RequestsPage() {
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Requested artist</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.requested_artist_label || "Any available"}
-                        </p>
                       </div>
                     </div>
                     {selectedFiles.length > 0 ? (
@@ -1585,49 +1615,29 @@ export default function RequestsPage() {
                     ) : null}
                   </div>
 
-                  {needsArtistAssignment ? (
-                    <div>
-                      <h4 className="text-sm font-semibold">Artist assignment</h4>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                        <select
-                          className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                          disabled={saving}
-                          onChange={(event) => setAssignmentArtistId(event.target.value)}
-                          value={assignmentArtistId}
-                        >
-                          <option value="">Select artist</option>
-                          {artists.map((artist) => (
-                            <option key={artist.id} value={artist.id}>
-                              {artist.display_name}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={saving || !assignmentArtistId}
-                          onClick={assignRequestArtist}
-                          type="button"
-                        >
-                          Confirm
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
                   <div>
                     <h4 className="text-sm font-semibold">Timeline</h4>
-                    <ol className="mt-3 space-y-3">
+                    <ol className="mt-3 grid gap-2 overflow-x-auto pb-1 sm:grid-cols-5">
                       {timelineFor(selectedRequest).map((item) => (
-                        <li key={item.label} className="flex gap-3 text-sm">
-                          <span
-                            className={`mt-1 h-3 w-3 rounded-full ${
-                              item.done ? "bg-[#2f6658]" : "border border-[#bdb3a3] bg-white"
-                            }`}
-                          />
-                          <span>
-                            <span className="block font-medium">{item.label}</span>
-                            <span className="text-[#697178]">{item.value}</span>
-                          </span>
+                        <li
+                          key={item.label}
+                          className="relative min-w-32 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                        >
+                          <div className="mb-2 flex items-center gap-2">
+                            <span
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                                item.done
+                                  ? "bg-[#2f6658] text-white"
+                                  : "border border-[#bdb3a3] bg-white text-[#8a8174]"
+                              }`}
+                            >
+                              {item.done ? "Y" : ""}
+                            </span>
+                            <span className="hidden h-px flex-1 bg-[#d9d3c7] sm:block" />
+                            <span className="hidden text-[#bdb3a3] sm:block">&gt;</span>
+                          </div>
+                          <span className="block text-xs font-semibold">{item.label}</span>
+                          <span className="mt-1 block text-xs text-[#697178]">{item.value}</span>
                         </li>
                       ))}
                     </ol>
