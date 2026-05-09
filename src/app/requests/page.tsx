@@ -87,14 +87,6 @@ const statusOptions = [
   "denied",
 ];
 
-const summaryStatuses = [
-  "new",
-  "forwarded",
-  "artist_replied",
-  "consultation",
-  "booked",
-];
-
 const referenceBucket = "request-references";
 const requestSelect =
   "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
@@ -502,11 +494,6 @@ export default function RequestsPage() {
 
     return requestFiles.filter((file) => file.request_id === selectedRequest.id);
   }, [requestFiles, selectedRequest]);
-
-  const statusSummary = summaryStatuses.map((status) => ({
-    label: statusLabel(status),
-    count: requests.filter((request) => request.status === status).length,
-  }));
 
   useEffect(() => {
     async function loadRequests() {
@@ -948,23 +935,9 @@ export default function RequestsPage() {
 
       {!loading && requests.length > 0 ? (
         <>
-          <section
-            className={`${mobileDetailOpen ? "hidden md:grid" : "grid"} gap-3 sm:grid-cols-2 xl:grid-cols-5`}
-          >
-            {statusSummary.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm"
-              >
-                <p className="text-sm font-medium text-[#697178]">{item.label}</p>
-                <p className="mt-3 text-3xl font-semibold">{item.count}</p>
-              </div>
-            ))}
-          </section>
-
-          <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+          <section>
             <div
-              className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white shadow-sm`}
+              className="rounded-md border border-[#d9d3c7] bg-white shadow-sm"
             >
               <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1081,6 +1054,7 @@ export default function RequestsPage() {
                           }`}
                           onClick={() => {
                             setSelectedRequestId(request.id);
+                            setMobileDetailOpen(true);
                             setError("");
                             setMessage("");
                           }}
@@ -1118,11 +1092,11 @@ export default function RequestsPage() {
 
             {selectedRequest ? (
               <aside
-                className={`${mobileDetailOpen ? "block" : "hidden"} rounded-md border border-[#d9d3c7] bg-white shadow-sm md:block`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 overflow-y-auto bg-white shadow-xl md:inset-6 md:left-1/2 md:max-w-3xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
                 <div className="border-b border-[#e5dfd4] px-4 py-4">
                   <button
-                    className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] md:hidden"
+                    className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
                     onClick={() => {
                       setMobileDetailOpen(false);
                       setError("");
@@ -1130,7 +1104,7 @@ export default function RequestsPage() {
                     }}
                     type="button"
                   >
-                    {"<"} Request queue
+                    Close
                   </button>
                   <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
                   <p className="mt-1 text-sm text-[#697178]">{selectedRequest.subject}</p>
