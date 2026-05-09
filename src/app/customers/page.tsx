@@ -70,8 +70,8 @@ function isValidEmail(value: string) {
 
 function projectStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    lead: "Lead",
-    consultation: "Consultation",
+    lead: "Booked",
+    consultation: "Booked",
     booked: "Booked",
     in_progress: "In progress",
     completed: "Completed",
@@ -83,8 +83,8 @@ function projectStatusLabel(status: string) {
 
 function projectStatusClasses(status: string) {
   const variants: Record<string, string> = {
-    lead: "bg-[#f1eadc] text-[#775f36]",
-    consultation: "bg-[#efe7f5] text-[#674b7a]",
+    lead: "bg-[#e4f1df] text-[#476b33]",
+    consultation: "bg-[#e4f1df] text-[#476b33]",
     booked: "bg-[#e4f1df] text-[#476b33]",
     in_progress: "bg-[#e5edf4] text-[#315f82]",
     completed: "bg-[#e8f0ee] text-[#2f6658]",

@@ -134,7 +134,6 @@ const paymentMethods = [
 ];
 
 const projectStatusOptions = [
-  { value: "consultation", label: "Consultation" },
   { value: "booked", label: "Booked" },
   { value: "in_progress", label: "In progress" },
   { value: "completed", label: "Completed" },
@@ -142,7 +141,7 @@ const projectStatusOptions = [
   { value: "on_hold", label: "On hold" },
 ];
 
-const activeProjectStatuses = ["consultation", "booked", "in_progress", "on_hold"];
+const activeProjectStatuses = ["booked", "in_progress", "on_hold"];
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -214,7 +213,7 @@ function newPaymentLine(method = "cash", amount = ""): PaymentLineForm {
 
 function projectStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    consultation: "Consultation",
+    consultation: "Booked",
     booked: "Booked",
     in_progress: "In progress",
     completed: "Completed",
@@ -227,7 +226,7 @@ function projectStatusLabel(status: string) {
 
 function projectStatusClasses(status: string) {
   const variants: Record<string, string> = {
-    consultation: "bg-[#efe7f5] text-[#674b7a]",
+    consultation: "bg-[#e4f1df] text-[#476b33]",
     booked: "bg-[#e4f1df] text-[#476b33]",
     in_progress: "bg-[#e5edf4] text-[#315f82]",
     completed: "bg-[#e8f0ee] text-[#2f6658]",

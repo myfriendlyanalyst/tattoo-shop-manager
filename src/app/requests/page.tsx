@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { DateTimeSelect } from "@/components/time-select";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -75,12 +76,22 @@ type NewRequestForm = {
   notes: string;
 };
 
+type BookingForm = {
+  projectSubject: string;
+  startsAt: string;
+  endsAt: string;
+  appointmentType: string;
+  appointmentNotes: string;
+  depositAmount: string;
+  depositPaymentMethod: string;
+  depositMemo: string;
+};
+
 const statusOptions = [
   "new",
   "forwarded",
   "artist_replied",
   "client_replied",
-  "consultation",
   "booked",
   "client_waiting_for_reply",
   "no_answer",
@@ -90,6 +101,14 @@ const statusOptions = [
 const referenceBucket = "request-references";
 const requestSelect =
   "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+
+const appointmentTypes = ["Walk-in", "One-Done", "On-Going"];
+const paymentMethods = [
+  { value: "cash", label: "Cash" },
+  { value: "credit_card", label: "Credit card" },
+  { value: "app", label: "App" },
+  { value: "other", label: "Other" },
+];
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -118,7 +137,7 @@ function statusLabel(status: string) {
     forwarded: "Forwarded",
     artist_replied: "Artist Replied",
     client_replied: "Client Replied",
-    consultation: "Consultation",
+    consultation: "Booked",
     booked: "Booked",
     client_waiting_for_reply: "Waiting Client",
     no_answer: "No Answer",
@@ -139,7 +158,7 @@ function statusClasses(status: string) {
     forwarded: "bg-[#e5edf4] text-[#315f82]",
     artist_replied: "bg-[#e8f0ee] text-[#2f6658]",
     client_replied: "bg-[#e8f0ee] text-[#2f6658]",
-    consultation: "bg-[#efe7f5] text-[#674b7a]",
+    consultation: "bg-[#e4f1df] text-[#476b33]",
     booked: "bg-[#e4f1df] text-[#476b33]",
     client_waiting_for_reply: "bg-[#f4e7df] text-[#8a5130]",
     no_answer: "bg-[#f4e7df] text-[#8a5130]",
@@ -165,6 +184,31 @@ function displayDateTime(value: string | null) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function localDateTimeInput(value = new Date()) {
+  const offset = value.getTimezoneOffset();
+  const local = new Date(value.getTime() - offset * 60 * 1000);
+
+  return local.toISOString().slice(0, 16);
+}
+
+function defaultBookingForm(request: RequestRecord): BookingForm {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(14, 0, 0, 0);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+
+  return {
+    projectSubject: projectSubjectFromRequest(request),
+    startsAt: localDateTimeInput(start),
+    endsAt: localDateTimeInput(end),
+    appointmentType: "On-Going",
+    appointmentNotes: request.notes ?? "",
+    depositAmount: "",
+    depositPaymentMethod: "cash",
+    depositMemo: "",
+  };
 }
 
 function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]) {
@@ -199,9 +243,9 @@ function timelineFor(request: RequestRecord) {
       done: Boolean(request.client_reply_at),
     },
     {
-      label: "Consultation booked",
-      value: displayDateTime(request.consultation_at),
-      done: Boolean(request.consultation_at),
+      label: "Project booked",
+      value: displayDateTime(request.booked_at),
+      done: Boolean(request.booked_at),
     },
   ];
 }
@@ -472,6 +516,8 @@ export default function RequestsPage() {
   const [showNewRequest, setShowNewRequest] = useState(false);
   const [newRequestError, setNewRequestError] = useState("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [bookingMode, setBookingMode] = useState(false);
+  const [bookingForm, setBookingForm] = useState<BookingForm | null>(null);
 
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? requests[0],
@@ -599,10 +645,6 @@ export default function RequestsPage() {
 
     if (status === "artist_replied") {
       patch.artist_reply_at = new Date().toISOString();
-    }
-
-    if (status === "consultation") {
-      patch.consultation_at = new Date().toISOString();
     }
 
     if (status === "booked") {
@@ -789,18 +831,63 @@ export default function RequestsPage() {
     setSaving(false);
   }
 
-  async function convertToProject() {
+  function openBookingSetup() {
     if (!selectedRequest) {
       return;
     }
 
     if (!selectedRequest.artist_id) {
-      setError("Select an artist before converting this request.");
+      setError("Select an artist before booking this project.");
       return;
     }
 
     if (selectedRequest.project_id) {
-      setError("This request has already been converted to a project.");
+      setError("This request has already been booked as a project.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setBookingForm(defaultBookingForm(selectedRequest));
+    setBookingMode(true);
+  }
+
+  async function bookProject() {
+    if (!selectedRequest) {
+      return;
+    }
+
+    if (!bookingForm) {
+      setError("Booking details are required.");
+      return;
+    }
+
+    if (!selectedRequest.artist_id) {
+      setError("Select an artist before booking this project.");
+      return;
+    }
+
+    if (selectedRequest.project_id) {
+      setError("This request has already been booked as a project.");
+      return;
+    }
+
+    const startsAt = new Date(bookingForm.startsAt);
+    const endsAt = new Date(bookingForm.endsAt);
+    const depositAmount = Number(bookingForm.depositAmount || 0);
+
+    if (!bookingForm.projectSubject.trim()) {
+      setError("Project name is required.");
+      return;
+    }
+
+    if (!bookingForm.startsAt || !bookingForm.endsAt || endsAt <= startsAt) {
+      setError("First appointment needs a valid start and end time.");
+      return;
+    }
+
+    if (!Number.isFinite(depositAmount) || depositAmount < 0) {
+      setError("Deposit amount must be a valid number.");
       return;
     }
 
@@ -845,8 +932,8 @@ export default function RequestsPage() {
       .insert({
         customer_id: customerId,
         artist_id: selectedRequest.artist_id,
-        subject: projectSubjectFromRequest(selectedRequest),
-        status: "consultation",
+        subject: bookingForm.projectSubject.trim(),
+        status: "booked",
         waiver_signed: false,
         waiver_status: "missing",
         memo: requestDetailMemo(selectedRequest),
@@ -860,11 +947,51 @@ export default function RequestsPage() {
       return;
     }
 
+    const appointmentResult = await supabase
+      .from("appointments")
+      .insert({
+        customer_id: customerId,
+        project_id: projectResult.data.id,
+        artist_id: selectedRequest.artist_id,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        appointment_type: bookingForm.appointmentType,
+        status: "scheduled",
+        notes: bookingForm.appointmentNotes.trim() || null,
+      });
+
+    if (appointmentResult.error) {
+      setError(appointmentResult.error.message);
+      setSaving(false);
+      return;
+    }
+
+    if (depositAmount > 0) {
+      const depositResult = await supabase
+        .from("deposits")
+        .insert({
+          customer_id: customerId,
+          project_id: projectResult.data.id,
+          artist_id: selectedRequest.artist_id,
+          amount: depositAmount,
+          payment_method: bookingForm.depositPaymentMethod,
+          received_at: new Date().toISOString(),
+          available: true,
+          memo: bookingForm.depositMemo.trim() || null,
+        });
+
+      if (depositResult.error) {
+        setError(depositResult.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
     const requestPatch = {
       customer_id: customerId,
       project_id: projectResult.data.id,
-      status: "consultation",
-      consultation_at: selectedRequest.consultation_at ?? new Date().toISOString(),
+      status: "booked",
+      booked_at: selectedRequest.booked_at ?? new Date().toISOString(),
     };
 
     await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
@@ -874,7 +1001,9 @@ export default function RequestsPage() {
         request.id === selectedRequest.id ? { ...request, ...requestPatch } : request,
       ),
     );
-    setMessage("Request converted to customer/project.");
+    setBookingMode(false);
+    setBookingForm(null);
+    setMessage("Request booked as a project.");
     setSaving(false);
   }
 
@@ -993,6 +1122,8 @@ export default function RequestsPage() {
                       onClick={() => {
                         setSelectedRequestId(request.id);
                         setMobileDetailOpen(true);
+                        setBookingMode(false);
+                        setBookingForm(null);
                         setError("");
                         setMessage("");
                       }}
@@ -1055,6 +1186,8 @@ export default function RequestsPage() {
                           onClick={() => {
                             setSelectedRequestId(request.id);
                             setMobileDetailOpen(true);
+                            setBookingMode(false);
+                            setBookingForm(null);
                             setError("");
                             setMessage("");
                           }}
@@ -1099,6 +1232,8 @@ export default function RequestsPage() {
                     className="mb-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
                     onClick={() => {
                       setMobileDetailOpen(false);
+                      setBookingMode(false);
+                      setBookingForm(null);
                       setError("");
                       setMessage("");
                     }}
@@ -1107,7 +1242,9 @@ export default function RequestsPage() {
                     Close
                   </button>
                   <h3 className="text-lg font-semibold">{selectedRequest.client_name}</h3>
-                  <p className="mt-1 text-sm text-[#697178]">{selectedRequest.subject}</p>
+                  <p className="mt-1 text-sm text-[#697178]">
+                    {bookingMode ? "Book project, first appointment, and optional deposit." : selectedRequest.subject}
+                  </p>
                 </div>
 
                 <div className="space-y-5 px-4 py-4">
@@ -1122,6 +1259,165 @@ export default function RequestsPage() {
                     </p>
                   ) : null}
 
+                  {bookingMode && bookingForm ? (
+                    <>
+                      <div>
+                        <h4 className="text-sm font-semibold">Booking setup</h4>
+                        <div className="mt-3 space-y-3">
+                          <label className="block text-sm font-semibold">
+                            Project name
+                            <input
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) =>
+                                setBookingForm((current) =>
+                                  current ? { ...current, projectSubject: event.target.value } : current,
+                                )
+                              }
+                              value={bookingForm.projectSubject}
+                            />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="text-sm font-semibold">
+                              Starts
+                              <div className="mt-2">
+                                <DateTimeSelect
+                                  disabled={saving}
+                                  onChange={(value) =>
+                                    setBookingForm((current) =>
+                                      current ? { ...current, startsAt: value } : current,
+                                    )
+                                  }
+                                  startHour={12}
+                                  value={bookingForm.startsAt}
+                                />
+                              </div>
+                            </label>
+                            <label className="text-sm font-semibold">
+                              Ends
+                              <div className="mt-2">
+                                <DateTimeSelect
+                                  disabled={saving}
+                                  onChange={(value) =>
+                                    setBookingForm((current) =>
+                                      current ? { ...current, endsAt: value } : current,
+                                    )
+                                  }
+                                  startHour={12}
+                                  value={bookingForm.endsAt}
+                                />
+                              </div>
+                            </label>
+                          </div>
+                          <label className="block text-sm font-semibold">
+                            Appointment type
+                            <select
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) =>
+                                setBookingForm((current) =>
+                                  current ? { ...current, appointmentType: event.target.value } : current,
+                                )
+                              }
+                              value={bookingForm.appointmentType}
+                            >
+                              {appointmentTypes.map((type) => (
+                                <option key={type}>{type}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <textarea
+                            className="min-h-20 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+                            disabled={saving}
+                            onChange={(event) =>
+                              setBookingForm((current) =>
+                                current ? { ...current, appointmentNotes: event.target.value } : current,
+                              )
+                            }
+                            placeholder="Appointment notes"
+                            value={bookingForm.appointmentNotes}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-semibold">Deposit</h4>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label className="text-sm font-semibold">
+                            Amount
+                            <input
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              min="0"
+                              onChange={(event) =>
+                                setBookingForm((current) =>
+                                  current ? { ...current, depositAmount: event.target.value } : current,
+                                )
+                              }
+                              placeholder="Optional"
+                              step="0.01"
+                              type="number"
+                              value={bookingForm.depositAmount}
+                            />
+                          </label>
+                          <label className="text-sm font-semibold">
+                            Payment method
+                            <select
+                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) =>
+                                setBookingForm((current) =>
+                                  current ? { ...current, depositPaymentMethod: event.target.value } : current,
+                                )
+                              }
+                              value={bookingForm.depositPaymentMethod}
+                            >
+                              {paymentMethods.map((method) => (
+                                <option key={method.value} value={method.value}>
+                                  {method.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <textarea
+                          className="mt-3 min-h-20 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+                          disabled={saving}
+                          onChange={(event) =>
+                            setBookingForm((current) =>
+                              current ? { ...current, depositMemo: event.target.value } : current,
+                            )
+                          }
+                          placeholder="Deposit memo"
+                          value={bookingForm.depositMemo}
+                        />
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <button
+                          className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={saving}
+                          onClick={() => {
+                            setBookingMode(false);
+                            setBookingForm(null);
+                            setError("");
+                          }}
+                          type="button"
+                        >
+                          Back to request
+                        </button>
+                        <button
+                          className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={saving}
+                          onClick={bookProject}
+                          type="button"
+                        >
+                          {saving ? "Saving..." : "Save booking"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
                     <div className="mt-3 grid gap-3 text-sm">
@@ -1258,16 +1554,18 @@ export default function RequestsPage() {
                     <button
                       className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={saving || Boolean(selectedRequest.project_id)}
-                      onClick={convertToProject}
+                      onClick={openBookingSetup}
                       type="button"
                     >
-                      {selectedRequest.project_id ? "Project created" : "Convert to project"}
+                      {selectedRequest.project_id ? "Project booked" : "Book project"}
                     </button>
                   </div>
 
                   <p className="border-t border-[#eee8dd] pt-3 text-[11px] text-[#9a9183]">
                     Internal request ID: {selectedRequest.id.slice(0, 8)}
                   </p>
+                    </>
+                  )}
                 </div>
               </aside>
             ) : null}

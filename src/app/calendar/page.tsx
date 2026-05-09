@@ -1281,7 +1281,7 @@ export default function CalendarPage() {
       return;
     }
 
-    if (project.status === "consultation" || project.status === "on_hold") {
+    if (project.status === "on_hold") {
       const projectStatusResult = await supabase
         .from("projects")
         .update({ status: "booked" })

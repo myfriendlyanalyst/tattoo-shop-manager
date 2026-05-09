@@ -1,11 +1,11 @@
--- Project statuses now start after a request has been converted.
--- Request is the lead stage; Project starts at consultation.
+-- Project statuses now start after a request has been booked.
+-- Request is the lead stage; Project starts at booked.
 
 alter type public.project_status add value if not exists 'on_hold';
 
 alter table public.projects
-alter column status set default 'consultation';
+alter column status set default 'booked';
 
 update public.projects
-set status = 'consultation'
+set status = 'booked'
 where status::text = 'lead';

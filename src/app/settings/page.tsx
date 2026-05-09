@@ -184,17 +184,6 @@ export default function SettingsPage() {
                 </select>
               </label>
               <label className="text-sm font-semibold">
-                Consultation length
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  defaultValue="30 minutes"
-                >
-                  <option>15 minutes</option>
-                  <option>30 minutes</option>
-                  <option>60 minutes</option>
-                </select>
-              </label>
-              <label className="text-sm font-semibold">
                 Day view range
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
