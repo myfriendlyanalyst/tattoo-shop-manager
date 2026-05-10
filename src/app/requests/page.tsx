@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
+import { sendAppointmentConfirmation } from "@/lib/appointment-email";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -1028,13 +1029,17 @@ export default function RequestsPage() {
         appointment_type: bookingForm.projectType,
         status: "scheduled",
         notes: bookingForm.appointmentNotes.trim() || null,
-      });
+      })
+      .select("id")
+      .single();
 
     if (appointmentResult.error) {
       setError(appointmentResult.error.message);
       setSaving(false);
       return;
     }
+
+    const emailResult = await sendAppointmentConfirmation(appointmentResult.data.id);
 
     if (depositAmount > 0) {
       const depositResult = await supabase
@@ -1073,7 +1078,11 @@ export default function RequestsPage() {
     );
     setBookingMode(false);
     setBookingForm(null);
-    setMessage("Request booked as a project.");
+    setMessage(
+      emailResult.sent
+        ? "Request booked as a project. Confirmation email sent."
+        : "Request booked as a project. Confirmation email was not sent yet.",
+    );
     setSaving(false);
   }
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect, useTimeInterval } from "@/components/time-select";
+import { sendAppointmentConfirmation } from "@/lib/appointment-email";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -1314,6 +1315,9 @@ export default function CalendarPage() {
       ...current,
       mapAppointment(appointmentResult.data as unknown as AppointmentRow),
     ]);
+    await sendAppointmentConfirmation(
+      (appointmentResult.data as unknown as AppointmentRow).id,
+    );
     setDraftAppointment(null);
     setSaving(false);
   }
