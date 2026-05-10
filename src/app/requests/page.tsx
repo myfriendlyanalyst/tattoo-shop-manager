@@ -1001,6 +1001,7 @@ export default function RequestsPage() {
         customer_id: customerId,
         artist_id: bookingArtistId,
         subject: bookingForm.projectSubject.trim(),
+        size: selectedRequest.approximate_size,
         session_type: bookingForm.projectType,
         status: "booked",
         waiver_signed: false,
@@ -1662,7 +1663,7 @@ export default function RequestsPage() {
                   </div>
                   ) : null}
 
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <button
                       className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={saving || Boolean(selectedRequest.project_id)}
@@ -1687,14 +1688,15 @@ export default function RequestsPage() {
                     >
                       Declined by shop
                     </button>
-                    <button
-                      className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
-                      onClick={closeRequestDetail}
-                      type="button"
-                    >
-                      Close
-                    </button>
                   </div>
+
+                  <button
+                    className="h-10 w-full rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                    onClick={closeRequestDetail}
+                    type="button"
+                  >
+                    Close
+                  </button>
 
                   <p className="border-t border-[#eee8dd] pt-3 text-[11px] text-[#9a9183]">
                     Internal request ID: {selectedRequest.id.slice(0, 8)}

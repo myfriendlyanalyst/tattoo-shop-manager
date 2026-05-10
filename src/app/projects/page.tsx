@@ -538,59 +538,20 @@ function SessionEntryModal({
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold">
-              Apply deposit amount
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                max={availableDepositForSession}
-                min="0"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    depositAppliedAmount: event.target.value,
-                  }))
-                }
-                placeholder="0.00"
-                step="0.01"
-                type="number"
-                value={form.depositAppliedAmount}
-              />
-              <span className="mt-2 block text-xs font-medium text-[#697178]">
-                Available deposit balance: {money(availableDepositForSession)}
-              </span>
-            </label>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold">
-              Tattoo amount
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                min="0"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tattooAmount: event.target.value }))
-                }
-                placeholder="0.00"
-                step="0.01"
-                type="number"
-                value={form.tattooAmount}
-              />
-            </label>
-            <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
-              <p className="font-semibold">Payment balance</p>
-              <p className="mt-1 text-[#697178]">
-                Deposit {money(appliedDepositAmount)} + other payments {money(nonDepositPaidAmount)}
-              </p>
-              <p
-                className={`mt-1 font-semibold ${
-                  Math.abs(remainingTattooBalance) < 0.01 ? "text-[#2f6658]" : "text-[#8a5130]"
-                }`}
-              >
-                Remaining {money(remainingTattooBalance)}
-              </p>
-            </div>
-          </div>
+          <label className="block text-sm font-semibold">
+            Tattoo amount
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              min="0"
+              onChange={(event) =>
+                setForm((current) => ({ ...current, tattooAmount: event.target.value }))
+              }
+              placeholder="0.00"
+              step="0.01"
+              type="number"
+              value={form.tattooAmount}
+            />
+          </label>
 
           <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -605,10 +566,33 @@ function SessionEntryModal({
                 }
                 type="button"
               >
-                Add payment
+              Add payment
               </button>
             </div>
             <div className="mt-3 space-y-2">
+              <label className="grid gap-2 text-sm font-semibold sm:grid-cols-[1fr_1fr_auto]">
+                <span className="flex h-10 items-center rounded-md bg-[#f1eadc] px-3 text-[#775f36]">
+                  Deposit
+                </span>
+                <input
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  max={availableDepositForSession}
+                  min="0"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      depositAppliedAmount: event.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                  step="0.01"
+                  type="number"
+                  value={form.depositAppliedAmount}
+                />
+                <span className="flex min-h-10 items-center text-xs font-medium text-[#697178]">
+                  Available {money(availableDepositForSession)}
+                </span>
+              </label>
               {form.paymentLines.map((line, index) => (
                 <div key={line.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                   <select
@@ -664,6 +648,20 @@ function SessionEntryModal({
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
+            <p className="font-semibold">Payment balance</p>
+            <p className="mt-1 text-[#697178]">
+              Deposit {money(appliedDepositAmount)} + other payments {money(nonDepositPaidAmount)}
+            </p>
+            <p
+              className={`mt-1 font-semibold ${
+                Math.abs(remainingTattooBalance) < 0.01 ? "text-[#2f6658]" : "text-[#8a5130]"
+              }`}
+            >
+              Remaining {money(remainingTattooBalance)}
+            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

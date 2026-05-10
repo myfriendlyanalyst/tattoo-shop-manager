@@ -154,6 +154,16 @@ function projectDepositLabel(project: ProjectRecord, deposits: DepositRecord[]) 
   return available > 0 ? `${money(available)} available` : `${money(total)} used`;
 }
 
+function projectSizeLabel(project: ProjectRecord) {
+  if (project.size) {
+    return `${project.size} inch`;
+  }
+
+  const memoSize = project.memo?.match(/Approximate size:\s*([^\n]+)/i)?.[1]?.trim();
+
+  return memoSize || "-";
+}
+
 function latestAppointment(customerId: string, appointments: AppointmentRecord[]) {
   return appointments
     .filter((appointment) => appointment.customer_id === customerId)
@@ -253,6 +263,8 @@ export default function CustomersPage() {
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [customerDetailOpen, setCustomerDetailOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -287,6 +299,11 @@ export default function CustomersPage() {
 
     return projects.filter((project) => project.customer_id === selectedCustomer.id);
   }, [projects, selectedCustomer]);
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
 
   useEffect(() => {
     async function loadCustomers() {
@@ -350,6 +367,7 @@ export default function CustomersPage() {
       setAppointments((appointmentResult.data ?? []) as unknown as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
       setSelectedCustomerId(nextCustomers[0]?.id ?? "");
+      setCustomerDetailOpen(false);
       setLoading(false);
     }
 
@@ -395,6 +413,7 @@ export default function CustomersPage() {
 
     setCustomers((current) => [customer, ...current]);
     setSelectedCustomerId(customer.id);
+    setCustomerDetailOpen(true);
     setShowNewCustomer(false);
     setMessage("Customer created.");
     setSaving(false);
@@ -484,8 +503,8 @@ export default function CustomersPage() {
         </div>
       ) : null}
 
-      {!loading && !error && selectedCustomer ? (
-        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.5fr]">
+      {!loading && !error && customers.length > 0 ? (
+        <section className="space-y-6">
           <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="border-b border-[#e5dfd4] px-4 py-4">
               <h3 className="text-base font-semibold">Customer list</h3>
@@ -511,6 +530,8 @@ export default function CustomersPage() {
                     }`}
                     onClick={() => {
                       setSelectedCustomerId(customer.id);
+                      setCustomerDetailOpen(true);
+                      setSelectedProjectId("");
                       setMessage("");
                       setError("");
                     }}
@@ -539,14 +560,15 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="space-y-6">
+          {selectedCustomer && customerDetailOpen ? (
+          <div className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-[#f6f4ef] shadow-xl md:inset-6 md:left-1/2 md:max-h-[calc(100vh-3rem)] md:max-w-5xl md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]">
             {message ? (
               <p className="rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
                 {message}
               </p>
             ) : null}
 
-            <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <section className="shrink-0 border-b border-[#d9d3c7] bg-white shadow-sm md:rounded-t-md">
               <div className="flex flex-col gap-4 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-xs font-semibold text-[#8a6f4d]">
@@ -557,6 +579,17 @@ export default function CustomersPage() {
                     {selectedCustomer.notes || "Customer profile"}
                   </p>
                 </div>
+                <button
+                  aria-label="Close customer detail"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                  onClick={() => {
+                    setCustomerDetailOpen(false);
+                    setSelectedProjectId("");
+                  }}
+                  type="button"
+                >
+                  x
+                </button>
               </div>
 
               <div className="grid gap-3 px-4 py-4 md:grid-cols-3">
@@ -577,6 +610,7 @@ export default function CustomersPage() {
               </div>
             </section>
 
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
             <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-[#e5dfd4] px-4 py-4">
                 <div>
@@ -597,12 +631,17 @@ export default function CustomersPage() {
                   const artist = relatedOne(project.artist);
 
                   return (
-                    <div key={project.id} className="px-4 py-4 text-sm">
+                    <button
+                      key={project.id}
+                      className="block w-full px-4 py-4 text-left text-sm hover:bg-[#fffaf1]"
+                      onClick={() => setSelectedProjectId(project.id)}
+                      type="button"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-semibold">{project.subject}</p>
                           <p className="mt-1 text-[#697178]">
-                            {artist?.display_name ?? "-"} / {project.size || "Size not set"}
+                            {artist?.display_name ?? "-"} / {projectSizeLabel(project)}
                           </p>
                         </div>
                         <span
@@ -621,7 +660,7 @@ export default function CustomersPage() {
                           Deposit {projectDepositLabel(project, deposits)}
                         </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -650,10 +689,14 @@ export default function CustomersPage() {
                       const artist = relatedOne(project.artist);
 
                       return (
-                        <tr key={project.id}>
+                        <tr
+                          key={project.id}
+                          className="cursor-pointer hover:bg-[#fffaf1]"
+                          onClick={() => setSelectedProjectId(project.id)}
+                        >
                           <td className="px-4 py-4 font-semibold">{project.subject}</td>
                           <td className="px-4 py-4">{artist?.display_name ?? "-"}</td>
-                          <td className="px-4 py-4 text-[#4d555c]">{project.size || "-"}</td>
+                          <td className="px-4 py-4 text-[#4d555c]">{projectSizeLabel(project)}</td>
                           <td className="px-4 py-4">
                             <span
                               className={`rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
@@ -695,8 +738,100 @@ export default function CustomersPage() {
               </div>
             </section>
 
+            <button
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+              onClick={() => {
+                setCustomerDetailOpen(false);
+                setSelectedProjectId("");
+              }}
+              type="button"
+            >
+              Close
+            </button>
+            </div>
           </div>
+          ) : null}
         </section>
+      ) : null}
+
+      {selectedProject ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+          <section className="w-full max-w-2xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold text-[#8a6f4d]">
+                  Project detail
+                </p>
+                <h3 className="mt-1 text-xl font-semibold">{selectedProject.subject}</h3>
+              </div>
+              <button
+                aria-label="Close project detail"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+                onClick={() => setSelectedProjectId("")}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+            <div className="grid gap-3 px-5 py-5 text-sm sm:grid-cols-2">
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Artist</p>
+                <p className="mt-1 font-semibold">
+                  {relatedOne(selectedProject.artist)?.display_name ?? "-"}
+                </p>
+              </div>
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Size</p>
+                <p className="mt-1 font-semibold">{projectSizeLabel(selectedProject)}</p>
+              </div>
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Project type</p>
+                <p className="mt-1 font-semibold">
+                  {selectedProject.session_type || "Multiple Session"}
+                </p>
+              </div>
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Status</p>
+                <span
+                  className={`mt-1 inline-flex rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
+                    selectedProject.status,
+                  )}`}
+                >
+                  {projectStatusLabel(selectedProject.status)}
+                </span>
+              </div>
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Waiver</p>
+                <span
+                  className={`mt-1 inline-flex rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(
+                    selectedProject,
+                  )}`}
+                >
+                  {waiverLabel(selectedProject)}
+                </span>
+              </div>
+              <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                <p className="text-[#697178]">Deposit</p>
+                <p className="mt-1 font-semibold">
+                  {projectDepositLabel(selectedProject, deposits)}
+                </p>
+              </div>
+              {selectedProject.memo ? (
+                <div className="rounded-md bg-[#f7f2e9] px-3 py-3 sm:col-span-2">
+                  <p className="text-[#697178]">Memo</p>
+                  <p className="mt-1 whitespace-pre-wrap text-[#4d555c]">{selectedProject.memo}</p>
+                </div>
+              ) : null}
+              <button
+                className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] sm:col-span-2"
+                onClick={() => setSelectedProjectId("")}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {showNewCustomer ? (
