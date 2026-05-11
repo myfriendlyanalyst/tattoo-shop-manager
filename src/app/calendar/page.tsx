@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect, useTimeInterval } from "@/components/time-select";
-import { sendAppointmentConfirmation } from "@/lib/appointment-email";
+import {
+  cancelAppointmentReminder,
+  scheduleAppointmentReminder,
+  sendAppointmentCancellation,
+  sendAppointmentConfirmation,
+  sendAppointmentReschedule,
+} from "@/lib/appointment-email";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
@@ -38,6 +44,8 @@ type Appointment = {
   id: string;
   start: string;
   end: string;
+  startsAt: string;
+  endsAt: string | null;
   client: string;
   project: string;
   artistId: string;
@@ -399,6 +407,8 @@ function mapAppointment(row: AppointmentRow): Appointment {
     id: row.id,
     start,
     end,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
     client: customer?.name ?? "Unknown customer",
     project: project?.subject ?? "Untitled project",
     artistId: row.artist_id ?? "",
@@ -625,11 +635,11 @@ function AppointmentDetailModal({
             </button>
             <button
               className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving}
+              disabled={saving || appointment.status === "cancelled"}
               onClick={() => onDelete(appointment)}
               type="button"
             >
-              Delete
+              {appointment.status === "cancelled" ? "Cancelled" : "Cancel appointment"}
             </button>
           </div>
         </div>
@@ -1328,6 +1338,18 @@ export default function CalendarPage() {
         }`,
       );
     }
+    const reminderResult = await scheduleAppointmentReminder(
+      (appointmentResult.data as unknown as AppointmentRow).id,
+    );
+    if (reminderResult.status === "failed") {
+      setError(
+        `Appointment saved. Reminder email was not scheduled${
+          reminderResult.error || reminderResult.reason
+            ? `: ${reminderResult.error || reminderResult.reason}`
+            : "."
+        }`,
+      );
+    }
     setDraftAppointment(null);
     setSaving(false);
   }
@@ -1340,12 +1362,17 @@ export default function CalendarPage() {
 
     setSaving(true);
     setModalError("");
+    const oldStartsAt = appointment.startsAt;
+    const oldEndsAt = appointment.endsAt;
+    const nextStartsAt = timestampFor(selectedDate, form.start);
+    const nextEndsAt = timestampFor(selectedDate, form.end);
+    const timeChanged = oldStartsAt !== nextStartsAt || oldEndsAt !== nextEndsAt;
 
     const appointmentResult = await supabase
       .from("appointments")
       .update({
-        starts_at: timestampFor(selectedDate, form.start),
-        ends_at: timestampFor(selectedDate, form.end),
+        starts_at: nextStartsAt,
+        ends_at: nextEndsAt,
         appointment_type: form.type,
         status: form.status,
         notes: form.notes.trim() || null,
@@ -1367,12 +1394,49 @@ export default function CalendarPage() {
     setAppointments((current) =>
       current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
     );
+    if (timeChanged && updatedAppointment.status !== "cancelled") {
+      const emailResult = await sendAppointmentReschedule(appointment.id, {
+        oldStartsAt,
+        oldEndsAt,
+      });
+
+      if (!emailResult.sent) {
+        setModalError(
+          `Appointment updated. Reschedule email was not sent${
+            emailResult.error || emailResult.reason
+              ? `: ${emailResult.error || emailResult.reason}`
+              : "."
+          }`,
+        );
+        setSelectedAppointment(updatedAppointment);
+        setSaving(false);
+        return;
+      }
+    }
+    if (updatedAppointment.status === "cancelled") {
+      await cancelAppointmentReminder(appointment.id);
+    } else if (timeChanged) {
+      const reminderResult = await scheduleAppointmentReminder(appointment.id);
+
+      if (reminderResult.status === "failed") {
+        setModalError(
+          `Appointment updated. Reminder email was not scheduled${
+            reminderResult.error || reminderResult.reason
+              ? `: ${reminderResult.error || reminderResult.reason}`
+              : "."
+          }`,
+        );
+        setSelectedAppointment(updatedAppointment);
+        setSaving(false);
+        return;
+      }
+    }
     setSelectedAppointment(updatedAppointment);
     setSaving(false);
   }
 
   async function deleteAppointment(appointment: Appointment) {
-    const confirmed = window.confirm(`Delete appointment for ${appointment.client}?`);
+    const confirmed = window.confirm(`Cancel appointment for ${appointment.client}?`);
 
     if (!confirmed) {
       return;
@@ -1381,7 +1445,14 @@ export default function CalendarPage() {
     setSaving(true);
     setModalError("");
 
-    const result = await supabase.from("appointments").delete().eq("id", appointment.id);
+    const result = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", appointment.id)
+      .select(
+        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+      )
+      .single();
 
     if (result.error) {
       setModalError(result.error.message);
@@ -1389,7 +1460,26 @@ export default function CalendarPage() {
       return;
     }
 
-    setAppointments((current) => current.filter((item) => item.id !== appointment.id));
+    const cancelledAppointment = mapAppointment(result.data as unknown as AppointmentRow);
+    setAppointments((current) =>
+      current.map((item) => (item.id === appointment.id ? cancelledAppointment : item)),
+    );
+    await cancelAppointmentReminder(appointment.id);
+    const emailResult = await sendAppointmentCancellation(appointment.id);
+
+    if (!emailResult.sent) {
+      setModalError(
+        `Appointment cancelled. Cancellation email was not sent${
+          emailResult.error || emailResult.reason
+            ? `: ${emailResult.error || emailResult.reason}`
+            : "."
+        }`,
+      );
+      setSelectedAppointment(cancelledAppointment);
+      setSaving(false);
+      return;
+    }
+
     setSelectedAppointment(null);
     setSaving(false);
   }

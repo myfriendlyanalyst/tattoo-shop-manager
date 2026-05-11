@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
-import { sendAppointmentConfirmation } from "@/lib/appointment-email";
+import {
+  scheduleAppointmentReminder,
+  sendAppointmentConfirmation,
+} from "@/lib/appointment-email";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
@@ -1041,6 +1044,7 @@ export default function RequestsPage() {
     }
 
     const emailResult = await sendAppointmentConfirmation(appointmentResult.data.id);
+    const reminderResult = await scheduleAppointmentReminder(appointmentResult.data.id);
 
     if (depositAmount > 0) {
       const depositResult = await supabase
@@ -1079,14 +1083,18 @@ export default function RequestsPage() {
     );
     setBookingMode(false);
     setBookingForm(null);
+    const reminderMessage =
+      reminderResult.status === "failed"
+        ? ` Reminder email was not scheduled: ${reminderResult.error || reminderResult.reason}.`
+        : "";
     setMessage(
       emailResult.sent
-        ? "Request booked as a project. Confirmation email sent."
+        ? `Request booked as a project. Confirmation email sent.${reminderMessage}`
         : `Request booked as a project. Confirmation email was not sent yet${
             emailResult.error || emailResult.reason
               ? `: ${emailResult.error || emailResult.reason}`
               : "."
-          }`,
+          }${reminderMessage}`,
     );
     setSaving(false);
   }
