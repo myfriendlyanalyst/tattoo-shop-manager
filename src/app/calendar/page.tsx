@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect, useTimeInterval } from "@/components/time-select";
 import { sendAppointmentConfirmation } from "@/lib/appointment-email";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -1060,9 +1061,9 @@ export default function CalendarPage() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const user = await getSafeUser();
 
-      if (!userData.user) {
+      if (!user) {
         setError("Please log in to view the calendar.");
         setLoading(false);
         return;
@@ -1315,9 +1316,18 @@ export default function CalendarPage() {
       ...current,
       mapAppointment(appointmentResult.data as unknown as AppointmentRow),
     ]);
-    await sendAppointmentConfirmation(
+    const emailResult = await sendAppointmentConfirmation(
       (appointmentResult.data as unknown as AppointmentRow).id,
     );
+    if (!emailResult.sent) {
+      setError(
+        `Appointment saved. Confirmation email was not sent${
+          emailResult.error || emailResult.reason
+            ? `: ${emailResult.error || emailResult.reason}`
+            : "."
+        }`,
+      );
+    }
     setDraftAppointment(null);
     setSaving(false);
   }

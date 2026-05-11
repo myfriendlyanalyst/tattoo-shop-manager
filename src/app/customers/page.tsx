@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type CustomerRecord = {
@@ -310,9 +311,9 @@ export default function CustomersPage() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const user = await getSafeUser();
 
-      if (!userData.user) {
+      if (!user) {
         setError("Please log in to view customers.");
         setLoading(false);
         return;

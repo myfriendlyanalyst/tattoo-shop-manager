@@ -22,7 +22,10 @@ type AppointmentEmailRecord = {
   confirmation_email_sent_at: string | null;
   customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
   project: { subject: string } | { subject: string }[] | null;
-  artist: { display_name: string } | { display_name: string }[] | null;
+  artist:
+    | { display_name: string; email: string | null }
+    | { display_name: string; email: string | null }[]
+    | null;
 };
 
 type EmailLogClient = {
@@ -37,6 +40,10 @@ function relatedOne<T>(value: T | T[] | null) {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function cleanEmail(value: string | null | undefined) {
+  return value?.trim() || null;
 }
 
 function displayDateTime(value: string) {
@@ -120,6 +127,8 @@ async function logEmail(
   fields: {
     emailType: string;
     toEmail?: string | null;
+    replyToEmail?: string | null;
+    ccEmails?: string[] | null;
     subject?: string | null;
     status: "sent" | "skipped" | "failed";
     providerMessageId?: string | null;
@@ -132,6 +141,8 @@ async function logEmail(
     customer_id: appointment?.customer_id ?? null,
     email_type: fields.emailType,
     to_email: fields.toEmail ?? null,
+    reply_to_email: fields.replyToEmail ?? null,
+    cc_emails: fields.ccEmails ?? null,
     subject: fields.subject ?? null,
     status: fields.status,
     provider: "resend",
@@ -187,7 +198,7 @@ export async function POST(request: NextRequest) {
   const { data: appointmentData, error: appointmentError } = await adminClient
     .from("appointments")
     .select(
-      "id, customer_id, starts_at, ends_at, appointment_type, confirmation_email_sent_at, customer:customers(name, email), project:projects(subject), artist:staff(display_name)",
+      "id, customer_id, starts_at, ends_at, appointment_type, confirmation_email_sent_at, customer:customers(name, email), project:projects(subject), artist:staff(display_name, email)",
     )
     .eq("id", appointmentId)
     .single();
@@ -201,7 +212,11 @@ export async function POST(request: NextRequest) {
 
   const appointment = appointmentData as unknown as AppointmentEmailRecord;
   const customer = relatedOne(appointment.customer);
-  const toEmail = customer?.email?.trim();
+  const artist = relatedOne(appointment.artist);
+  const toEmail = cleanEmail(customer?.email);
+  const replyToEmail = cleanEmail(emailReplyTo);
+  const artistEmail = cleanEmail(artist?.email);
+  const ccEmails = artistEmail && artistEmail !== toEmail ? [artistEmail] : [];
   const subject = emailSubject(appointment);
 
   if (appointment.confirmation_email_sent_at) {
@@ -222,6 +237,8 @@ export async function POST(request: NextRequest) {
     await logEmail(adminClient as unknown as EmailLogClient, appointment, {
       emailType,
       toEmail,
+      replyToEmail,
+      ccEmails,
       subject,
       status: "failed",
       errorMessage: "Missing RESEND_API_KEY or EMAIL_FROM.",
@@ -239,10 +256,11 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       from: emailFrom,
       to: [toEmail],
+      cc: ccEmails.length > 0 ? ccEmails : undefined,
       subject,
       html,
       text,
-      reply_to: emailReplyTo || undefined,
+      reply_to: replyToEmail || undefined,
     }),
   });
   const resendPayload = (await resendResponse.json().catch(() => ({}))) as {
@@ -257,6 +275,8 @@ export async function POST(request: NextRequest) {
     await logEmail(adminClient as unknown as EmailLogClient, appointment, {
       emailType,
       toEmail,
+      replyToEmail,
+      ccEmails,
       subject,
       status: "failed",
       errorMessage,
@@ -273,6 +293,8 @@ export async function POST(request: NextRequest) {
   await logEmail(adminClient as unknown as EmailLogClient, appointment, {
     emailType,
     toEmail,
+    replyToEmail,
+    ccEmails,
     subject,
     status: "sent",
     providerMessageId: resendPayload.id ?? null,

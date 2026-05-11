@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/auth-session";
 
 export default function SetPasswordPage() {
   const router = useRouter();
@@ -17,9 +18,14 @@ export default function SetPasswordPage() {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    getSafeSession().then((session) => {
       if (mounted) {
-        setSessionReady(Boolean(data.session));
+        setSessionReady(Boolean(session));
+        setChecking(false);
+      }
+    }).catch(() => {
+      if (mounted) {
+        setSessionReady(false);
         setChecking(false);
       }
     });

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
 import { sendAppointmentConfirmation } from "@/lib/appointment-email";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -601,9 +602,9 @@ export default function RequestsPage() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const user = await getSafeUser();
 
-      if (!userData.user) {
+      if (!user) {
         setError("Please log in to view requests.");
         setLoading(false);
         return;
@@ -1081,7 +1082,11 @@ export default function RequestsPage() {
     setMessage(
       emailResult.sent
         ? "Request booked as a project. Confirmation email sent."
-        : "Request booked as a project. Confirmation email was not sent yet.",
+        : `Request booked as a project. Confirmation email was not sent yet${
+            emailResult.error || emailResult.reason
+              ? `: ${emailResult.error || emailResult.reason}`
+              : "."
+          }`,
     );
     setSaving(false);
   }

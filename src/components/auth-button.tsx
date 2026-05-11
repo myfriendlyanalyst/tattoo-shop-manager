@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { getSafeUser } from "@/lib/auth-session";
 
 export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
@@ -12,9 +13,14 @@ export function AuthButton() {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getUser().then(({ data }) => {
+    getSafeUser().then((currentUser) => {
       if (mounted) {
-        setUser(data.user);
+        setUser(currentUser);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (mounted) {
+        setUser(null);
         setLoading(false);
       }
     });

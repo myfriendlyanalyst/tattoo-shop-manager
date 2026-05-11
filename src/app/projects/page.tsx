@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { DateTimeSelect } from "@/components/time-select";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -891,9 +892,9 @@ export default function ProjectsPage() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const user = await getSafeUser();
 
-      if (!userData.user) {
+      if (!user) {
         setError("Please log in to view projects.");
         setLoading(false);
         return;
@@ -1195,7 +1196,7 @@ export default function ProjectsPage() {
     setError("");
     setMessage("");
 
-    const { data: userData } = await supabase.auth.getUser();
+    const user = await getSafeUser();
     const payload = {
       amount,
       payment_method: form.paymentMethod,
@@ -1220,7 +1221,7 @@ export default function ProjectsPage() {
             customer_id: selectedProject.customer_id,
             artist_id: selectedProject.artist_id,
             ...payload,
-            created_by: userData.user?.id ?? null,
+            created_by: user?.id ?? null,
           })
           .select(
             "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
@@ -1321,7 +1322,7 @@ export default function ProjectsPage() {
     setError("");
     setMessage("");
 
-    const { data: userData } = await supabase.auth.getUser();
+    const user = await getSafeUser();
     let sessionAppointment = appointment;
 
     if (!editingSession && !sessionAppointment) {
@@ -1376,7 +1377,7 @@ export default function ProjectsPage() {
             entry_type: "session",
             entered_at: new Date(sessionAppointment!.starts_at).toISOString(),
             ...sessionPayload,
-            created_by: userData.user?.id ?? null,
+            created_by: user?.id ?? null,
           })
           .select(
             "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
@@ -1412,7 +1413,7 @@ export default function ProjectsPage() {
             session_entry_id: result.data.id,
             payment_method: line.paymentMethod,
             amount: line.amount,
-            created_by: userData.user?.id ?? null,
+            created_by: user?.id ?? null,
           })),
         )
         .select("id, session_entry_id, payment_method, amount, memo");
@@ -1478,7 +1479,7 @@ export default function ProjectsPage() {
           session_entry_id: result.data.id,
           amount,
           memo: form.memo.trim() || null,
-          created_by: userData.user?.id ?? null,
+          created_by: user?.id ?? null,
         });
         affectedDepositIds.add(deposit.id);
         remainingToApply -= amount;

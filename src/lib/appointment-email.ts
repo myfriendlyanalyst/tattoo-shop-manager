@@ -1,14 +1,15 @@
-import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/auth-session";
 
 type ConfirmationResult = {
   sent?: boolean;
   skipped?: boolean;
+  reason?: string;
   error?: string;
 };
 
 export async function sendAppointmentConfirmation(appointmentId: string) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
+  const session = await getSafeSession();
+  const token = session?.access_token;
 
   if (!token) {
     return { skipped: true, error: "Missing login session." } satisfies ConfirmationResult;
@@ -27,7 +28,10 @@ export async function sendAppointmentConfirmation(appointmentId: string) {
     const payload = (await response.json().catch(() => ({}))) as ConfirmationResult;
 
     if (!response.ok) {
-      return { sent: false, error: payload.error || "Appointment email failed." };
+      return {
+        sent: false,
+        error: payload.error || payload.reason || "Appointment email failed.",
+      };
     }
 
     return payload;

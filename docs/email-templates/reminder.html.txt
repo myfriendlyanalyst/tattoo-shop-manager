@@ -1,0 +1,85 @@
+<table align="center" class="container" style="margin:0 auto;max-width:500px;padding:30px 10px;" border="0" width="100%" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+	<td bgcolor="#ffffff" class="padding-wrapper" style="padding:20px 25px;margin:0;border:1px solid #efefef;border-radius:3px;">
+		<table style="width:100%;" cellspacing="0" cellpadding="0" border="0">
+		<tbody>
+		<tr>
+			<td class="header-padding" style="text-align: center; padding:35px 0 5px 0;font-size:30px;font-family:sans-serif;color:#999999;font-weight:bold;">Appointment Reminder
+			</td>
+		</tr>
+		<tr>
+			<td class="header-padding" style="text-align: center; padding:15px 0 15px 0;font-size:21px;line-height:25px;font-family:sans-serif;color:#333333;">for %first% %last%
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<hr style="border:1px solid #efefef;">
+		<table width="100%" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td width="60" valign="top" style="padding:25px 2px 10px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#999999;">What
+			</td>
+			<td style="padding:25px 0 10px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#333333;">%type% (%calendar%)
+			</td>
+		</tr>
+		<tr>
+			<td width="60" valign="top" style="padding:10px 2px 25px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#999999;">When
+			</td>
+			<td style="padding:10px 0 25px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#333333;">%time% (%duration%)
+			</td>
+		</tr>
+		<tr>
+			<td width="60" valign="top" style="padding:10px 2px 25px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#999999;">Where
+			</td>
+			<td style="padding:10px 0 25px 0;font-size:18px;line-height:25px;font-family:sans-serif;text-align:left;color:#333333;">%location%
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table width="100%" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td class="custom-confirmation" style="padding:10px 0 10px 0;font-size:16px;line-height:25px;font-family:sans-serif;color:#999999;" align="left" colspan="2">This is a reminder your appointment for %type% is on %time%
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<p><br>
+		</p>
+		<hr style="border:1px solid #efefef;">
+		<p><br>
+		</p>
+		<table align="center" border="0" cellspacing="5" cellpadding="0">
+		<tbody>
+		<tr>
+			<td valign="middle" align="center" style="background-image:url(&quot;&quot;);color:#FFFFFF;font-family:sans-serif;border-radius:3px;" width="300" height="40" bgcolor="#313131"> <a style="color: rgb(255, 255, 255); text-decoration: none; display: block; width: 100%; height: 100%; line-height: 40px;" href="%viewhref%">Change/Cancel Appointment</a>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table align="center" border="0" cellspacing="5" cellpadding="0">
+		<tbody>
+		<tr>
+			<td valign="middle" align="center" style="background-image:url(&quot;&quot;);color:#FFFFFF;font-family:sans-serif;border-radius:3px;" width="300" height="40" bgcolor="#313131"> <a style="color: rgb(255, 255, 255); text-decoration: none; display: block; width: 100%; height: 100%; line-height: 40px;" href="%exporthref%">Add to iCal/Outlook Calendar</a>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table align="center" border="0" cellspacing="5" cellpadding="0">
+		<tbody>
+		<tr>
+			<td valign="middle" align="center" style="background-image:url(&quot;&quot;);color:#FFFFFF;font-family:sans-serif;border-radius:3px;" width="300" height="40" bgcolor="#313131"> <a style="color: rgb(255, 255, 255); text-decoration: none; display: block; width: 100%; height: 100%; line-height: 40px;" href="%googlehref%">Add to Google Calendar</a>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>
+<div style="text-align:center;max-width:500px;margin:0 auto;">
+	<a style="text-decoration: none" href="https://www.acuityscheduling.com/?utm_campaign=acuity&utm_medium=referral&utm_source=scheduling-email">
+	<img alt="Powered By Acuity Scheduling" style="height:50px; width: auto; margin-top:11px;" height="50" src="https://cdn-marketing.acuityscheduling.com/img/brand/logo-powered-by-acuity.png">
+	</a>
+</div>

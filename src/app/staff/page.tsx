@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
+import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -363,9 +364,9 @@ export default function StaffPage() {
       setLoading(true);
       setError("");
 
-      const { data: userData } = await supabase.auth.getUser();
+      const user = await getSafeUser();
 
-      if (!userData.user) {
+      if (!user) {
         setLoading(false);
         setError("Please log in to view staff records.");
         return;
@@ -577,8 +578,8 @@ export default function StaffPage() {
     setError("");
     setMessage("");
 
-    const sessionResult = await supabase.auth.getSession();
-    const accessToken = sessionResult.data.session?.access_token;
+    const session = await getSafeSession();
+    const accessToken = session?.access_token;
 
     if (!accessToken) {
       setInviteError("Please log in again before sending an invite.");
@@ -642,8 +643,8 @@ export default function StaffPage() {
     setError("");
     setMessage("");
 
-    const sessionResult = await supabase.auth.getSession();
-    const accessToken = sessionResult.data.session?.access_token;
+    const session = await getSafeSession();
+    const accessToken = session?.access_token;
 
     if (!accessToken) {
       setManageError("Please log in again before managing this user.");

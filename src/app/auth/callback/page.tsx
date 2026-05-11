@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/auth-session";
 
 function hashParams() {
   if (typeof window === "undefined") {
@@ -58,9 +59,9 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      const { data } = await supabase.auth.getSession();
+      const session = await getSafeSession();
 
-      if (data.session) {
+      if (session) {
         router.replace("/set-password");
         return;
       }

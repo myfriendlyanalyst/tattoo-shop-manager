@@ -1,0 +1,230 @@
+<table style="border-collapse:collapse;border-spacing:0px;padding:0;margin:0;width:100%;height:100%;background-repeat:repeat;background-position:center top;" cellpadding="0" cellspacing="0" width="100%">
+<tbody>
+<tr>
+	<td style="padding:0;margin:0;" valign="top">
+		<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" class="es-content" cellspacing="0" cellpadding="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;" align="center">
+				<table style="border-collapse:collapse;border-spacing:0px;background-color:#FFFFFF;width:600px;" align="center" bgcolor="#ffffff" cellpadding="0" cellspacing="0" class="es-content-body">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;padding-top:20px;padding-left:20px;padding-right:20px;" align="left">
+						<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+						<tbody>
+						<tr>
+							<td style="padding:0;margin:0;width:560px;" align="center" valign="top">
+								<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+								<tbody>
+								<tr>
+									<td style="padding:0;margin:0;font-size:0px;" class="es-m-p40" align="center"><img width="220" style="display:block;border:0;text-decoration:none;" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_6a3bfa96617ed85bcc5a755c7e8d8864/images/logo_trans.png" class="adapt-img">
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" class="es-content" cellspacing="0" cellpadding="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;" align="center">
+				<table style="border-collapse:collapse;border-spacing:0px;background-color:#FFFFFF;width:600px;" cellspacing="0" cellpadding="0" align="center" class="es-content-body" bgcolor="#ffffff">
+				<tbody>
+				<tr>
+					<td style="margin:0;padding-top:20px;padding-left:20px;padding-right:20px;padding-bottom:25px;" align="left">
+						<table style="border-collapse:collapse;border-spacing:0px;" width="100%" cellspacing="0" cellpadding="0">
+						<tbody>
+						<tr>
+							<td style="padding:0;margin:0;width:600px;" valign="top" align="center">
+								<table style="border-collapse:separate;border-spacing:0px;border-left:3px solid #ffc600;border-right:3px solid #ffc600;border-top:3px solid #ffc600;border-bottom:3px solid #ffc600;border-radius:20px;" width="100%" cellspacing="0" cellpadding="0">
+								<tbody>
+								<tr>
+									<td style="padding:0;margin:0;" height="30" align="center">
+									</td>
+								</tr>
+								<tr>
+									<td style="padding:0;margin:0;font-size:0px;" align="center"><img width="220" style="display:block;border:0;text-decoration:none;" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_105a87ddcfaf5d3cf52acc88a1b210f8/images/thankyou.png" class="adapt-img">
+									</td>
+								</tr>
+								<tr>
+									<td style="padding:0;margin:0;padding-left:40px;padding-right:40px;" align="center">
+										<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:48px;color:#333333;font-size:24px;"><strong>We truly appreciate your trust and support!</strong>
+										</p>
+									</td>
+								</tr>
+								<tr>
+									<td style="padding:0;margin:0;padding-left:40px;padding-right:40px;" align="center">
+										<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:24px;color:#333333;font-size:20px;"><em>There are a lot of choices out there and you choose us - that means a lot. We just want to express how much we appreciate you. When you’re looking for something truly special, we hope that we’ll continue to be the place you think first.</em>
+										</p>
+									</td>
+								</tr>
+								<tr>
+									<td style="padding:0;margin:0;padding-top:20px;padding-left:40px;padding-right:40px;" align="center">
+										<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:24px;color:#333333;font-size:20px;"><em>- Oyabun Family</em>
+										</p>
+									</td>
+								</tr>
+								<tr>
+									<td style="padding:0;margin:0;" height="30" align="center">
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;" align="center">
+				<table style="border-collapse:collapse;border-spacing:0px;background-color:#FFFFFF;width:600px;" align="center" bgcolor="#ffffff" cellpadding="0" cellspacing="0">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;">
+						<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+						<tbody>
+						<tr>
+							<td style="padding:0;margin:0;width:600px;" align="center" valign="middle">
+								<table width="100%" cellspacing="0" cellpadding="0">
+								<tbody>
+								<tr>
+									<td style="font-size:0px;padding-top:20px;" class="esd-block-image es-p20" align="center"><img style="display:block;" width="200" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_66983eac26b82e721bce4b896cd4d2e9/images/appointmentmid_29.png" class="adapt-img">
+									</td>
+								</tr>
+								<tr>
+									<td class="esd-block-text" align="center">
+										<h1 style="font-size:30px;line-height:120%;text-align:center;"><strong>Support us!</strong></h1>
+									</td>
+								</tr>
+								<tr>
+									<td align="center">
+										<p style="font-size:16px;line-height:120%;"><em>Your feedback helps our artists continue to create great tattoos. Take a few minutes to share your experience.</em>
+										</p>
+									</td>
+								</tr>
+								<tr>
+									<td style="padding-bottom:20px;margin:0;" align="center">
+										<div style="text-decoration:none;display:inline-block;color:#000000;background-color:#ffc600;border-radius:20px;width:auto;border-top:0 solid transparent;border-right:0 solid transparent;border-bottom:0 solid transparent;border-left:0 solid transparent;padding-top:0;padding-bottom:0;font-family:Cabin, Arial, 'Helvetica Neue', Helvetica, sans-serif;text-align:center;">
+											<span style="padding-left:25px;padding-right:25px;font-size:16px;display:inline-block;letter-spacing:normal;"><span style="margin:0;line-height:32px;">
+											<a rel="noreferrer noopener" style="text-decoration:none;display:inline-block;" href="https://search.google.com/local/writereview?placeid=ChIJS-SiadX_24AR3TL2Th4fIDA">Review us on Google</a>
+											</span></span>
+										</div>
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;" align="center">
+				<table style="border-collapse:collapse;border-spacing:0px;background-color:#ffc600;width:600px;" align="center" bgcolor="#ffffff" cellpadding="0" cellspacing="0">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;">
+						<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+						<tbody>
+						<tr>
+							<td style="padding:0;margin:0;width:600px;" align="center" valign="middle">
+							</td>
+						</tr>
+						<tr>
+							<td valign="top" align="center" class="esd-container-frame" width="600">
+								<table width="100%" cellspacing="0" cellpadding="0">
+								<tbody>
+								<tr>
+									<td style="font-size:0px;" class="esd-block-image es-p10t" align="center"><a rel="noreferrer noopener"><img style="display:block;" width="194" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_6a3bfa96617ed85bcc5a755c7e8d8864/images/logo_trans.png"></a>
+									</td>
+								</tr>
+								<tr>
+									<td class="esd-block-text es-m-txt-c" align="center">
+										<p style="line-height:150%;">8199 Clairemont Mesa Blvd., Suite L<br>San Diego, CA 92111<br>(858) 384-6099<br>contact@oyabuntattoo.com
+										</p>
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						<tr>
+							<td valign="top" align="center" class="esd-container-frame" width="600">
+								<table width="100%" cellspacing="0" cellpadding="0">
+								<tbody>
+								<tr>
+									<td style="font-size:0;" class="esd-block-social es-p10t es-p10b" align="center">
+										<table class="es-table-not-adapt es-social" cellspacing="0" cellpadding="0">
+										<tbody>
+										<tr>
+											<td valign="top" style="padding-bottom:20px;margin:0;"><a rel="noreferrer noopener" href="https://www.instagram.com/yushitattoo/"><img height="32" alt="Ig" src="https://jviaxe.stripocdn.email/content/assets/img/social-icons/circle-black/instagram-circle-black.png" title="Instagram"></a>
+											</td>
+										</tr>
+										</tbody>
+										</table>
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+		<table style="padding:0;margin:0;">
+		<tbody>
+		<tr>
+			<td valign="top" align="center" class="esd-container-frame" width="600">
+				<table style="padding:0;margin:0;" width="100%" cellspacing="0" cellpadding="0">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;" align="center">
+						<p style="font-size:10px;"><a href="http://WWW.OYABUNTATTOO.COM">WWW.OYABUNTATTOO.COM</a> @ 2020 OYABUNTATTOO
+						</p>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>

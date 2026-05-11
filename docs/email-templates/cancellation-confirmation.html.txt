@@ -1,0 +1,174 @@
+<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" cellpadding="0" cellspacing="0">
+<tbody>
+<tr>
+	<td style="padding:0;margin:0;" align="center">
+		<table style="border-collapse:collapse;border-spacing:0px;background-color:#FFFFFF;width:600px;" align="center" bgcolor="#ffffff" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;">
+				<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;width:600px;" align="center" valign="middle">
+						<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+						<tbody>
+						<tr>
+							<td style="padding:0;margin:0;font-size:0px;" align="center"><img style="display:block;border:0;text-decoration:none;" width="215" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_6a3bfa96617ed85bcc5a755c7e8d8864/images/logo_trans.png" class="adapt-img">
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>
+<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+	<td style="padding:0;margin:0;" align="center">
+		<table style="border-collapse:collapse;border-spacing:0px;background-color:#FFFFFF;width:600px;" cellspacing="0" cellpadding="0" align="center" bgcolor="#ffffff">
+		<tbody>
+		<tr>
+			<td style="margin:0;padding:0;">
+				<table style="border-collapse:collapse;border-spacing:0px;" width="100%" cellspacing="0" cellpadding="0">
+				<tbody>
+				<tr>
+					<td style="padding-bottom:10px;margin:0;width:600px;" valign="top" align="center">
+						<table style="border-collapse:collapse;border-spacing:0px;border-left:3px solid #ffc600;border-right:3px solid #ffc600;border-top:3px solid #ffc600;border-bottom:3px solid #ffc600;" width="100%" cellspacing="0" cellpadding="0">
+						<tbody>
+						<tr>
+							<td style="padding-top:10px;margin:0;" align="center">
+								<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:40px;color:#333333;font-size:20px;">Appointment cancelled for
+								</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding-top:10px;margin:0;" align="center">
+								<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:40px;color:#333333;font-size:24px;"><strong>%first% %last%</strong>
+								</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:10px;margin:0;font-size:0;" align="center">
+								<table style="height:100%;border-collapse:collapse;border-spacing:0px;" cellspacing="0" cellpadding="0" width="80%" border="0">
+								<tbody>
+								<tr>
+									<td style="padding:0;margin:0px;border-bottom:1px solid #cccccc;height:1px;width:100%;">
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:0;margin:0;" align="center">
+								<p style="margin:0;font-family:arial, 'helvetica neue', helvetica, sans-serif;line-height:40px;color:#333333;font-size:20px;">Your appointment with<br><span style="font-size:24px;line-height:48px;"><strong>%calendar% <br> on %time% %tz%</strong></span><br>has been cancelled
+								</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:0;margin:0;" height="10" align="center">
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>
+<table style="border-collapse:collapse;border-spacing:0px;table-layout:fixed;width:100%;" align="center" cellpadding="0" cellspacing="0">
+<tbody>
+<tr>
+	<td style="padding:0;margin:0;" align="center">
+		<table style="border-collapse:collapse;border-spacing:0px;background-color:#ffc600;width:600px;" align="center" bgcolor="#ffffff" cellpadding="0" cellspacing="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;">
+				<table style="border-collapse:collapse;border-spacing:0px;" cellpadding="0" cellspacing="0" width="100%">
+				<tbody>
+				<tr>
+					<td style="padding:0;margin:0;width:600px;" align="center" valign="middle">
+					</td>
+				</tr>
+				<tr>
+					<td valign="top" align="center" class="esd-container-frame" width="600">
+						<table width="100%" cellspacing="0" cellpadding="0">
+						<tbody>
+						<tr>
+							<td style="font-size:0px;" class="esd-block-image es-p10t" align="center"><a rel="noreferrer noopener"><img style="display:block;" width="194" alt="" src="https://jviaxe.stripocdn.email/content/guids/CABINET_6a3bfa96617ed85bcc5a755c7e8d8864/images/logo_trans.png"></a>
+							</td>
+						</tr>
+						<tr>
+							<td class="esd-block-text es-m-txt-c" align="center">
+								<p style="line-height:150%;">8199 Clairemont Mesa Blvd., Suite L<br>San Diego, CA 92111<br>(858) 384-6099<br>contact@oyabuntattoo.com
+								</p>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				<tr>
+					<td valign="top" align="center" class="esd-container-frame" width="600">
+						<table width="100%" cellspacing="0" cellpadding="0">
+						<tbody>
+						<tr>
+							<td style="font-size:0;" class="esd-block-social es-p10t es-p10b" align="center">
+								<table class="es-table-not-adapt es-social" cellspacing="0" cellpadding="0">
+								<tbody>
+								<tr>
+									<td valign="top" style="padding-bottom:20px;margin:0;"><a rel="noreferrer noopener" href="https://www.instagram.com/yushitattoo/"><img height="32" alt="Ig" src="https://jviaxe.stripocdn.email/content/assets/img/social-icons/circle-black/instagram-circle-black.png" title="Instagram"></a>
+									</td>
+								</tr>
+								</tbody>
+								</table>
+							</td>
+						</tr>
+						</tbody>
+						</table>
+					</td>
+				</tr>
+				</tbody>
+				</table>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>
+<table style="padding:0;margin:0;">
+<tbody>
+<tr>
+	<td valign="top" align="center" class="esd-container-frame" width="600">
+		<table style="padding:0;margin:0;" width="100%" cellspacing="0" cellpadding="0">
+		<tbody>
+		<tr>
+			<td style="padding:0;margin:0;" align="center">
+				<p style="font-size:10px;"><a href="http://WWW.OYABUNTATTOO.COM">WWW.OYABUNTATTOO.COM</a> @ 2020 OYABUNTATTOO
+				</p>
+			</td>
+		</tr>
+		</tbody>
+		</table>
+	</td>
+</tr>
+</tbody>
+</table>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getSafeSession } from "@/lib/auth-session";
 
 export default function HomePage() {
   const router = useRouter();
@@ -15,17 +16,22 @@ export default function HomePage() {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    getSafeSession().then((session) => {
       if (!mounted) {
         return;
       }
 
-      if (data.session) {
+      if (session) {
         router.replace("/requests");
         return;
       }
 
       setChecking(false);
+    }).catch((sessionError) => {
+      if (mounted) {
+        setError(sessionError instanceof Error ? sessionError.message : "Could not check login.");
+        setChecking(false);
+      }
     });
 
     return () => {
