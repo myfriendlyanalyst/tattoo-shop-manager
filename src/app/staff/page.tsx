@@ -15,6 +15,7 @@ type StaffRecord = {
   role: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
   start_date: string | null;
   active: boolean;
 };
@@ -38,6 +39,7 @@ type StaffPermission = {
 type StaffForm = {
   displayName: string;
   role: string;
+  address: string;
   schedule: StaffSchedule[];
   permissionKeys: string[];
 };
@@ -375,7 +377,7 @@ export default function StaffPage() {
       const [staffResult, scheduleResult, permissionResult] = await Promise.all([
         supabase
           .from("staff")
-          .select("id, profile_id, display_name, legal_name, role, email, phone, start_date, active")
+          .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
           .order("sort_order", { ascending: true }),
         supabase
           .from("staff_schedules")
@@ -419,6 +421,7 @@ export default function StaffPage() {
           ? {
               displayName: nextStaff[0].display_name,
               role: nextStaff[0].role,
+              address: nextStaff[0].address ?? "",
               schedule: scheduleForStaff(nextSelectedId, nextSchedules),
               permissionKeys: permissionKeysForStaff(nextSelectedId, nextPermissions),
             }
@@ -442,6 +445,7 @@ export default function StaffPage() {
     setForm({
       displayName: person.display_name,
       role: person.role,
+      address: person.address ?? "",
       schedule: scheduleForStaff(person.id, schedules),
       permissionKeys: permissionKeysForStaff(person.id, staffPermissions),
     });
@@ -491,6 +495,7 @@ export default function StaffPage() {
       .update({
         display_name: form.displayName.trim(),
         role: form.role,
+        address: form.address.trim() || null,
       })
       .eq("id", selectedStaff.id);
 
@@ -537,7 +542,12 @@ export default function StaffPage() {
     setStaff((current) =>
       current.map((person) =>
         person.id === selectedStaff.id
-          ? { ...person, display_name: form.displayName.trim(), role: form.role }
+          ? {
+              ...person,
+              display_name: form.displayName.trim(),
+              role: form.role,
+              address: form.address.trim() || null,
+            }
           : person,
       ),
     );
@@ -625,6 +635,7 @@ export default function StaffPage() {
     setForm({
       displayName: result.staff.display_name,
       role: result.staff.role,
+      address: result.staff.address ?? "",
       schedule: scheduleForStaff(result.staff.id, schedules),
       permissionKeys: (result.permissions ?? []).map((permission) => permission.permission_key),
     });
@@ -693,6 +704,7 @@ export default function StaffPage() {
           ? {
               displayName: nextSelected.display_name,
               role: nextSelected.role,
+              address: nextSelected.address ?? "",
               schedule: scheduleForStaff(nextSelected.id, schedules),
               permissionKeys: permissionKeysForStaff(nextSelected.id, staffPermissions),
             }
@@ -926,6 +938,20 @@ export default function StaffPage() {
                     </select>
                   </label>
                 </div>
+
+                <label className="block text-sm font-semibold">
+                  Home address
+                  <textarea
+                    className="mt-2 min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, address: event.target.value } : current,
+                      )
+                    }
+                    placeholder="Enter the staff member's home address"
+                    value={form.address}
+                  />
+                </label>
 
                 <div>
                   <h4 className="text-sm font-semibold">Permissions</h4>

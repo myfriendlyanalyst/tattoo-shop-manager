@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
       },
       { onConflict: "profile_id" },
     )
-    .select("id, profile_id, display_name, legal_name, role, email, phone, start_date, active")
+    .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
     .single();
 
   if (staffUpsertError) {
