@@ -351,6 +351,7 @@ export default function StaffPage() {
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
   const [staffPermissions, setStaffPermissions] = useState<StaffPermission[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState("");
+  const [staffDetailOpen, setStaffDetailOpen] = useState(false);
   const [form, setForm] = useState<StaffForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -440,6 +441,7 @@ export default function StaffPage() {
 
   function selectStaff(person: StaffRecord) {
     setSelectedStaffId(person.id);
+    setStaffDetailOpen(true);
     setMessage("");
     setError("");
     setForm({
@@ -639,6 +641,7 @@ export default function StaffPage() {
       schedule: scheduleForStaff(result.staff.id, schedules),
       permissionKeys: (result.permissions ?? []).map((permission) => permission.permission_key),
     });
+    setStaffDetailOpen(true);
     setShowInviteUser(false);
     setMessage(`Invite sent to ${result.staff.email}.`);
     setSaving(false);
@@ -710,6 +713,7 @@ export default function StaffPage() {
             }
           : null,
       );
+      setStaffDetailOpen(false);
       setMessage(`${selectedStaff.display_name} was deleted.`);
     }
 
@@ -768,9 +772,8 @@ export default function StaffPage() {
         </div>
       ) : null}
 
-      {!loading && selectedStaff && form ? (
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.85fr]">
-          <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+      {!loading && staff.length > 0 ? (
+        <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-base font-semibold">Team</h3>
@@ -791,9 +794,7 @@ export default function StaffPage() {
               {staff.map((person) => (
                 <button
                   key={person.id}
-                  className={`block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9] ${
-                    person.id === selectedStaff.id ? "bg-[#fffaf1]" : ""
-                  }`}
+                  className="block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9]"
                   onClick={() => selectStaff(person)}
                   type="button"
                 >
@@ -847,7 +848,7 @@ export default function StaffPage() {
                   {staff.map((person) => (
                     <tr
                       key={person.id}
-                      className={`cursor-pointer ${person.id === selectedStaff.id ? "bg-[#fffaf1]" : ""}`}
+                      className="cursor-pointer hover:bg-[#f7f2e9]"
                       onClick={() => selectStaff(person)}
                     >
                       <td className="px-4 py-4">
@@ -883,17 +884,29 @@ export default function StaffPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+        </section>
+      ) : null}
 
-          <aside className="space-y-6">
-            <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-              <div className="border-b border-[#e5dfd4] px-4 py-4">
+      {staffDetailOpen && selectedStaff && form ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 px-4 py-6">
+          <section className="w-full max-w-3xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-4 py-4">
+              <div>
                 <p className="text-xs font-semibold text-[#8a6f4d]">
                   {selectedStaff.id.slice(0, 8)}
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">{selectedStaff.display_name}</h3>
                 <p className="mt-1 text-sm text-[#697178]">{selectedStaff.role}</p>
               </div>
+              <button
+                aria-label="Close staff detail"
+                className="h-9 w-9 rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+                onClick={() => setStaffDetailOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
 
               <div className="space-y-4 px-4 py-4">
                 {error ? (
@@ -1069,18 +1082,25 @@ export default function StaffPage() {
                 >
                   Delete user
                 </button>
+
+                <div className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
+                  <h3 className="text-base font-semibold">Security note</h3>
+                  <p className="mt-3 text-sm text-[#4d555c]">
+                    Artist accounts should never receive accounting or payout access. The accounting
+                    app should only accept owner/admin users through Supabase RLS.
+                  </p>
+                </div>
+
+                <button
+                  className="h-10 w-full rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                  onClick={() => setStaffDetailOpen(false)}
+                  type="button"
+                >
+                  Close
+                </button>
               </div>
             </section>
-
-            <section className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
-              <h3 className="text-base font-semibold">Security note</h3>
-              <p className="mt-3 text-sm text-[#4d555c]">
-                Artist accounts should never receive accounting or payout access. The accounting app
-                should only accept owner/admin users through Supabase RLS.
-              </p>
-            </section>
-          </aside>
-        </section>
+          </div>
       ) : null}
 
       {showInviteUser ? (
