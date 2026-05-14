@@ -5,12 +5,27 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+function nextPath() {
+  if (typeof window === "undefined") {
+    return "/requests";
+  }
+
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next?.startsWith("/") && !next.startsWith("//")) {
+    return next;
+  }
+
+  return "/requests";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const destination = nextPath();
+  const isAccountingLogin = destination.startsWith("/accounting");
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,7 +44,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/requests");
+    router.push(destination);
     router.refresh();
   }
 
@@ -38,11 +53,15 @@ export default function LoginPage() {
       <section className="w-full max-w-md rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
-            Oyabun
+            {isAccountingLogin ? "Oyabun Accounting" : "Oyabun"}
           </p>
-          <h1 className="mt-2 text-2xl font-semibold">Log in</h1>
+          <h1 className="mt-2 text-2xl font-semibold">
+            {isAccountingLogin ? "Accounting Login" : "Log in"}
+          </h1>
           <p className="mt-1 text-sm text-[#697178]">
-            Use a Supabase Auth user for the operations app.
+            {isAccountingLogin
+              ? "Use an owner or admin account to access accounting."
+              : "Use a Supabase Auth user for the operations app."}
           </p>
         </div>
 

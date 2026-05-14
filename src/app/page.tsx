@@ -5,6 +5,19 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
 
+function nextPath() {
+  if (typeof window === "undefined") {
+    return "/requests";
+  }
+
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next?.startsWith("/") && !next.startsWith("//")) {
+    return next;
+  }
+
+  return "/requests";
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -12,6 +25,8 @@ export default function HomePage() {
   const [checking, setChecking] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const destination = nextPath();
+  const isAccountingLogin = destination.startsWith("/accounting");
 
   useEffect(() => {
     let mounted = true;
@@ -22,7 +37,7 @@ export default function HomePage() {
       }
 
       if (session) {
-        router.replace("/requests");
+        router.replace(nextPath());
         return;
       }
 
@@ -56,7 +71,7 @@ export default function HomePage() {
       return;
     }
 
-    router.replace("/requests");
+    router.replace(destination);
     router.refresh();
   }
 
@@ -65,9 +80,16 @@ export default function HomePage() {
       <section className="w-full max-w-md rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
-            Oyabun
+            {isAccountingLogin ? "Oyabun Accounting" : "Oyabun"}
           </p>
-          <h1 className="mt-2 text-2xl font-semibold">Tattoo Manager</h1>
+          <h1 className="mt-2 text-2xl font-semibold">
+            {isAccountingLogin ? "Accounting Login" : "Tattoo Manager"}
+          </h1>
+          <p className="mt-1 text-sm text-[#697178]">
+            {isAccountingLogin
+              ? "Use an owner or admin account to access accounting."
+              : "Use your staff account to access the operations app."}
+          </p>
         </div>
 
         <form className="space-y-4 px-6 py-6" onSubmit={handleLogin}>

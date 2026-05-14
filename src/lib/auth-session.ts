@@ -1,13 +1,26 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-function isRefreshTokenError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
+function errorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message.toLowerCase();
   }
 
-  const message = error.message.toLowerCase();
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message).toLowerCase();
+  }
+
+  return "";
+}
+
+function isRefreshTokenError(error: unknown) {
+  const message = errorMessage(error);
   return message.includes("refresh token") || message.includes("invalid refresh");
+}
+
+function isMissingSessionError(error: unknown) {
+  const message = errorMessage(error);
+  return message.includes("auth session missing") || message.includes("session missing");
 }
 
 export async function clearStoredAuthSession() {
@@ -29,7 +42,7 @@ export async function getSafeSession(): Promise<Session | null> {
 
     return data.session;
   } catch (error) {
-    if (isRefreshTokenError(error)) {
+    if (isRefreshTokenError(error) || isMissingSessionError(error)) {
       await clearStoredAuthSession();
       return null;
     }
@@ -48,7 +61,7 @@ export async function getSafeUser(): Promise<User | null> {
 
     return data.user;
   } catch (error) {
-    if (isRefreshTokenError(error)) {
+    if (isRefreshTokenError(error) || isMissingSessionError(error)) {
       await clearStoredAuthSession();
       return null;
     }
