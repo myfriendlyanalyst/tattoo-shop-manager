@@ -50,6 +50,18 @@ type DepositRecord = {
   project_id: string | null;
   amount: number;
   available: boolean;
+  received_at: string;
+};
+
+type SessionEntryRecord = {
+  id: string;
+  appointment_id: string | null;
+  customer_id: string | null;
+  project_id: string | null;
+  entered_at: string;
+  tattoo_amount: number | null;
+  tip_amount: number | null;
+  memo: string | null;
 };
 
 type NewCustomerForm = {
@@ -165,10 +177,11 @@ function projectSizeLabel(project: ProjectRecord) {
   return memoSize || "-";
 }
 
-function latestAppointment(customerId: string, appointments: AppointmentRecord[]) {
-  return appointments
-    .filter((appointment) => appointment.customer_id === customerId)
-    .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0];
+function firstDepositDate(customerId: string, deposits: DepositRecord[]) {
+  return deposits
+    .filter((deposit) => deposit.customer_id === customerId)
+    .sort((a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime())[0]
+    ?.received_at ?? null;
 }
 
 function NewCustomerModal({
@@ -263,6 +276,7 @@ export default function CustomersPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
+  const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerDetailOpen, setCustomerDetailOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -306,6 +320,16 @@ export default function CustomersPage() {
     [projects, selectedProjectId],
   );
 
+  const selectedProjectSessions = useMemo(() => {
+    if (!selectedProject) {
+      return [];
+    }
+
+    return sessions
+      .filter((session) => session.project_id === selectedProject.id)
+      .sort((a, b) => new Date(b.entered_at).getTime() - new Date(a.entered_at).getTime());
+  }, [selectedProject, sessions]);
+
   useEffect(() => {
     async function loadCustomers() {
       setLoading(true);
@@ -319,7 +343,7 @@ export default function CustomersPage() {
         return;
       }
 
-      const [customerResult, projectResult, appointmentResult, depositResult] =
+      const [customerResult, projectResult, appointmentResult, depositResult, sessionResult] =
         await Promise.all([
           supabase.from("customers").select(customerSelect).order("created_at", { ascending: false }),
           supabase
@@ -334,7 +358,11 @@ export default function CustomersPage() {
               "id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, artist:staff(display_name), project:projects(subject)",
             )
             .order("starts_at", { ascending: false }),
-          supabase.from("deposits").select("id, customer_id, project_id, amount, available"),
+          supabase.from("deposits").select("id, customer_id, project_id, amount, available, received_at"),
+          supabase
+            .from("session_entries")
+            .select("id, appointment_id, customer_id, project_id, entered_at, tattoo_amount, tip_amount, memo")
+            .order("entered_at", { ascending: false }),
         ]);
 
       if (customerResult.error) {
@@ -361,12 +389,19 @@ export default function CustomersPage() {
         return;
       }
 
+      if (sessionResult.error) {
+        setError(sessionResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       const nextCustomers = (customerResult.data ?? []) as CustomerRecord[];
 
       setCustomers(nextCustomers);
       setProjects((projectResult.data ?? []) as unknown as ProjectRecord[]);
       setAppointments((appointmentResult.data ?? []) as unknown as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
+      setSessions((sessionResult.data ?? []) as SessionEntryRecord[]);
       setSelectedCustomerId(nextCustomers[0]?.id ?? "");
       setCustomerDetailOpen(false);
       setLoading(false);
@@ -576,9 +611,6 @@ export default function CustomersPage() {
                     {selectedCustomer.id.slice(0, 8)}
                   </p>
                   <h3 className="mt-1 text-xl font-semibold">{selectedCustomer.name}</h3>
-                  <p className="mt-1 text-sm text-[#697178]">
-                    {selectedCustomer.notes || "Customer profile"}
-                  </p>
                 </div>
                 <button
                   aria-label="Close customer detail"
@@ -603,9 +635,9 @@ export default function CustomersPage() {
                   <p className="mt-1 font-semibold">{selectedCustomer.email || "-"}</p>
                 </div>
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                  <p className="text-sm text-[#697178]">Last appointment</p>
+                  <p className="text-sm text-[#697178]">First deposit</p>
                   <p className="mt-1 font-semibold">
-                    {displayDate(latestAppointment(selectedCustomer.id, appointments)?.starts_at ?? null)}
+                    {displayDate(firstDepositDate(selectedCustomer.id, deposits))}
                   </p>
                 </div>
               </div>
@@ -823,6 +855,35 @@ export default function CustomersPage() {
                   <p className="mt-1 whitespace-pre-wrap text-[#4d555c]">{selectedProject.memo}</p>
                 </div>
               ) : null}
+              <div className="rounded-md border border-[#e4dccf] bg-white sm:col-span-2">
+                <div className="border-b border-[#eee8dd] px-3 py-3">
+                  <p className="font-semibold">Session history</p>
+                </div>
+                {selectedProjectSessions.length === 0 ? (
+                  <p className="px-3 py-4 text-sm font-semibold text-[#697178]">
+                    No session entries yet.
+                  </p>
+                ) : null}
+                <div className="divide-y divide-[#eee8dd]">
+                  {selectedProjectSessions.map((session) => {
+                    const appointment = appointments.find(
+                      (item) => item.id === session.appointment_id,
+                    );
+
+                    return (
+                      <div className="grid gap-2 px-3 py-3 sm:grid-cols-[0.8fr_1fr]" key={session.id}>
+                        <div>
+                          <p className="font-semibold">{displayDate(session.entered_at)}</p>
+                          <p className="text-[#697178]">
+                            {appointment ? displayDate(appointment.starts_at) : "Walk-in / manual"}
+                          </p>
+                        </div>
+                        <p className="text-[#4d555c]">{session.memo || "-"}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
               <button
                 className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] sm:col-span-2"
                 onClick={() => setSelectedProjectId("")}

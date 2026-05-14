@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { renderAppointmentCancellationEmail } from "@/lib/email-templates/appointment-cancellation";
+import {
+  renderAppointmentConfirmationEmail,
+  type AppointmentConfirmationVariant,
+} from "@/lib/email-templates/appointment-confirmation";
+import { renderAppointmentRescheduleEmail } from "@/lib/email-templates/appointment-reschedule";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,16 +16,24 @@ const emailReplyTo = process.env.EMAIL_REPLY_TO;
 
 type EmailPayload = {
   appointmentId?: string;
-  emailType?: "appointment_confirmation" | "appointment_reminder";
+  emailType?:
+    | "appointment_confirmation"
+    | "appointment_cancellation"
+    | "appointment_reschedule"
+    | "appointment_reminder";
+  oldStartsAt?: string;
+  oldEndsAt?: string | null;
 };
 
 type AppointmentEmailRecord = {
   id: string;
   customer_id: string | null;
+  project_id: string | null;
   starts_at: string;
   ends_at: string | null;
   appointment_type: string | null;
   confirmation_email_sent_at: string | null;
+  cancellation_email_sent_at: string | null;
   customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
   project: { subject: string } | { subject: string }[] | null;
   artist:
@@ -44,81 +58,6 @@ function jsonError(message: string, status: number) {
 
 function cleanEmail(value: string | null | undefined) {
   return value?.trim() || null;
-}
-
-function displayDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(new Date(value));
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function emailSubject(appointment: AppointmentEmailRecord) {
-  const project = relatedOne(appointment.project);
-
-  return `Appointment confirmed: ${project?.subject || "Tattoo appointment"}`;
-}
-
-function emailBodies(appointment: AppointmentEmailRecord) {
-  const customer = relatedOne(appointment.customer);
-  const project = relatedOne(appointment.project);
-  const artist = relatedOne(appointment.artist);
-  const customerName = customer?.name || "there";
-  const projectName = project?.subject || "Tattoo appointment";
-  const artistName = artist?.display_name || "your artist";
-  const start = displayDateTime(appointment.starts_at);
-  const end = appointment.ends_at ? displayDateTime(appointment.ends_at) : "";
-
-  const text = [
-    `Hi ${customerName},`,
-    "",
-    "Your tattoo appointment has been confirmed.",
-    "",
-    `Project: ${projectName}`,
-    `Artist: ${artistName}`,
-    `Start: ${start}`,
-    end ? `End: ${end}` : null,
-    "",
-    "If you need to make changes, please reply to this email.",
-    "",
-    "Oyabun Tattoo",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const html = `
-    <div style="font-family: Arial, sans-serif; color: #1f2428; line-height: 1.5;">
-      <p>Hi ${escapeHtml(customerName)},</p>
-      <p>Your tattoo appointment has been confirmed.</p>
-      <table style="border-collapse: collapse; margin: 20px 0;">
-        <tr><td style="padding: 6px 12px 6px 0; color: #697178;">Project</td><td style="padding: 6px 0;"><strong>${escapeHtml(projectName)}</strong></td></tr>
-        <tr><td style="padding: 6px 12px 6px 0; color: #697178;">Artist</td><td style="padding: 6px 0;">${escapeHtml(artistName)}</td></tr>
-        <tr><td style="padding: 6px 12px 6px 0; color: #697178;">Start</td><td style="padding: 6px 0;">${escapeHtml(start)}</td></tr>
-        ${
-          end
-            ? `<tr><td style="padding: 6px 12px 6px 0; color: #697178;">End</td><td style="padding: 6px 0;">${escapeHtml(end)}</td></tr>`
-            : ""
-        }
-      </table>
-      <p>If you need to make changes, please reply to this email.</p>
-      <p>Oyabun Tattoo</p>
-    </div>
-  `;
-
-  return { html, text };
 }
 
 async function logEmail(
@@ -191,14 +130,25 @@ export async function POST(request: NextRequest) {
     return jsonError("Appointment id is required.", 400);
   }
 
-  if (emailType !== "appointment_confirmation") {
-    return jsonError("Only appointment confirmation email is available now.", 400);
+  if (
+    emailType !== "appointment_confirmation" &&
+    emailType !== "appointment_cancellation" &&
+    emailType !== "appointment_reschedule"
+  ) {
+    return jsonError(
+      "Only appointment confirmation, cancellation, and reschedule emails are available now.",
+      400,
+    );
+  }
+
+  if (emailType === "appointment_reschedule" && !payload.oldStartsAt) {
+    return jsonError("Previous appointment time is required for reschedule email.", 400);
   }
 
   const { data: appointmentData, error: appointmentError } = await adminClient
     .from("appointments")
     .select(
-      "id, customer_id, starts_at, ends_at, appointment_type, confirmation_email_sent_at, customer:customers(name, email), project:projects(subject), artist:staff(display_name, email)",
+      "id, customer_id, project_id, starts_at, ends_at, appointment_type, confirmation_email_sent_at, cancellation_email_sent_at, customer:customers(name, email), project:projects(subject), artist:staff(display_name, email)",
     )
     .eq("id", appointmentId)
     .single();
@@ -213,14 +163,68 @@ export async function POST(request: NextRequest) {
   const appointment = appointmentData as unknown as AppointmentEmailRecord;
   const customer = relatedOne(appointment.customer);
   const artist = relatedOne(appointment.artist);
+  const project = relatedOne(appointment.project);
   const toEmail = cleanEmail(customer?.email);
   const replyToEmail = cleanEmail(emailReplyTo);
   const artistEmail = cleanEmail(artist?.email);
   const ccEmails = artistEmail && artistEmail !== toEmail ? [artistEmail] : [];
-  const subject = emailSubject(appointment);
+  const customerName = customer?.name || "there";
+  const projectName = project?.subject || "Tattoo appointment";
+  const artistName = artist?.display_name || "your artist";
+  let emailContent: { html: string; subject: string; text: string };
 
-  if (appointment.confirmation_email_sent_at) {
+  if (emailType === "appointment_confirmation") {
+    const siblingAppointmentResult = appointment.project_id
+      ? await adminClient
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("project_id", appointment.project_id)
+          .neq("id", appointment.id)
+      : { count: 0, error: null };
+
+    if (siblingAppointmentResult.error) {
+      return jsonError(siblingAppointmentResult.error.message, 500);
+    }
+
+    const confirmationVariant: AppointmentConfirmationVariant =
+      (siblingAppointmentResult.count ?? 0) > 0
+        ? "booking_confirmation_2"
+        : "booking_confirmation_1";
+    emailContent = renderAppointmentConfirmationEmail({
+      variant: confirmationVariant,
+      customerName,
+      projectName,
+      artistName,
+      startsAt: appointment.starts_at,
+      endsAt: appointment.ends_at,
+    });
+  } else {
+    emailContent =
+      emailType === "appointment_cancellation"
+        ? renderAppointmentCancellationEmail({
+            customerName,
+            projectName,
+            artistName,
+            startsAt: appointment.starts_at,
+          })
+        : renderAppointmentRescheduleEmail({
+            customerName,
+            projectName,
+            artistName,
+            oldStartsAt: payload.oldStartsAt!,
+            oldEndsAt: payload.oldEndsAt ?? null,
+            newStartsAt: appointment.starts_at,
+            newEndsAt: appointment.ends_at,
+          });
+  }
+  const subject = emailContent.subject;
+
+  if (emailType === "appointment_confirmation" && appointment.confirmation_email_sent_at) {
     return NextResponse.json({ skipped: true, reason: "Confirmation email already sent." });
+  }
+
+  if (emailType === "appointment_cancellation" && appointment.cancellation_email_sent_at) {
+    return NextResponse.json({ skipped: true, reason: "Cancellation email already sent." });
   }
 
   if (!toEmail) {
@@ -246,7 +250,6 @@ export async function POST(request: NextRequest) {
     return jsonError("Missing RESEND_API_KEY or EMAIL_FROM.", 500);
   }
 
-  const { html, text } = emailBodies(appointment);
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -258,8 +261,8 @@ export async function POST(request: NextRequest) {
       to: [toEmail],
       cc: ccEmails.length > 0 ? ccEmails : undefined,
       subject,
-      html,
-      text,
+      html: emailContent.html,
+      text: emailContent.text,
       reply_to: replyToEmail || undefined,
     }),
   });
@@ -288,7 +291,13 @@ export async function POST(request: NextRequest) {
 
   await adminClient
     .from("appointments")
-    .update({ confirmation_email_sent_at: sentAt })
+    .update(
+      emailType === "appointment_confirmation"
+        ? { confirmation_email_sent_at: sentAt }
+        : emailType === "appointment_cancellation"
+          ? { cancellation_email_sent_at: sentAt }
+          : {},
+    )
     .eq("id", appointment.id);
   await logEmail(adminClient as unknown as EmailLogClient, appointment, {
     emailType,

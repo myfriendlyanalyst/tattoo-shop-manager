@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import {
@@ -147,6 +148,23 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
+          <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div className="border-b border-[#e5dfd4] px-4 py-4">
+              <h3 className="text-base font-semibold">Email operations</h3>
+              <p className="mt-1 text-sm text-[#697178]">
+                Review automated appointment emails and scheduled reminders.
+              </p>
+            </div>
+            <div className="px-4 py-4">
+              <Link
+                className="inline-flex h-10 items-center rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
+                href="/settings/email-log"
+              >
+                Email log
+              </Link>
+            </div>
+          </section>
+
           <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="border-b border-[#e5dfd4] px-4 py-4">
               <h3 className="text-base font-semibold">Booking defaults</h3>

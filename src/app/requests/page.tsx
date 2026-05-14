@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
-import { sendAppointmentConfirmation } from "@/lib/appointment-email";
+import {
+  scheduleAppointmentReminder,
+  sendAppointmentConfirmation,
+} from "@/lib/appointment-email";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
@@ -32,6 +35,8 @@ type RequestRecord = {
   placement: string | null;
   reference_image_url: string | null;
   requested_artist_label: string | null;
+  tattoo_timing_preference: string | null;
+  preferred_appointment_date: string | null;
   age_confirmed: boolean;
   artist_id: string | null;
   status: string;
@@ -75,6 +80,8 @@ type NewRequestForm = {
   referenceFile: File | null;
   requestedArtistLabel: string;
   artistId: string;
+  tattooTimingPreference: string;
+  preferredAppointmentDate: string;
   notes: string;
 };
 
@@ -103,9 +110,16 @@ const statusOptions = [
 
 const referenceBucket = "request-references";
 const requestSelect =
-  "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+  "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 
 const projectTypes = ["Walk-in", "One Done", "Multiple Session"];
+const tattooTimingOptions = [
+  { value: "", label: "Not specified" },
+  { value: "asap", label: "ASAP" },
+  { value: "within_1_2_weeks", label: "Within 1-2 weeks" },
+  { value: "flexible", label: "Flexible" },
+  { value: "preferred_date", label: "Preferred date" },
+];
 const paymentMethods = [
   { value: "cash", label: "Cash" },
   { value: "credit_card", label: "Credit card" },
@@ -223,6 +237,22 @@ function displayDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function displayDate(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00`));
+}
+
+function tattooTimingLabel(value: string | null) {
+  return tattooTimingOptions.find((option) => option.value === (value ?? ""))?.label ?? value ?? "-";
+}
+
 function localDateInput(value = new Date()) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -306,6 +336,12 @@ function requestDetailMemo(request: RequestRecord) {
     request.tattoo_description ? `Tattoo description: ${request.tattoo_description}` : null,
     request.approximate_size ? `Approximate size: ${request.approximate_size} inch` : null,
     request.placement ? `Placement: ${request.placement}` : null,
+    request.tattoo_timing_preference
+      ? `Timing preference: ${tattooTimingLabel(request.tattoo_timing_preference)}`
+      : null,
+    request.preferred_appointment_date
+      ? `Preferred date: ${displayDate(request.preferred_appointment_date)}`
+      : null,
     request.reference_image_url ? `Reference image: ${request.reference_image_url}` : null,
     request.requested_artist_label ? `Requested artist: ${request.requested_artist_label}` : null,
   ]
@@ -362,6 +398,8 @@ function NewRequestModal({
     referenceFile: null,
     requestedArtistLabel: "Any available",
     artistId: "",
+    tattooTimingPreference: "",
+    preferredAppointmentDate: "",
     notes: "",
   });
 
@@ -527,6 +565,49 @@ function NewRequestModal({
                 </option>
               ))}
             </select>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Tattoo timing
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    tattooTimingPreference: event.target.value,
+                    preferredAppointmentDate:
+                      event.target.value === "preferred_date"
+                        ? current.preferredAppointmentDate
+                        : "",
+                  }))
+                }
+                value={form.tattooTimingPreference}
+              >
+                {tattooTimingOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              Preferred date
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm disabled:bg-[#eee8dd]"
+                disabled={form.tattooTimingPreference !== "preferred_date"}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    preferredAppointmentDate: event.target.value,
+                    tattooTimingPreference: event.target.value
+                      ? "preferred_date"
+                      : current.tattooTimingPreference,
+                  }))
+                }
+                type="date"
+                value={form.preferredAppointmentDate}
+              />
+            </label>
           </div>
           <textarea
             className="min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
@@ -731,6 +812,8 @@ export default function RequestsPage() {
     const phone = form.phone.trim();
     const approximateSize = form.approximateSize.trim();
     const placement = form.placement.trim();
+    const tattooTimingPreference = form.tattooTimingPreference || null;
+    const preferredAppointmentDate = form.preferredAppointmentDate || null;
     const requestName = requestNameFromParts(clientName, placement);
 
     if (
@@ -763,6 +846,11 @@ export default function RequestsPage() {
       return;
     }
 
+    if (tattooTimingPreference === "preferred_date" && !preferredAppointmentDate) {
+      setNewRequestError("Preferred date is required when timing is set to Preferred date.");
+      return;
+    }
+
     setSaving(true);
     setNewRequestError("");
 
@@ -784,6 +872,8 @@ export default function RequestsPage() {
         placement,
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
+        tattoo_timing_preference: tattooTimingPreference,
+        preferred_appointment_date: preferredAppointmentDate,
         age_confirmed: false,
         artist_id: form.artistId || null,
         priority: "normal",
@@ -1041,6 +1131,7 @@ export default function RequestsPage() {
     }
 
     const emailResult = await sendAppointmentConfirmation(appointmentResult.data.id);
+    const reminderResult = await scheduleAppointmentReminder(appointmentResult.data.id);
 
     if (depositAmount > 0) {
       const depositResult = await supabase
@@ -1079,14 +1170,18 @@ export default function RequestsPage() {
     );
     setBookingMode(false);
     setBookingForm(null);
+    const reminderMessage =
+      reminderResult.status === "failed"
+        ? ` Reminder email was not scheduled: ${reminderResult.error || reminderResult.reason}.`
+        : "";
     setMessage(
       emailResult.sent
-        ? "Request booked as a project. Confirmation email sent."
+        ? `Request booked as a project. Confirmation email sent.${reminderMessage}`
         : `Request booked as a project. Confirmation email was not sent yet${
             emailResult.error || emailResult.reason
               ? `: ${emailResult.error || emailResult.reason}`
               : "."
-          }`,
+          }${reminderMessage}`,
     );
     setSaving(false);
   }
@@ -1542,6 +1637,18 @@ export default function RequestsPage() {
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                        <p className="text-[#697178]">Timing preference</p>
+                        <p className="mt-1 font-semibold">
+                          {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                        <p className="text-[#697178]">Preferred date</p>
+                        <p className="mt-1 font-semibold">
+                          {displayDate(selectedRequest.preferred_appointment_date)}
+                        </p>
                       </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
                         <p className="text-[#697178]">Description</p>
