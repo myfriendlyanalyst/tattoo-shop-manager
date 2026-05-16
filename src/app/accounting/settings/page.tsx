@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
-import { supabase } from "@/lib/supabase";
+import { hasAccountingAccess } from "@/lib/accounting-access";
 
 const PAYMENT_METHODS = [
   { key: "cash", label: "Cash", color: "bg-[#e8f3e8] text-[#2d6a2d]" },
@@ -42,14 +42,11 @@ export default function AccountingSettingsPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role !== "owner" && profile?.role !== "admin") {
+      const hasAccess = await hasAccountingAccess(user.id);
+      if (!hasAccess) {
         setError("Access denied.");
+        setLoading(false);
+        return;
       }
 
       setLoading(false);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
+import { hasAccountingAccess } from "@/lib/accounting-access";
 
 type DepositRecord = {
   id: string;
@@ -75,13 +76,8 @@ export default function DepositsPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role !== "owner" && profile?.role !== "admin") {
+      const hasAccess = await hasAccountingAccess(user.id);
+      if (!hasAccess) {
         setError("Access denied.");
         setLoading(false);
         return;

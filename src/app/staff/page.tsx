@@ -60,6 +60,7 @@ const permissions = [
   { key: "deposit", label: "Deposit" },
   { key: "merch", label: "Merch" },
   { key: "staffAdmin", label: "Staff Admin" },
+  { key: "accountingAccess", label: "Accounting Access" },
 ];
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1086,8 +1087,9 @@ export default function StaffPage() {
                 <div className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
                   <h3 className="text-base font-semibold">Security note</h3>
                   <p className="mt-3 text-sm text-[#4d555c]">
-                    Artist accounts should never receive accounting or payout access. The accounting
-                    app should only accept owner/admin users through Supabase RLS.
+                    The <strong>Accounting Access</strong> permission grants access to the
+                    /accounting/* routes and all financial data. Grant it only to trusted staff.
+                    The owner role always has accounting access regardless of this setting.
                   </p>
                 </div>
 
