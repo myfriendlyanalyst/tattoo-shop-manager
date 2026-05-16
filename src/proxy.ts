@@ -34,27 +34,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // --- Accounting access check ---
-  // Rule: profiles.role = 'owner'            → always allowed
-  //       all other roles                     → staff_permissions.accountingAccess = true required
-  //       (admin is NOT automatically allowed)
-
+  // Rule: owner always passes; every other role needs active staff + accountingAccess=true.
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  // Owner always has access.
   if (profile?.role === "owner") {
     return response;
   }
 
-  // For all other roles, check the explicit accountingAccess permission.
   const { data: staffRow } = await supabase
     .from("staff")
     .select("id")
     .eq("profile_id", user.id)
+    .eq("active", true)
     .maybeSingle();
 
   if (staffRow) {
@@ -70,7 +65,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // No access — redirect to operations home.
   return NextResponse.redirect(new URL("/requests", request.url));
 }
 

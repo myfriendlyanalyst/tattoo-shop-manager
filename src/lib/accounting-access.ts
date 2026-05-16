@@ -2,8 +2,8 @@
  * Shared accounting access check for client-side components.
  *
  * Rules:
- *   - profiles.role = 'owner'  → always allowed
- *   - all other roles           → staff_permissions.accountingAccess must be enabled=true
+ *   - profiles.role = 'owner' -> always allowed
+ *   - all other roles -> active staff + accountingAccess=true required
  *
  * The same logic runs in src/proxy.ts (server/Edge) using the SSR client.
  * This module is for browser client components only.
@@ -24,11 +24,12 @@ export async function hasAccountingAccess(userId: string): Promise<boolean> {
   // Owner always has accounting access, regardless of permissions.
   if (profile.role === "owner") return true;
 
-  // 2. Resolve the staff record linked to this auth user.
+  // 2. Resolve the active staff record linked to this auth user.
   const { data: staffRow } = await supabase
     .from("staff")
     .select("id")
     .eq("profile_id", userId)
+    .eq("active", true)
     .maybeSingle();
 
   if (!staffRow) return false;

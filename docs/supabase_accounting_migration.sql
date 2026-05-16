@@ -3,6 +3,7 @@
 -- Status: PROPOSED (not yet applied to production)
 --
 -- Section 5 is REQUIRED for the Payouts page adjustment feature.
+-- Section 6 is REQUIRED for permission-based accounting access.
 -- All other sections are optional future enhancements.
 -- Apply each section independently after review.
 -- ============================================================
@@ -28,7 +29,130 @@ comment on column public.payouts.adjustment_note is
 
 
 -- ============================================================
--- SECTION 6 (OPTIONAL): payout_items note column
+-- SECTION 6 (REQUIRED): Permission-based accounting access
+-- Aligns Supabase RLS with the app rule:
+--   owner role -> always allowed
+--   every other role -> active staff + accountingAccess=true
+-- ============================================================
+
+create or replace function public.has_staff_permission(required_key text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    exists (
+      select 1
+      from public.staff s
+      join public.staff_permissions sp on sp.staff_id = s.id
+      where s.profile_id = auth.uid()
+        and s.active = true
+        and sp.permission_key = required_key
+        and sp.enabled = true
+    ),
+    false
+  )
+$$;
+
+create or replace function public.can_access_accounting()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    public.current_user_role() = 'owner'
+    or public.has_staff_permission('accountingAccess'),
+    false
+  )
+$$;
+
+grant execute on function public.has_staff_permission(text) to authenticated;
+grant execute on function public.can_access_accounting() to authenticated;
+
+drop policy if exists "customers_operations_all_artist_assigned_select" on public.customers;
+create policy "customers_operations_all_artist_assigned_select"
+on public.customers for select
+using (
+  public.is_operations_user()
+  or public.can_access_accounting()
+  or exists (
+    select 1
+    from public.projects p
+    where p.customer_id = customers.id
+      and p.artist_id = public.current_staff_id()
+  )
+  or exists (
+    select 1
+    from public.session_entries se
+    where se.customer_id = customers.id
+      and se.created_by = auth.uid()
+  )
+);
+
+drop policy if exists "projects_operations_all_artist_assigned_select" on public.projects;
+create policy "projects_operations_all_artist_assigned_select"
+on public.projects for select
+using (
+  public.is_operations_user()
+  or public.can_access_accounting()
+  or artist_id = public.current_staff_id()
+);
+
+drop policy if exists "session_entries_operations_all_artist_own_select" on public.session_entries;
+create policy "session_entries_operations_all_artist_own_select"
+on public.session_entries for select
+using (
+  public.is_operations_user()
+  or public.can_access_accounting()
+  or artist_id = public.current_staff_id()
+  or created_by = auth.uid()
+);
+
+drop policy if exists "deposits_operations_all_artist_own_select" on public.deposits;
+create policy "deposits_operations_all_artist_own_select"
+on public.deposits for select
+using (
+  public.is_operations_user()
+  or public.can_access_accounting()
+  or artist_id = public.current_staff_id()
+  or created_by = auth.uid()
+);
+
+drop policy if exists "deposits_update_operations_or_creator" on public.deposits;
+create policy "deposits_update_operations_or_creator"
+on public.deposits for update
+using (public.is_operations_user() or public.can_access_accounting() or created_by = auth.uid())
+with check (public.is_operations_user() or public.can_access_accounting() or created_by = auth.uid());
+
+drop policy if exists "payouts_admin_select" on public.payouts;
+create policy "payouts_admin_select"
+on public.payouts for select
+using (public.can_access_accounting());
+
+drop policy if exists "payouts_write_admin" on public.payouts;
+create policy "payouts_write_admin"
+on public.payouts for all
+using (public.can_access_accounting())
+with check (public.can_access_accounting());
+
+drop policy if exists "payout_items_admin_select" on public.payout_items;
+create policy "payout_items_admin_select"
+on public.payout_items for select
+using (public.can_access_accounting());
+
+drop policy if exists "payout_items_write_admin" on public.payout_items;
+create policy "payout_items_write_admin"
+on public.payout_items for all
+using (public.can_access_accounting())
+with check (public.can_access_accounting());
+
+
+-- ============================================================
+-- SECTION 7 (OPTIONAL): payout_items note column
 -- Allows a note per line item when payout_items are used for
 -- per-entry snapshots rather than just adjustments.
 -- ============================================================
@@ -156,18 +280,18 @@ comment on column public.payouts.adjustment_note is
 
 -- ============================================================
 -- ARTIST READ-ONLY ACCESS (discussion, not yet decided)
--- Currently payouts are owner/admin only. If artists should be
--- able to view their own payout history (read-only), replace
--- the payouts_admin_select policy with:
+-- Currently payouts are owner/accountingAccess only. If artists without
+-- accountingAccess should be able to view their own payout history
+-- (read-only), replace the payouts_admin_select policy with:
 --
 -- drop policy if exists "payouts_admin_select" on public.payouts;
 -- create policy "payouts_select_admin_or_own"
 --   on public.payouts for select
 --   using (
---     public.is_owner_or_admin()
+--     public.can_access_accounting()
 --     or artist_id = public.current_staff_id()
 --   );
 --
--- Write (insert/update/delete) remains owner/admin only via
+-- Write (insert/update/delete) remains owner/accountingAccess only via
 -- the existing "payouts_write_admin" policy.
 -- ============================================================

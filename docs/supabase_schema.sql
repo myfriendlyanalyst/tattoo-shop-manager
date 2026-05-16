@@ -490,6 +490,41 @@ as $$
   select coalesce(public.current_user_role() in ('owner', 'admin', 'front_desk'), false)
 $$;
 
+create or replace function public.has_staff_permission(required_key text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    exists (
+      select 1
+      from public.staff s
+      join public.staff_permissions sp on sp.staff_id = s.id
+      where s.profile_id = auth.uid()
+        and s.active = true
+        and sp.permission_key = required_key
+        and sp.enabled = true
+    ),
+    false
+  )
+$$;
+
+create or replace function public.can_access_accounting()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    public.current_user_role() = 'owner'
+    or public.has_staff_permission('accountingAccess'),
+    false
+  )
+$$;
+
 create or replace function public.current_staff_id()
 returns uuid
 language sql
@@ -546,6 +581,8 @@ grant execute on function public.set_updated_at() to authenticated;
 grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.is_owner_or_admin() to authenticated;
 grant execute on function public.is_operations_user() to authenticated;
+grant execute on function public.has_staff_permission(text) to authenticated;
+grant execute on function public.can_access_accounting() to authenticated;
 grant execute on function public.current_staff_id() to authenticated;
 
 -- Profiles
@@ -614,6 +651,7 @@ create policy "customers_operations_all_artist_assigned_select"
 on public.customers for select
 using (
   public.is_operations_user()
+  or public.can_access_accounting()
   or exists (
     select 1
     from public.projects p
@@ -648,7 +686,11 @@ drop policy if exists "projects_authenticated_all" on public.projects;
 drop policy if exists "projects_operations_all_artist_assigned_select" on public.projects;
 create policy "projects_operations_all_artist_assigned_select"
 on public.projects for select
-using (public.is_operations_user() or artist_id = public.current_staff_id());
+using (
+  public.is_operations_user()
+  or public.can_access_accounting()
+  or artist_id = public.current_staff_id()
+);
 
 drop policy if exists "projects_insert_authenticated" on public.projects;
 create policy "projects_insert_authenticated"
@@ -694,6 +736,7 @@ create policy "session_entries_operations_all_artist_own_select"
 on public.session_entries for select
 using (
   public.is_operations_user()
+  or public.can_access_accounting()
   or artist_id = public.current_staff_id()
   or created_by = auth.uid()
 );
@@ -727,6 +770,7 @@ create policy "deposits_operations_all_artist_own_select"
 on public.deposits for select
 using (
   public.is_operations_user()
+  or public.can_access_accounting()
   or artist_id = public.current_staff_id()
   or created_by = auth.uid()
 );
@@ -746,8 +790,8 @@ with check (
 drop policy if exists "deposits_update_operations_or_creator" on public.deposits;
 create policy "deposits_update_operations_or_creator"
 on public.deposits for update
-using (public.is_operations_user() or created_by = auth.uid())
-with check (public.is_operations_user() or created_by = auth.uid());
+using (public.is_operations_user() or public.can_access_accounting() or created_by = auth.uid())
+with check (public.is_operations_user() or public.can_access_accounting() or created_by = auth.uid());
 
 drop policy if exists "deposits_delete_operations" on public.deposits;
 create policy "deposits_delete_operations"
@@ -772,32 +816,31 @@ on public.files for all
 using (auth.uid() is not null)
 with check (auth.uid() is not null);
 
--- Accounting and payout data is owner/admin only.
--- Artists enter individual customer/session amounts, but cannot browse payout
--- records or shop-wide accounting summaries.
+-- Accounting and payout data is restricted to the owner role plus staff with
+-- the explicit accountingAccess permission. Admin is not automatic here.
 drop policy if exists "payouts_admin_all_artist_select_own" on public.payouts;
 drop policy if exists "payouts_admin_select" on public.payouts;
 create policy "payouts_admin_select"
 on public.payouts for select
-using (public.is_owner_or_admin());
+using (public.can_access_accounting());
 
 drop policy if exists "payouts_write_admin" on public.payouts;
 create policy "payouts_write_admin"
 on public.payouts for all
-using (public.is_owner_or_admin())
-with check (public.is_owner_or_admin());
+using (public.can_access_accounting())
+with check (public.can_access_accounting());
 
 drop policy if exists "payout_items_admin_all_artist_select_own" on public.payout_items;
 drop policy if exists "payout_items_admin_select" on public.payout_items;
 create policy "payout_items_admin_select"
 on public.payout_items for select
-using (public.is_owner_or_admin());
+using (public.can_access_accounting());
 
 drop policy if exists "payout_items_write_admin" on public.payout_items;
 create policy "payout_items_write_admin"
 on public.payout_items for all
-using (public.is_owner_or_admin())
-with check (public.is_owner_or_admin());
+using (public.can_access_accounting())
+with check (public.can_access_accounting());
 
 -- ---------------------------------------------------------------------------
 -- Seed reference staff
