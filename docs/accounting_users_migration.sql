@@ -53,25 +53,37 @@ create policy "acct_users_select_own"
   on public.accounting_users for select
   using (profile_id = auth.uid());
 
--- Accounting admins/owners can read all records
-drop policy if exists "acct_users_select_admin" on public.accounting_users;
-create policy "acct_users_select_admin"
-  on public.accounting_users for select
-  using (
-    -- Owner by Tattoo Manager role (legacy bypass)
+create or replace function public.is_accounting_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
     exists (
       select 1 from public.profiles p
       where p.id = auth.uid() and p.role = 'owner'
     )
-    or
-    -- Accounting admin/owner
-    exists (
+    or exists (
       select 1 from public.accounting_users au
       where au.profile_id = auth.uid()
         and au.active = true
         and au.access_level in ('admin', 'owner')
-    )
-  );
+    ),
+    false
+  )
+$$;
+
+grant execute on function public.is_accounting_admin() to authenticated;
+grant execute on function public.is_accounting_admin() to service_role;
+
+-- Accounting admins/owners can read all records.
+-- Use a security definer function to avoid recursive accounting_users RLS.
+drop policy if exists "acct_users_select_admin" on public.accounting_users;
+create policy "acct_users_select_admin"
+  on public.accounting_users for select
+  using (public.is_accounting_admin());
 
 -- No client-side writes — all mutations go through service role API routes
 drop policy if exists "acct_users_no_insert" on public.accounting_users;
