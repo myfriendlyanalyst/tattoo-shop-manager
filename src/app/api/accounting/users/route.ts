@@ -40,6 +40,9 @@ async function resolveCallerAccess(token: string) {
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
+  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   const { data: userData, error: userError } = await authClient.auth.getUser();
   if (userError || !userData.user) return { error: "Invalid session.", status: 401 as const };
@@ -47,7 +50,7 @@ async function resolveCallerAccess(token: string) {
   const userId = userData.user.id;
 
   // Owner by Tattoo Manager role is always allowed.
-  const { data: profile } = await authClient
+  const { data: profile } = await adminClient
     .from("profiles")
     .select("role")
     .eq("id", userId)
@@ -58,7 +61,7 @@ async function resolveCallerAccess(token: string) {
   }
 
   // Otherwise must be an active accounting user with admin or owner access_level.
-  const { data: acctUser } = await authClient
+  const { data: acctUser } = await adminClient
     .from("accounting_users")
     .select("access_level, active")
     .eq("profile_id", userId)

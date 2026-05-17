@@ -42,12 +42,16 @@ create trigger accounting_users_updated_at
 
 alter table public.accounting_users enable row level security;
 
+grant select on public.accounting_users to authenticated;
+
 -- Users can always read their own record (needed for proxy must_change_password check)
+drop policy if exists "acct_users_select_own" on public.accounting_users;
 create policy "acct_users_select_own"
   on public.accounting_users for select
   using (profile_id = auth.uid());
 
 -- Accounting admins/owners can read all records
+drop policy if exists "acct_users_select_admin" on public.accounting_users;
 create policy "acct_users_select_admin"
   on public.accounting_users for select
   using (
@@ -67,10 +71,13 @@ create policy "acct_users_select_admin"
   );
 
 -- No client-side writes — all mutations go through service role API routes
+drop policy if exists "acct_users_no_insert" on public.accounting_users;
 create policy "acct_users_no_insert" on public.accounting_users
   for insert with check (false);
+drop policy if exists "acct_users_no_update" on public.accounting_users;
 create policy "acct_users_no_update" on public.accounting_users
   for update using (false);
+drop policy if exists "acct_users_no_delete" on public.accounting_users;
 create policy "acct_users_no_delete" on public.accounting_users
   for delete using (false);
 
@@ -111,6 +118,5 @@ grant execute on function public.can_access_accounting() to authenticated;
 --    (service_role already bypasses RLS)
 -- ────────────────────────────────────────────────────────────
 
-grant select on public.accounting_users to authenticated;
 -- INSERT/UPDATE/DELETE intentionally withheld from authenticated;
 -- all mutations use service_role via API routes.

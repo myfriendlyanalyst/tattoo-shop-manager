@@ -37,7 +37,11 @@ export async function PATCH(
 
   const callerId = userData.user.id;
 
-  const { data: callerProfile } = await authClient
+  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { data: callerProfile } = await adminClient
     .from("profiles")
     .select("role")
     .eq("id", callerId)
@@ -46,7 +50,7 @@ export async function PATCH(
   const isOwnerRole = callerProfile?.role === "owner";
 
   if (!isOwnerRole) {
-    const { data: callerAcct } = await authClient
+    const { data: callerAcct } = await adminClient
       .from("accounting_users")
       .select("access_level, active")
       .eq("profile_id", callerId)
@@ -62,10 +66,6 @@ export async function PATCH(
   if (typeof payload.active !== "boolean") {
     return jsonError("Provide { active: true } or { active: false }.", 400);
   }
-
-  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   const { data: target, error: targetError } = await adminClient
     .from("accounting_users")

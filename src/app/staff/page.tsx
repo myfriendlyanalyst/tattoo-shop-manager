@@ -419,6 +419,69 @@ export default function StaffPage() {
     setSaving(false);
   }
 
+  async function createStaffRecord() {
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const displayName = "New Staff";
+    const maxSortOrder = staff.reduce((max, person) => Math.max(max, staff.indexOf(person)), 0);
+
+    const { data: staffRow, error: staffError } = await supabase
+      .from("staff")
+      .insert({
+        display_name: displayName,
+        role: "Artist",
+        active: true,
+        sort_order: maxSortOrder + 10,
+      })
+      .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
+      .single();
+
+    if (staffError) {
+      setError(errorMessage(staffError.message));
+      setSaving(false);
+      return;
+    }
+
+    const schedulePayload = dayLabels.map((_, dayOfWeek) => ({
+      staff_id: staffRow.id,
+      day_of_week: dayOfWeek,
+      available: false,
+      starts_at: null,
+      ends_at: null,
+    }));
+
+    const scheduleResult = await supabase
+      .from("staff_schedules")
+      .upsert(schedulePayload, { onConflict: "staff_id,day_of_week" });
+
+    if (scheduleResult.error) {
+      setError(errorMessage(scheduleResult.error.message));
+      setSaving(false);
+      return;
+    }
+
+    const newSchedules = schedulePayload.map((slot) => ({
+      ...slot,
+      id: `${slot.staff_id}-${slot.day_of_week}`,
+    }));
+
+    setStaff((current) => [...current, staffRow as StaffRecord]);
+    setSchedules((current) => [...current, ...newSchedules]);
+    setSelectedStaffId(staffRow.id);
+    setForm({
+      displayName,
+      role: "Artist",
+      address: "",
+      schedule: scheduleForStaff(staffRow.id, newSchedules),
+      permissionKeys: [],
+    });
+    setStaffDetailOpen(true);
+    setMessage("New staff record created.");
+    setSaving(false);
+  }
+
   async function manageStaffUser(mode: ManageStaffMode) {
     if (!selectedStaff) return;
 
@@ -496,6 +559,16 @@ export default function StaffPage() {
       eyebrow="Operations"
       title="Staff and permissions"
       description="Manage artists, front desk users, and owner/admin access. Accounting app users are managed separately at /accounting/users."
+      actions={
+        <button
+          className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={saving}
+          onClick={createStaffRecord}
+          type="button"
+        >
+          {saving ? "Working..." : "New Staff"}
+        </button>
+      }
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
