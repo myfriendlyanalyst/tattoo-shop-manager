@@ -7,6 +7,8 @@
 -- 1. accounting_users table
 -- ────────────────────────────────────────────────────────────
 
+alter type public.app_role add value if not exists 'accounting';
+
 create table if not exists public.accounting_users (
   id                   uuid primary key default gen_random_uuid(),
   profile_id           uuid unique references auth.users(id) on delete cascade,
@@ -29,6 +31,7 @@ begin
 end;
 $$;
 
+drop trigger if exists accounting_users_updated_at on public.accounting_users;
 create trigger accounting_users_updated_at
   before update on public.accounting_users
   for each row execute function public.set_updated_at();

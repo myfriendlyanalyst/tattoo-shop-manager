@@ -76,6 +76,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/force-password-change", request.url));
   }
 
+  // Accounting-only users should not browse the Tattoo Manager app.
+  if (acctUser?.active === true && !pathname.startsWith("/accounting")) {
+    return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
+  }
+
   // Accounting access check.
   if (pathname.startsWith("/accounting")) {
     // Tattoo Manager owners bypass accounting_users entirely.

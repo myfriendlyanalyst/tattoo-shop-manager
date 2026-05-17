@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeSession } from "@/lib/auth-session";
 
@@ -218,20 +218,17 @@ export default function AccountingUsersPage() {
   } | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function getToken() {
+  const getToken = useCallback(async () => {
     const session = await getSafeSession();
     return session?.access_token ?? null;
-  }
+  }, []);
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
+    const token = await getToken();
+
     setLoading(true);
     setError("");
 
-    const token = await getToken();
     if (!token) {
       setError("Please log in.");
       setLoading(false);
@@ -249,7 +246,15 @@ export default function AccountingUsersPage() {
       setUsers(data.users ?? []);
     }
     setLoading(false);
-  }
+  }, [getToken]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadUsers();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadUsers]);
 
   async function createUser(form: CreateForm) {
     const displayName = form.displayName.trim();

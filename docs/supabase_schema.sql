@@ -9,7 +9,7 @@ create extension if not exists "pgcrypto";
 -- ---------------------------------------------------------------------------
 
 do $$ begin
-  create type public.app_role as enum ('owner', 'admin', 'artist', 'front_desk');
+  create type public.app_role as enum ('owner', 'admin', 'artist', 'front_desk', 'accounting');
 exception
   when duplicate_object then null;
 end $$;
@@ -141,6 +141,18 @@ create table if not exists public.staff_schedules (
     available = false
     or (starts_at is not null and ends_at is not null and ends_at > starts_at)
   )
+);
+
+create table if not exists public.accounting_users (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid unique references auth.users(id) on delete cascade,
+  display_name text not null,
+  email text not null unique,
+  access_level text not null default 'viewer' check (access_level in ('owner', 'admin', 'viewer')),
+  active boolean not null default true,
+  must_change_password boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------------
@@ -416,6 +428,11 @@ create trigger set_staff_schedules_updated_at
 before update on public.staff_schedules
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_accounting_users_updated_at on public.accounting_users;
+create trigger set_accounting_users_updated_at
+before update on public.accounting_users
+for each row execute function public.set_updated_at();
+
 drop trigger if exists set_customers_updated_at on public.customers;
 create trigger set_customers_updated_at
 before update on public.customers
@@ -519,8 +536,13 @@ set search_path = public
 stable
 as $$
   select coalesce(
-    public.current_user_role() = 'owner'
-    or public.has_staff_permission('accountingAccess'),
+    exists (
+      select 1
+      from public.accounting_users au
+      where au.profile_id = auth.uid()
+        and au.active = true
+    )
+    or public.current_user_role() = 'owner',
     false
   )
 $$;
@@ -543,6 +565,7 @@ alter table public.profiles enable row level security;
 alter table public.staff enable row level security;
 alter table public.staff_permissions enable row level security;
 alter table public.staff_schedules enable row level security;
+alter table public.accounting_users enable row level security;
 alter table public.customers enable row level security;
 alter table public.projects enable row level security;
 alter table public.appointments enable row level security;
@@ -564,6 +587,7 @@ grant select, insert, update, delete on public.profiles to authenticated;
 grant select, insert, update, delete on public.staff to authenticated;
 grant select, insert, update, delete on public.staff_permissions to authenticated;
 grant select, insert, update, delete on public.staff_schedules to authenticated;
+grant select on public.accounting_users to authenticated;
 grant select, insert, update, delete on public.customers to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;
 grant select, insert, update, delete on public.appointments to authenticated;
@@ -641,6 +665,40 @@ with check (
   public.is_owner_or_admin()
   or staff_id = public.current_staff_id()
 );
+
+drop policy if exists "acct_users_select_own" on public.accounting_users;
+create policy "acct_users_select_own"
+on public.accounting_users for select
+using (profile_id = auth.uid());
+
+drop policy if exists "acct_users_select_admin" on public.accounting_users;
+create policy "acct_users_select_admin"
+on public.accounting_users for select
+using (
+  public.current_user_role() = 'owner'
+  or exists (
+    select 1
+    from public.accounting_users au
+    where au.profile_id = auth.uid()
+      and au.active = true
+      and au.access_level in ('owner', 'admin')
+  )
+);
+
+drop policy if exists "acct_users_no_insert" on public.accounting_users;
+create policy "acct_users_no_insert"
+on public.accounting_users for insert
+with check (false);
+
+drop policy if exists "acct_users_no_update" on public.accounting_users;
+create policy "acct_users_no_update"
+on public.accounting_users for update
+using (false);
+
+drop policy if exists "acct_users_no_delete" on public.accounting_users;
+create policy "acct_users_no_delete"
+on public.accounting_users for delete
+using (false);
 
 -- Operations tables:
 -- owner/admin/front_desk can manage shop-wide operational records.

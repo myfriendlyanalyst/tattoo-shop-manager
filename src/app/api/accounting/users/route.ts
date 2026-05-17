@@ -119,6 +119,9 @@ export async function POST(request: NextRequest) {
   if (!["owner", "admin", "viewer"].includes(accessLevel)) {
     return jsonError("access_level must be owner, admin, or viewer.", 400);
   }
+  if (!access.isOwner && accessLevel === "owner") {
+    return jsonError("Only the Tattoo Manager owner can create accounting owner users.", 403);
+  }
 
   const tempPassword = generateTempPassword();
 
@@ -140,14 +143,14 @@ export async function POST(request: NextRequest) {
 
   const profileId = createdUser.user.id;
 
-  // Upsert into profiles table so the user appears in the operations app
-  // if they ever need to cross-access, but with a minimal role.
+  // Use a dedicated accounting role so this account does not inherit
+  // Tattoo Manager operations access such as front_desk.
   const { error: profileError } = await adminClient.from("profiles").upsert(
     {
       id: profileId,
       email,
       display_name: displayName,
-      role: "front_desk",
+      role: "accounting",
       active: true,
     },
     { onConflict: "id" },

@@ -67,6 +67,21 @@ export async function PATCH(
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  const { data: target, error: targetError } = await adminClient
+    .from("accounting_users")
+    .select("profile_id, access_level")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (targetError) return jsonError(targetError.message, 500);
+  if (!target) return jsonError("User not found.", 404);
+  if (target.profile_id === callerId && payload.active === false) {
+    return jsonError("You cannot deactivate your own accounting account.", 400);
+  }
+  if (!isOwnerRole && target.access_level === "owner") {
+    return jsonError("Only the Tattoo Manager owner can deactivate accounting owners.", 403);
+  }
+
   const { data: updated, error: updateError } = await adminClient
     .from("accounting_users")
     .update({ active: payload.active })

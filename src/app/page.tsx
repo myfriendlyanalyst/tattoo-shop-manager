@@ -87,7 +87,7 @@ export default function HomePage() {
           </h1>
           <p className="mt-1 text-sm text-[#697178]">
             {isAccountingLogin
-              ? "Use an owner or admin account to access accounting."
+              ? "Use your accounting account to access accounting."
               : "Use your staff account to access the operations app."}
           </p>
         </div>

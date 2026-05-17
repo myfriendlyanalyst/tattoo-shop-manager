@@ -58,14 +58,6 @@ const permissions = [
 ];
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const roleOptions = ["Owner", "Admin", "Artist", "Front Desk"];
-
-const defaultPermissionsByRole: Record<string, string[]> = {
-  Owner: ["calendarBooking", "staffAdmin"],
-  Admin: ["calendarBooking", "staffAdmin"],
-  Artist: ["artistSchedule", "calendarBooking", "session", "deposit"],
-  "Front Desk": ["calendarBooking"],
-};
 
 function roleClasses(role: string) {
   const variants: Record<string, string> = {
