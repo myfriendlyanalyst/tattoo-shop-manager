@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-type AccessLevel = "owner" | "admin" | "viewer";
+type AccessLevel = "owner" | "admin";
 
 type CreatePayload = {
   displayName?: string;
@@ -179,12 +179,12 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json()) as CreatePayload;
   const displayName = payload.displayName?.trim() ?? "";
   const email = payload.email?.trim().toLowerCase() ?? "";
-  const accessLevel: AccessLevel = payload.accessLevel ?? "viewer";
+  const accessLevel: AccessLevel = payload.accessLevel ?? "admin";
 
   if (!displayName) return jsonError("Display name is required.", 400);
   if (!isValidEmail(email)) return jsonError("Enter a valid email address.", 400);
-  if (!["owner", "admin", "viewer"].includes(accessLevel)) {
-    return jsonError("access_level must be owner, admin, or viewer.", 400);
+  if (!["owner", "admin"].includes(accessLevel)) {
+    return jsonError("access_level must be owner or admin.", 400);
   }
   if (!access.isOwner && accessLevel === "owner") {
     return jsonError("Only the Tattoo Manager owner can create accounting owner users.", 403);

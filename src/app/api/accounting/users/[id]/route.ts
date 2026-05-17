@@ -115,3 +115,92 @@ export async function PATCH(
 
   return NextResponse.json({ user: updated });
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!supabaseServiceRoleKey) {
+    return jsonError("SUPABASE_SERVICE_ROLE_KEY is not configured.", 500);
+  }
+
+  const { id } = await params;
+  const token = request.headers.get("authorization")?.replace("Bearer ", "");
+  if (!token) return jsonError("Missing session.", 401);
+
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { data: userData, error: userError } = await authClient.auth.getUser();
+  if (userError || !userData.user) return jsonError("Invalid session.", 401);
+
+  const callerId = userData.user.id;
+  const callerEmail = userData.user.email?.toLowerCase() ?? "";
+
+  const { data: callerProfileById } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", callerId)
+    .maybeSingle();
+  const { data: callerProfileByEmail } = callerProfileById
+    ? { data: null }
+    : await adminClient
+        .from("profiles")
+        .select("role")
+        .ilike("email", callerEmail)
+        .maybeSingle();
+  const isOwnerRole = (callerProfileById ?? callerProfileByEmail)?.role === "owner";
+
+  if (!isOwnerRole) {
+    const { data: callerAcctById } = await adminClient
+      .from("accounting_users")
+      .select("access_level, active")
+      .eq("profile_id", callerId)
+      .maybeSingle();
+    const { data: callerAcctByEmail } = callerAcctById
+      ? { data: null }
+      : await adminClient
+          .from("accounting_users")
+          .select("access_level, active")
+          .ilike("email", callerEmail)
+          .maybeSingle();
+    const callerAcct = callerAcctById ?? callerAcctByEmail;
+
+    if (!callerAcct?.active || !["owner", "admin"].includes(callerAcct.access_level)) {
+      return jsonError("Only accounting owners/admins can manage users.", 403);
+    }
+  }
+
+  const { data: target, error: targetError } = await adminClient
+    .from("accounting_users")
+    .select("profile_id, access_level")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (targetError) return jsonError(targetError.message, 500);
+  if (!target) return jsonError("User not found.", 404);
+  if (target.profile_id === callerId) {
+    return jsonError("You cannot delete your own accounting account.", 400);
+  }
+  if (!isOwnerRole && target.access_level === "owner") {
+    return jsonError("Only the Tattoo Manager owner can delete accounting owners.", 403);
+  }
+
+  const { error: deleteError } = await adminClient
+    .from("accounting_users")
+    .delete()
+    .eq("id", id);
+
+  if (deleteError) return jsonError(deleteError.message, 500);
+
+  if (target.profile_id) {
+    const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(target.profile_id);
+    if (authDeleteError) return jsonError(authDeleteError.message, 500);
+  }
+
+  return NextResponse.json({ ok: true });
+}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeSession } from "@/lib/auth-session";
 
-type AccessLevel = "owner" | "admin" | "viewer";
+type AccessLevel = "owner" | "admin";
 
 type AccountingUser = {
   id: string;
@@ -24,14 +24,13 @@ type CreateForm = {
 };
 
 function accessLevelLabel(level: AccessLevel) {
-  return { owner: "Owner", admin: "Admin", viewer: "Viewer" }[level] ?? level;
+  return { owner: "Owner", admin: "Admin" }[level] ?? level;
 }
 
 function accessLevelClasses(level: AccessLevel) {
   return {
     owner: "bg-[#1f2428] text-white",
     admin: "bg-[#efe7f5] text-[#674b7a]",
-    viewer: "bg-[#e5edf4] text-[#315f82]",
   }[level] ?? "bg-[#eee8dd] text-[#4d555c]";
 }
 
@@ -53,7 +52,7 @@ function CreateUserModal({
   const [form, setForm] = useState<CreateForm>({
     displayName: "",
     email: "",
-    accessLevel: "viewer",
+    accessLevel: "admin",
   });
 
   return (
@@ -115,7 +114,6 @@ function CreateUserModal({
               }
               value={form.accessLevel}
             >
-              <option value="viewer">Viewer — read-only access</option>
               <option value="admin">Admin — can manage accounting users</option>
               <option value="owner">Owner — full accounting access</option>
             </select>
@@ -217,6 +215,7 @@ export default function AccountingUsersPage() {
     password: string;
   } | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const getToken = useCallback(async () => {
     const session = await getSafeSession();
@@ -336,6 +335,38 @@ export default function AccountingUsersPage() {
     setTogglingId(null);
   }
 
+  async function deleteUser(user: AccountingUser) {
+    const confirmed = window.confirm(
+      `Delete ${user.display_name}? This removes the accounting user and linked login account.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(user.id);
+    setError("");
+
+    const token = await getToken();
+    if (!token) {
+      setDeletingId(null);
+      setError("Please log in again.");
+      return;
+    }
+
+    const res = await fetch(`/api/accounting/users/${user.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await res.json()) as { ok?: boolean; error?: string };
+
+    if (!res.ok || !data.ok) {
+      setError(data.error ?? "Failed to delete user.");
+      setDeletingId(null);
+      return;
+    }
+
+    setUsers((current) => current.filter((u) => u.id !== user.id));
+    setDeletingId(null);
+  }
+
   return (
     <AccountingShell
       active="Users"
@@ -413,14 +444,24 @@ export default function AccountingUsersPage() {
                           </span>
                         ) : null}
                       </div>
-                      <button
-                        className="text-xs font-semibold text-[#236c8f] hover:underline disabled:opacity-50"
-                        disabled={togglingId === user.id}
-                        onClick={() => toggleActive(user)}
-                        type="button"
-                      >
-                        {user.active ? "Deactivate" : "Reactivate"}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          className="text-xs font-semibold text-[#236c8f] hover:underline disabled:opacity-50"
+                          disabled={togglingId === user.id}
+                          onClick={() => toggleActive(user)}
+                          type="button"
+                        >
+                          {user.active ? "Deactivate" : "Reactivate"}
+                        </button>
+                        <button
+                          className="text-xs font-semibold text-[#8a3030] hover:underline disabled:opacity-50"
+                          disabled={deletingId === user.id}
+                          onClick={() => deleteUser(user)}
+                          type="button"
+                        >
+                          {deletingId === user.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -473,18 +514,28 @@ export default function AccountingUsersPage() {
                           )}
                         </td>
                         <td className="px-4 py-4">
-                          <button
-                            className="text-sm font-semibold text-[#236c8f] hover:underline disabled:opacity-50"
-                            disabled={togglingId === user.id}
-                            onClick={() => toggleActive(user)}
-                            type="button"
-                          >
-                            {togglingId === user.id
-                              ? "Saving..."
-                              : user.active
-                                ? "Deactivate"
-                                : "Reactivate"}
-                          </button>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              className="text-sm font-semibold text-[#236c8f] hover:underline disabled:opacity-50"
+                              disabled={togglingId === user.id}
+                              onClick={() => toggleActive(user)}
+                              type="button"
+                            >
+                              {togglingId === user.id
+                                ? "Saving..."
+                                : user.active
+                                  ? "Deactivate"
+                                  : "Reactivate"}
+                            </button>
+                            <button
+                              className="text-sm font-semibold text-[#8a3030] hover:underline disabled:opacity-50"
+                              disabled={deletingId === user.id}
+                              onClick={() => deleteUser(user)}
+                              type="button"
+                            >
+                              {deletingId === user.id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

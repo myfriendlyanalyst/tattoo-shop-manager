@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Paths the proxy must not intercept even for authenticated users.
@@ -40,6 +41,18 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
+  const adminClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        },
+      )
+    : supabase;
 
   // Validate the JWT with the Supabase Auth server.
   const {
@@ -64,7 +77,7 @@ export async function proxy(request: NextRequest) {
 
   // Look up the authenticated user's accounting_users record.
   // Returns null for regular Tattoo Manager staff (no record).
-  const { data: acctUserById } = await supabase
+  const { data: acctUserById } = await adminClient
     .from("accounting_users")
     .select("active, must_change_password, access_level")
     .eq("profile_id", user.id)
@@ -72,7 +85,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: acctUserByEmail } = acctUserById
     ? { data: null }
-    : await supabase
+    : await adminClient
         .from("accounting_users")
         .select("active, must_change_password, access_level")
         .ilike("email", user.email?.toLowerCase() ?? "")
@@ -94,11 +107,21 @@ export async function proxy(request: NextRequest) {
   // Accounting access check.
   if (pathname.startsWith("/accounting")) {
     // Tattoo Manager owners bypass accounting_users entirely.
-    const { data: profile } = await supabase
+    const { data: profileById } = await adminClient
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
+
+    const { data: profileByEmail } = profileById
+      ? { data: null }
+      : await adminClient
+          .from("profiles")
+          .select("role")
+          .ilike("email", user.email?.toLowerCase() ?? "")
+          .maybeSingle();
+
+    const profile = profileById ?? profileByEmail;
 
     if (profile?.role === "owner") {
       return response;
