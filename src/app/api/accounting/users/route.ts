@@ -48,24 +48,46 @@ async function resolveCallerAccess(token: string) {
   if (userError || !userData.user) return { error: "Invalid session.", status: 401 as const };
 
   const userId = userData.user.id;
+  const userEmail = userData.user.email?.toLowerCase() ?? "";
 
-  // Owner by Tattoo Manager role is always allowed.
-  const { data: profile } = await adminClient
+  // Owner by Tattoo Manager role is always allowed. Prefer the auth id, but
+  // fall back to email because older data can have mismatched profile ids.
+  const { data: profileById } = await adminClient
     .from("profiles")
     .select("role")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
+
+  const { data: profileByEmail } = profileById
+    ? { data: null }
+    : await adminClient
+        .from("profiles")
+        .select("role")
+        .ilike("email", userEmail)
+        .maybeSingle();
+
+  const profile = profileById ?? profileByEmail;
 
   if (profile?.role === "owner") {
     return { userId, isOwner: true, error: null };
   }
 
   // Otherwise must be an active accounting user with admin or owner access_level.
-  const { data: acctUser } = await adminClient
+  const { data: acctUserById } = await adminClient
     .from("accounting_users")
     .select("access_level, active")
     .eq("profile_id", userId)
     .maybeSingle();
+
+  const { data: acctUserByEmail } = acctUserById
+    ? { data: null }
+    : await adminClient
+        .from("accounting_users")
+        .select("access_level, active")
+        .ilike("email", userEmail)
+        .maybeSingle();
+
+  const acctUser = acctUserById ?? acctUserByEmail;
 
   if (!acctUser?.active || !["owner", "admin"].includes(acctUser.access_level)) {
     return { error: "Only accounting owners/admins can manage users.", status: 403 as const };

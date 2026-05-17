@@ -36,25 +36,46 @@ export async function PATCH(
   if (userError || !userData.user) return jsonError("Invalid session.", 401);
 
   const callerId = userData.user.id;
+  const callerEmail = userData.user.email?.toLowerCase() ?? "";
 
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: callerProfile } = await adminClient
+  const { data: callerProfileById } = await adminClient
     .from("profiles")
     .select("role")
     .eq("id", callerId)
-    .single();
+    .maybeSingle();
+
+  const { data: callerProfileByEmail } = callerProfileById
+    ? { data: null }
+    : await adminClient
+        .from("profiles")
+        .select("role")
+        .ilike("email", callerEmail)
+        .maybeSingle();
+
+  const callerProfile = callerProfileById ?? callerProfileByEmail;
 
   const isOwnerRole = callerProfile?.role === "owner";
 
   if (!isOwnerRole) {
-    const { data: callerAcct } = await adminClient
+    const { data: callerAcctById } = await adminClient
       .from("accounting_users")
       .select("access_level, active")
       .eq("profile_id", callerId)
       .maybeSingle();
+
+    const { data: callerAcctByEmail } = callerAcctById
+      ? { data: null }
+      : await adminClient
+          .from("accounting_users")
+          .select("access_level, active")
+          .ilike("email", callerEmail)
+          .maybeSingle();
+
+    const callerAcct = callerAcctById ?? callerAcctByEmail;
 
     if (!callerAcct?.active || !["owner", "admin"].includes(callerAcct.access_level)) {
       return jsonError("Only accounting owners/admins can manage users.", 403);
