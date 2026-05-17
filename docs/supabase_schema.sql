@@ -582,12 +582,15 @@ alter table public.files enable row level security;
 -- ---------------------------------------------------------------------------
 
 grant usage on schema public to anon, authenticated;
+grant usage on schema public to service_role;
 
 grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.profiles to service_role;
 grant select, insert, update, delete on public.staff to authenticated;
 grant select, insert, update, delete on public.staff_permissions to authenticated;
 grant select, insert, update, delete on public.staff_schedules to authenticated;
 grant select on public.accounting_users to authenticated;
+grant select, insert, update, delete on public.accounting_users to service_role;
 grant select, insert, update, delete on public.customers to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;
 grant select, insert, update, delete on public.appointments to authenticated;
@@ -607,6 +610,7 @@ grant execute on function public.is_owner_or_admin() to authenticated;
 grant execute on function public.is_operations_user() to authenticated;
 grant execute on function public.has_staff_permission(text) to authenticated;
 grant execute on function public.can_access_accounting() to authenticated;
+grant execute on function public.can_access_accounting() to service_role;
 grant execute on function public.current_staff_id() to authenticated;
 
 -- Profiles

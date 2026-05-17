@@ -5,8 +5,14 @@
 alter table public.accounting_users enable row level security;
 
 grant usage on schema public to authenticated;
+grant usage on schema public to service_role;
+
 grant select on public.accounting_users to authenticated;
+grant select, insert, update, delete on public.accounting_users to service_role;
+grant select, insert, update, delete on public.profiles to service_role;
+
 grant execute on function public.can_access_accounting() to authenticated;
+grant execute on function public.can_access_accounting() to service_role;
 
 drop policy if exists "acct_users_select_own" on public.accounting_users;
 create policy "acct_users_select_own"
