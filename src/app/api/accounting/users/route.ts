@@ -13,6 +13,10 @@ type CreatePayload = {
   accessLevel?: AccessLevel;
 };
 
+type CallerAccess =
+  | { userId: string; isOwner: boolean; error: null; debug: Record<string, unknown> }
+  | { error: string; status: 401 | 403; debug: Record<string, unknown> };
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -36,7 +40,7 @@ function generateTempPassword(): string {
 }
 
 /** Resolve the caller and verify they have admin-level accounting access. */
-async function resolveCallerAccess(token: string) {
+async function resolveCallerAccess(token: string): Promise<CallerAccess> {
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
@@ -45,21 +49,27 @@ async function resolveCallerAccess(token: string) {
   });
 
   const { data: userData, error: userError } = await authClient.auth.getUser();
-  if (userError || !userData.user) return { error: "Invalid session.", status: 401 as const };
+  if (userError || !userData.user) {
+    return {
+      error: "Invalid session.",
+      status: 401,
+      debug: { authError: userError?.message ?? null },
+    };
+  }
 
   const userId = userData.user.id;
   const userEmail = userData.user.email?.toLowerCase() ?? "";
 
   // Owner by Tattoo Manager role is always allowed. Prefer the auth id, but
   // fall back to email because older data can have mismatched profile ids.
-  const { data: profileById } = await adminClient
+  const { data: profileById, error: profileByIdError } = await adminClient
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .maybeSingle();
 
-  const { data: profileByEmail } = profileById
-    ? { data: null }
+  const { data: profileByEmail, error: profileByEmailError } = profileById
+    ? { data: null, error: null }
     : await adminClient
         .from("profiles")
         .select("role")
@@ -67,20 +77,29 @@ async function resolveCallerAccess(token: string) {
         .maybeSingle();
 
   const profile = profileById ?? profileByEmail;
+  const debug = {
+    userId,
+    userEmail,
+    profileByIdRole: profileById?.role ?? null,
+    profileByIdError: profileByIdError?.message ?? null,
+    profileByEmailRole: profileByEmail?.role ?? null,
+    profileByEmailError: profileByEmailError?.message ?? null,
+    serviceRoleLooksConfigured: Boolean(supabaseServiceRoleKey),
+  };
 
   if (profile?.role === "owner") {
-    return { userId, isOwner: true, error: null };
+    return { userId, isOwner: true, error: null, debug };
   }
 
   // Otherwise must be an active accounting user with admin or owner access_level.
-  const { data: acctUserById } = await adminClient
+  const { data: acctUserById, error: acctUserByIdError } = await adminClient
     .from("accounting_users")
     .select("access_level, active")
     .eq("profile_id", userId)
     .maybeSingle();
 
-  const { data: acctUserByEmail } = acctUserById
-    ? { data: null }
+  const { data: acctUserByEmail, error: acctUserByEmailError } = acctUserById
+    ? { data: null, error: null }
     : await adminClient
         .from("accounting_users")
         .select("access_level, active")
@@ -88,12 +107,25 @@ async function resolveCallerAccess(token: string) {
         .maybeSingle();
 
   const acctUser = acctUserById ?? acctUserByEmail;
+  const accessDebug = {
+    ...debug,
+    acctByIdAccessLevel: acctUserById?.access_level ?? null,
+    acctByIdActive: acctUserById?.active ?? null,
+    acctByIdError: acctUserByIdError?.message ?? null,
+    acctByEmailAccessLevel: acctUserByEmail?.access_level ?? null,
+    acctByEmailActive: acctUserByEmail?.active ?? null,
+    acctByEmailError: acctUserByEmailError?.message ?? null,
+  };
 
   if (!acctUser?.active || !["owner", "admin"].includes(acctUser.access_level)) {
-    return { error: "Only accounting owners/admins can manage users.", status: 403 as const };
+    return {
+      error: "Only accounting owners/admins can manage users.",
+      status: 403,
+      debug: accessDebug,
+    };
   }
 
-  return { userId, isOwner: false, error: null };
+  return { userId, isOwner: false, error: null, debug: accessDebug };
 }
 
 // ─── GET /api/accounting/users ────────────────────────────────────────────────
@@ -106,7 +138,12 @@ export async function GET(request: NextRequest) {
   if (!token) return jsonError("Missing session.", 401);
 
   const access = await resolveCallerAccess(token);
-  if (access.error) return jsonError(access.error, access.status!);
+  if (access.error !== null) {
+    return NextResponse.json(
+      { error: access.error, debug: access.debug },
+      { status: access.status },
+    );
+  }
 
   const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -132,7 +169,12 @@ export async function POST(request: NextRequest) {
   if (!token) return jsonError("Missing session.", 401);
 
   const access = await resolveCallerAccess(token);
-  if (access.error) return jsonError(access.error, access.status!);
+  if (access.error !== null) {
+    return NextResponse.json(
+      { error: access.error, debug: access.debug },
+      { status: access.status },
+    );
+  }
 
   const payload = (await request.json()) as CreatePayload;
   const displayName = payload.displayName?.trim() ?? "";
