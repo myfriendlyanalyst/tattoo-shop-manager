@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
 
@@ -26,6 +27,24 @@ export default function AuthCallbackPage() {
 
       if (errorDescription) {
         setError(errorDescription);
+        return;
+      }
+
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
+
+      if (tokenHash && type) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type as EmailOtpType,
+        });
+
+        if (verifyError) {
+          setError(verifyError.message);
+          return;
+        }
+
+        router.replace("/set-password");
         return;
       }
 
