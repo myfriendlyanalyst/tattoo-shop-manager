@@ -90,8 +90,7 @@ export default function HomePage() {
     } = await supabase.auth.getUser();
     const resolvedDestination = user ? await resolveDestination(user.id) : destination;
 
-    router.replace(resolvedDestination);
-    router.refresh();
+    window.location.assign(resolvedDestination);
   }
 
   return (

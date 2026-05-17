@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { hasAccountingAccess } from "@/lib/accounting-access";
 
 function nextPath() {
   if (typeof window === "undefined") {
@@ -19,7 +19,6 @@ function nextPath() {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -27,25 +26,40 @@ export default function LoginPage() {
   const destination = nextPath();
   const isAccountingLogin = destination.startsWith("/accounting");
 
+  const resolveDestination = useCallback(async (userId: string) => {
+    if (destination !== "/requests") {
+      return destination;
+    }
+
+    const accountingAccess = await hasAccountingAccess(userId);
+    return accountingAccess ? "/accounting/dashboard" : destination;
+  }, [destination]);
+
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setLoading(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-
     if (signInError) {
+      setLoading(false);
       setError(signInError.message);
       return;
     }
 
-    router.push(destination);
-    router.refresh();
+    const user = data.user ?? (await supabase.auth.getUser()).data.user;
+    if (!user) {
+      setLoading(false);
+      setError("Could not verify login session.");
+      return;
+    }
+
+    const resolvedDestination = await resolveDestination(user.id);
+    window.location.assign(resolvedDestination);
   }
 
   return (
@@ -60,7 +74,7 @@ export default function LoginPage() {
           </h1>
           <p className="mt-1 text-sm text-[#697178]">
             {isAccountingLogin
-              ? "Use an owner or admin account to access accounting."
+              ? "Use your accounting account to access accounting."
               : "Use a Supabase Auth user for the operations app."}
           </p>
         </div>
