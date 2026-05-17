@@ -64,11 +64,21 @@ export async function proxy(request: NextRequest) {
 
   // Look up the authenticated user's accounting_users record.
   // Returns null for regular Tattoo Manager staff (no record).
-  const { data: acctUser } = await supabase
+  const { data: acctUserById } = await supabase
     .from("accounting_users")
     .select("active, must_change_password, access_level")
     .eq("profile_id", user.id)
     .maybeSingle();
+
+  const { data: acctUserByEmail } = acctUserById
+    ? { data: null }
+    : await supabase
+        .from("accounting_users")
+        .select("active, must_change_password, access_level")
+        .ilike("email", user.email?.toLowerCase() ?? "")
+        .maybeSingle();
+
+  const acctUser = acctUserById ?? acctUserByEmail;
 
   // Force all accounting users to change their temporary password before
   // accessing any page.

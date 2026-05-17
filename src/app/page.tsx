@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
+import { hasAccountingAccess } from "@/lib/accounting-access";
 
 function nextPath() {
   if (typeof window === "undefined") {
@@ -28,6 +29,15 @@ export default function HomePage() {
   const destination = nextPath();
   const isAccountingLogin = destination.startsWith("/accounting");
 
+  const resolveDestination = useCallback(async (userId: string) => {
+    if (destination !== "/requests") {
+      return destination;
+    }
+
+    const accountingAccess = await hasAccountingAccess(userId);
+    return accountingAccess ? "/accounting/dashboard" : destination;
+  }, [destination]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -37,7 +47,11 @@ export default function HomePage() {
       }
 
       if (session) {
-        router.replace(nextPath());
+        resolveDestination(session.user.id).then((resolvedDestination) => {
+          if (mounted) {
+            router.replace(resolvedDestination);
+          }
+        });
         return;
       }
 
@@ -52,7 +66,7 @@ export default function HomePage() {
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, [resolveDestination, router]);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,7 +85,12 @@ export default function HomePage() {
       return;
     }
 
-    router.replace(destination);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const resolvedDestination = user ? await resolveDestination(user.id) : destination;
+
+    router.replace(resolvedDestination);
     router.refresh();
   }
 

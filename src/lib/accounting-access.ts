@@ -12,12 +12,26 @@
 import { supabase } from "@/lib/supabase";
 
 export async function hasAccountingAccess(userId: string): Promise<boolean> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   // Primary: check accounting_users table.
-  const { data: acctUser } = await supabase
+  const { data: acctUserById } = await supabase
     .from("accounting_users")
     .select("active")
     .eq("profile_id", userId)
     .maybeSingle();
+
+  const { data: acctUserByEmail } = acctUserById
+    ? { data: null }
+    : await supabase
+        .from("accounting_users")
+        .select("active")
+        .ilike("email", user?.email?.toLowerCase() ?? "")
+        .maybeSingle();
+
+  const acctUser = acctUserById ?? acctUserByEmail;
 
   if (acctUser?.active === true) return true;
 
