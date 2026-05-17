@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
-import { getSafeSession, getSafeUser } from "@/lib/auth-session";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -44,15 +44,10 @@ type StaffForm = {
   permissionKeys: string[];
 };
 
-type InviteUserForm = {
-  displayName: string;
-  email: string;
-  role: string;
-  permissionKeys: string[];
-};
-
 type ManageStaffMode = "deactivate" | "delete";
 
+// Permissions relevant to Tattoo Manager operations.
+// Accounting access is managed separately in /accounting/users.
 const permissions = [
   { key: "artistSchedule", label: "Artist Schedule" },
   { key: "calendarBooking", label: "Calendar / Booking" },
@@ -60,7 +55,6 @@ const permissions = [
   { key: "deposit", label: "Deposit" },
   { key: "merch", label: "Merch" },
   { key: "staffAdmin", label: "Staff Admin" },
-  { key: "accountingAccess", label: "Accounting Access" },
 ];
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -85,10 +79,7 @@ function roleClasses(role: string) {
 }
 
 function displayDate(value: string | null) {
-  if (!value) {
-    return "-";
-  }
-
+  if (!value) return "-";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
@@ -114,8 +105,9 @@ function fallbackSchedule(dayOfWeek: number, staffId: string): StaffSchedule {
 function scheduleForStaff(staffId: string, schedules: StaffSchedule[]) {
   return dayLabels.map((_, dayOfWeek) => {
     return (
-      schedules.find((schedule) => schedule.staff_id === staffId && schedule.day_of_week === dayOfWeek) ??
-      fallbackSchedule(dayOfWeek, staffId)
+      schedules.find(
+        (schedule) => schedule.staff_id === staffId && schedule.day_of_week === dayOfWeek,
+      ) ?? fallbackSchedule(dayOfWeek, staffId)
     );
   });
 }
@@ -130,144 +122,7 @@ function errorMessage(message: string) {
   if (message.includes("row-level security") || message.includes("permission denied")) {
     return `${message}. 현재 로그인 계정이 Supabase에서 owner/admin 직원으로 연결되어 있어야 저장할 수 있습니다.`;
   }
-
   return message;
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function InviteUserModal({
-  error,
-  saving,
-  onClose,
-  onInvite,
-}: {
-  error: string;
-  saving: boolean;
-  onClose: () => void;
-  onInvite: (form: InviteUserForm) => void;
-}) {
-  const [form, setForm] = useState<InviteUserForm>({
-    displayName: "",
-    email: "",
-    role: "Artist",
-    permissionKeys: defaultPermissionsByRole.Artist,
-  });
-
-  function updateRole(role: string) {
-    setForm((current) => ({
-      ...current,
-      role,
-      permissionKeys: defaultPermissionsByRole[role] ?? [],
-    }));
-  }
-
-  function updatePermission(permissionKey: string, enabled: boolean) {
-    setForm((current) => ({
-      ...current,
-      permissionKeys: enabled
-        ? Array.from(new Set([...current.permissionKeys, permissionKey]))
-        : current.permissionKeys.filter((key) => key !== permissionKey),
-    }));
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
-          <div>
-            <p className="text-xs font-semibold text-[#8a6f4d]">Invite user</p>
-            <h3 className="mt-1 text-xl font-semibold">Send staff invitation</h3>
-          </div>
-          <button
-            aria-label="Close invite user"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
-            onClick={onClose}
-            type="button"
-          >
-            x
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 py-5">
-          {error ? (
-            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold">
-              Display name
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, displayName: event.target.value }))
-                }
-                placeholder="Artist or staff name"
-                value={form.displayName}
-              />
-            </label>
-            <label className="text-sm font-semibold">
-              Email
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, email: event.target.value }))
-                }
-                placeholder="name@example.com"
-                type="email"
-                value={form.email}
-              />
-            </label>
-          </div>
-
-          <label className="block text-sm font-semibold">
-            Role
-            <select
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              onChange={(event) => updateRole(event.target.value)}
-              value={form.role}
-            >
-              {roleOptions.map((role) => (
-                <option key={role}>{role}</option>
-              ))}
-            </select>
-          </label>
-
-          <div>
-            <h4 className="text-sm font-semibold">Initial permissions</h4>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {permissions.map((permission) => (
-                <label
-                  key={permission.key}
-                  className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
-                >
-                  <span className="font-semibold">{permission.label}</span>
-                  <input
-                    checked={form.permissionKeys.includes(permission.key)}
-                    onChange={(event) => updatePermission(permission.key, event.target.checked)}
-                    type="checkbox"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <button
-            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving}
-            onClick={() => onInvite(form)}
-            type="button"
-          >
-            {saving ? "Sending invite..." : "Send invite"}
-          </button>
-        </div>
-      </section>
-    </div>
-  );
 }
 
 function ManageStaffUserModal({
@@ -317,7 +172,7 @@ function ManageStaffUserModal({
 
           <p className="text-sm text-[#4d555c]">
             {isDelete
-              ? "This removes the staff record and the linked Supabase Auth user. Use this for test invites or mistaken duplicate accounts."
+              ? "This removes the staff record and the linked Supabase Auth user. Use this for test entries or mistaken duplicate accounts."
               : "This keeps historical records but removes this person from active staff workflows."}
           </p>
 
@@ -358,8 +213,6 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [showInviteUser, setShowInviteUser] = useState(false);
-  const [inviteError, setInviteError] = useState("");
   const [manageMode, setManageMode] = useState<ManageStaffMode | null>(null);
   const [manageError, setManageError] = useState("");
 
@@ -379,7 +232,9 @@ export default function StaffPage() {
       const [staffResult, scheduleResult, permissionResult] = await Promise.all([
         supabase
           .from("staff")
-          .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
+          .select(
+            "id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active",
+          )
           .order("sort_order", { ascending: true }),
         supabase
           .from("staff_schedules")
@@ -456,10 +311,7 @@ export default function StaffPage() {
 
   function updateSchedule(dayOfWeek: number, patch: Partial<StaffSchedule>) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
+      if (!current) return current;
       return {
         ...current,
         schedule: current.schedule.map((slot) =>
@@ -471,10 +323,7 @@ export default function StaffPage() {
 
   function updatePermission(permissionKey: string, enabled: boolean) {
     setForm((current) => {
-      if (!current) {
-        return current;
-      }
-
+      if (!current) return current;
       return {
         ...current,
         permissionKeys: enabled
@@ -485,9 +334,7 @@ export default function StaffPage() {
   }
 
   async function saveStaffRecord() {
-    if (!selectedStaff || !form) {
-      return;
-    }
+    if (!selectedStaff || !form) return;
 
     setSaving(true);
     setError("");
@@ -556,10 +403,18 @@ export default function StaffPage() {
     );
     setSchedules((current) => {
       const others = current.filter((slot) => slot.staff_id !== selectedStaff.id);
-      return [...others, ...schedulePayload.map((slot) => ({ ...slot, id: `${slot.staff_id}-${slot.day_of_week}` }))];
+      return [
+        ...others,
+        ...schedulePayload.map((slot) => ({
+          ...slot,
+          id: `${slot.staff_id}-${slot.day_of_week}`,
+        })),
+      ];
     });
     setStaffPermissions((current) => {
-      const others = current.filter((permission) => permission.staff_id !== selectedStaff.id);
+      const others = current.filter(
+        (permission) => permission.staff_id !== selectedStaff.id,
+      );
       return [
         ...others,
         ...permissionPayload.map((permission) => ({
@@ -572,94 +427,16 @@ export default function StaffPage() {
     setSaving(false);
   }
 
-  async function inviteUser(inviteForm: InviteUserForm) {
-    const displayName = inviteForm.displayName.trim();
-    const email = inviteForm.email.trim().toLowerCase();
-
-    if (!displayName) {
-      setInviteError("Display name is required.");
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      setInviteError("Enter a valid email address.");
-      return;
-    }
-
-    setSaving(true);
-    setInviteError("");
-    setError("");
-    setMessage("");
-
-    const session = await getSafeSession();
-    const accessToken = session?.access_token;
-
-    if (!accessToken) {
-      setInviteError("Please log in again before sending an invite.");
-      setSaving(false);
-      return;
-    }
-
-    const response = await fetch("/api/invite-user", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...inviteForm,
-        displayName,
-        email,
-      }),
-    });
-
-    const result = (await response.json()) as {
-      staff?: StaffRecord;
-      permissions?: StaffPermission[];
-      error?: string;
-    };
-
-    if (!response.ok || !result.staff) {
-      setInviteError(result.error ?? "Could not send invite.");
-      setSaving(false);
-      return;
-    }
-
-    setStaff((current) => {
-      const others = current.filter((person) => person.id !== result.staff!.id);
-      return [result.staff!, ...others];
-    });
-    setStaffPermissions((current) => {
-      const invitedPermissions = result.permissions ?? [];
-      const others = current.filter((permission) => permission.staff_id !== result.staff!.id);
-      return [...others, ...invitedPermissions];
-    });
-    setSelectedStaffId(result.staff.id);
-    setForm({
-      displayName: result.staff.display_name,
-      role: result.staff.role,
-      address: result.staff.address ?? "",
-      schedule: scheduleForStaff(result.staff.id, schedules),
-      permissionKeys: (result.permissions ?? []).map((permission) => permission.permission_key),
-    });
-    setStaffDetailOpen(true);
-    setShowInviteUser(false);
-    setMessage(`Invite sent to ${result.staff.email}.`);
-    setSaving(false);
-  }
-
   async function manageStaffUser(mode: ManageStaffMode) {
-    if (!selectedStaff) {
-      return;
-    }
+    if (!selectedStaff) return;
 
     setSaving(true);
     setManageError("");
     setError("");
     setMessage("");
 
-    const session = await getSafeSession();
-    const accessToken = session?.access_token;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
 
     if (!accessToken) {
       setManageError("Please log in again before managing this user.");
@@ -673,10 +450,7 @@ export default function StaffPage() {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        staffId: selectedStaff.id,
-        mode,
-      }),
+      body: JSON.stringify({ staffId: selectedStaff.id, mode }),
     });
 
     const result = (await response.json()) as { staffId?: string; error?: string };
@@ -700,7 +474,9 @@ export default function StaffPage() {
       setStaffPermissions((current) =>
         current.filter((permission) => permission.staff_id !== selectedStaff.id),
       );
-      setSchedules((current) => current.filter((slot) => slot.staff_id !== selectedStaff.id));
+      setSchedules((current) =>
+        current.filter((slot) => slot.staff_id !== selectedStaff.id),
+      );
       const nextSelected = nextStaff[0];
       setSelectedStaffId(nextSelected?.id ?? "");
       setForm(
@@ -725,29 +501,9 @@ export default function StaffPage() {
   return (
     <AppShell
       active="Staff"
-      eyebrow="Access control"
+      eyebrow="Operations"
       title="Staff and permissions"
-      description="Manage artists, front desk users, and owner/admin access. Accounting permissions are handled by the separate accounting app and should not be granted to artist accounts."
-      actions={
-        <>
-          <button
-            className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-            onClick={() => {
-              setInviteError("");
-              setShowInviteUser(true);
-            }}
-            type="button"
-          >
-            Invite user
-          </button>
-          <button
-            className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
-            type="button"
-          >
-            New staff
-          </button>
-        </>
-      }
+      description="Manage artists, front desk users, and owner/admin access. Accounting app users are managed separately at /accounting/users."
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
@@ -775,50 +531,101 @@ export default function StaffPage() {
 
       {!loading && staff.length > 0 ? (
         <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-base font-semibold">Team</h3>
-                <p className="mt-1 text-sm text-[#697178]">
-                  Staff records are loaded from Supabase.
-                </p>
-              </div>
-              <select className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
-                <option>All roles</option>
-                <option>Owner</option>
-                <option>Admin</option>
-                <option>Artist</option>
-                <option>Front Desk</option>
-              </select>
+          <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-base font-semibold">Team</h3>
+              <p className="mt-1 text-sm text-[#697178]">
+                Staff records are loaded from Supabase.
+              </p>
             </div>
+            <select className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
+              <option>All roles</option>
+              <option>Owner</option>
+              <option>Admin</option>
+              <option>Artist</option>
+              <option>Front Desk</option>
+            </select>
+          </div>
 
-            <div className="divide-y divide-[#eee8dd] md:hidden">
-              {staff.map((person) => (
-                <button
-                  key={person.id}
-                  className="block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9]"
-                  onClick={() => selectStaff(person)}
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold">{person.display_name}</p>
-                      <p className="mt-1 truncate text-sm text-[#697178]">
-                        {person.legal_name || person.email || "-"}
-                      </p>
-                    </div>
+          <div className="divide-y divide-[#eee8dd] md:hidden">
+            {staff.map((person) => (
+              <button
+                key={person.id}
+                className="block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9]"
+                onClick={() => selectStaff(person)}
+                type="button"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{person.display_name}</p>
+                    <p className="mt-1 truncate text-sm text-[#697178]">
+                      {person.legal_name || person.email || "-"}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
+                  >
+                    {person.role}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-1 text-sm text-[#4d555c]">
+                  <p>{person.email || "-"}</p>
+                  <p>{person.phone || "-"}</p>
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <span>Started {displayDate(person.start_date)}</span>
                     <span
-                      className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(
-                        person.role,
-                      )}`}
+                      className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                        person.active
+                          ? "bg-[#e4f1df] text-[#476b33]"
+                          : "bg-[#f3e1e1] text-[#8a3030]"
+                      }`}
                     >
-                      {person.role}
+                      {person.active ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-1 text-sm text-[#4d555c]">
-                    <p>{person.email || "-"}</p>
-                    <p>{person.phone || "-"}</p>
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                      <span>Started {displayDate(person.start_date)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[780px] text-left text-sm">
+              <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Staff</th>
+                  <th className="px-4 py-3 font-semibold">Role</th>
+                  <th className="px-4 py-3 font-semibold">Contact</th>
+                  <th className="px-4 py-3 font-semibold">Start</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eee8dd]">
+                {staff.map((person) => (
+                  <tr
+                    key={person.id}
+                    className="cursor-pointer hover:bg-[#f7f2e9]"
+                    onClick={() => selectStaff(person)}
+                  >
+                    <td className="px-4 py-4">
+                      <p className="text-xs font-semibold text-[#8a6f4d]">
+                        {person.id.slice(0, 8)}
+                      </p>
+                      <p className="mt-1 font-semibold">{person.display_name}</p>
+                      <p className="mt-1 text-[#697178]">{person.legal_name || "-"}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
+                      >
+                        {person.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-[#4d555c]">
+                      <p>{person.email || "-"}</p>
+                      <p className="mt-1">{person.phone || "-"}</p>
+                    </td>
+                    <td className="px-4 py-4 text-[#4d555c]">{displayDate(person.start_date)}</td>
+                    <td className="px-4 py-4">
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-semibold ${
                           person.active
@@ -828,63 +635,12 @@ export default function StaffPage() {
                       >
                         {person.active ? "Active" : "Inactive"}
                       </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[780px] text-left text-sm">
-                <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Staff</th>
-                    <th className="px-4 py-3 font-semibold">Role</th>
-                    <th className="px-4 py-3 font-semibold">Contact</th>
-                    <th className="px-4 py-3 font-semibold">Start</th>
-                    <th className="px-4 py-3 font-semibold">Status</th>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[#eee8dd]">
-                  {staff.map((person) => (
-                    <tr
-                      key={person.id}
-                      className="cursor-pointer hover:bg-[#f7f2e9]"
-                      onClick={() => selectStaff(person)}
-                    >
-                      <td className="px-4 py-4">
-                        <p className="text-xs font-semibold text-[#8a6f4d]">
-                          {person.id.slice(0, 8)}
-                        </p>
-                        <p className="mt-1 font-semibold">{person.display_name}</p>
-                        <p className="mt-1 text-[#697178]">{person.legal_name || "-"}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(
-                            person.role,
-                          )}`}
-                        >
-                          {person.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-[#4d555c]">
-                        <p>{person.email || "-"}</p>
-                        <p className="mt-1">{person.phone || "-"}</p>
-                      </td>
-                      <td className="px-4 py-4 text-[#4d555c]">
-                        {displayDate(person.start_date)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className="rounded-md bg-[#e4f1df] px-2 py-1 text-xs font-semibold text-[#476b33]">
-                          {person.active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
@@ -909,209 +665,206 @@ export default function StaffPage() {
               </button>
             </div>
 
-              <div className="space-y-4 px-4 py-4">
-                {error ? (
-                  <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
-                    {error}
-                  </p>
-                ) : null}
-                {message ? (
-                  <p className="rounded-md bg-[#e4f1df] px-3 py-2 text-sm font-semibold text-[#476b33]">
-                    {message}
-                  </p>
-                ) : null}
+            <div className="space-y-4 px-4 py-4">
+              {error ? (
+                <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+                  {error}
+                </p>
+              ) : null}
+              {message ? (
+                <p className="rounded-md bg-[#e4f1df] px-3 py-2 text-sm font-semibold text-[#476b33]">
+                  {message}
+                </p>
+              ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm font-semibold">
-                    Display name
-                    <input
-                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) =>
-                        setForm((current) =>
-                          current ? { ...current, displayName: event.target.value } : current,
-                        )
-                      }
-                      value={form.displayName}
-                    />
-                  </label>
-                  <label className="text-sm font-semibold">
-                    Role
-                    <select
-                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) =>
-                        setForm((current) =>
-                          current ? { ...current, role: event.target.value } : current,
-                        )
-                      }
-                      value={form.role}
-                    >
-                      <option>Owner</option>
-                      <option>Admin</option>
-                      <option>Artist</option>
-                      <option>Front Desk</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label className="block text-sm font-semibold">
-                  Home address
-                  <textarea
-                    className="mt-2 min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">
+                  Display name
+                  <input
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                     onChange={(event) =>
                       setForm((current) =>
-                        current ? { ...current, address: event.target.value } : current,
+                        current ? { ...current, displayName: event.target.value } : current,
                       )
                     }
-                    placeholder="Enter the staff member's home address"
-                    value={form.address}
+                    value={form.displayName}
                   />
                 </label>
+                <label className="text-sm font-semibold">
+                  Role
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, role: event.target.value } : current,
+                      )
+                    }
+                    value={form.role}
+                  >
+                    <option>Owner</option>
+                    <option>Admin</option>
+                    <option>Artist</option>
+                    <option>Front Desk</option>
+                  </select>
+                </label>
+              </div>
 
-                <div>
-                  <h4 className="text-sm font-semibold">Permissions</h4>
-                  <div className="mt-3 space-y-2">
-                    {permissions.map((permission) => (
-                      <label
-                        key={permission.key}
-                        className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
-                      >
-                        <span className="font-semibold">{permission.label}</span>
+              <label className="block text-sm font-semibold">
+                Home address
+                <textarea
+                  className="mt-2 min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+                  onChange={(event) =>
+                    setForm((current) =>
+                      current ? { ...current, address: event.target.value } : current,
+                    )
+                  }
+                  placeholder="Enter the staff member's home address"
+                  value={form.address}
+                />
+              </label>
+
+              <div>
+                <h4 className="text-sm font-semibold">Permissions</h4>
+                <div className="mt-3 space-y-2">
+                  {permissions.map((permission) => (
+                    <label
+                      key={permission.key}
+                      className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                    >
+                      <span className="font-semibold">{permission.label}</span>
+                      <input
+                        checked={form.permissionKeys.includes(permission.key)}
+                        onChange={(event) =>
+                          updatePermission(permission.key, event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold">Tattoo schedule</h4>
+                <p className="mt-1 text-sm text-[#697178]">
+                  These working hours feed the calendar booking availability.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {form.schedule.map((slot) => (
+                    <div
+                      key={slot.day_of_week}
+                      className="grid gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm sm:grid-cols-[54px_1fr_1fr_56px] sm:items-center"
+                    >
+                      <div className="flex items-center justify-between gap-2 sm:block">
+                        <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
+                        <span className="text-xs font-semibold text-[#697178] sm:hidden">
+                          {slot.available
+                            ? `${normalizeTime(slot.starts_at)} - ${normalizeTime(slot.ends_at)}`
+                            : "Off"}
+                        </span>
+                      </div>
+                      <label className="text-xs font-semibold text-[#697178] sm:contents">
+                        <span className="sm:hidden">Start</span>
+                        <TimeSelect
+                          className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
+                          disabled={!slot.available}
+                          onChange={(value) =>
+                            updateSchedule(slot.day_of_week, { starts_at: value })
+                          }
+                          startHour={8}
+                          value={normalizeTime(slot.starts_at)}
+                        />
+                      </label>
+                      <label className="text-xs font-semibold text-[#697178] sm:contents">
+                        <span className="sm:hidden">End</span>
+                        <TimeSelect
+                          className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
+                          disabled={!slot.available}
+                          onChange={(value) =>
+                            updateSchedule(slot.day_of_week, { ends_at: value })
+                          }
+                          startHour={8}
+                          value={normalizeTime(slot.ends_at)}
+                        />
+                      </label>
+                      <label className="flex items-center justify-start gap-2 text-xs font-semibold text-[#4d555c] sm:justify-end">
                         <input
-                          checked={form.permissionKeys.includes(permission.key)}
+                          checked={slot.available}
                           onChange={(event) =>
-                            updatePermission(permission.key, event.target.checked)
+                            updateSchedule(slot.day_of_week, {
+                              available: event.target.checked,
+                              starts_at: event.target.checked ? slot.starts_at || "10:00" : null,
+                              ends_at: event.target.checked ? slot.ends_at || "18:00" : null,
+                            })
                           }
                           type="checkbox"
                         />
+                        On
                       </label>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <h4 className="text-sm font-semibold">Tattoo schedule</h4>
-                  <p className="mt-1 text-sm text-[#697178]">
-                    These working hours should feed the calendar booking availability.
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    {form.schedule.map((slot) => (
-                      <div
-                        key={slot.day_of_week}
-                        className="grid gap-2 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm sm:grid-cols-[54px_1fr_1fr_56px] sm:items-center"
-                      >
-                        <div className="flex items-center justify-between gap-2 sm:block">
-                          <span className="font-semibold">{dayLabels[slot.day_of_week]}</span>
-                          <span className="text-xs font-semibold text-[#697178] sm:hidden">
-                            {slot.available
-                              ? `${normalizeTime(slot.starts_at)} - ${normalizeTime(slot.ends_at)}`
-                              : "Off"}
-                          </span>
-                        </div>
-                        <label className="text-xs font-semibold text-[#697178] sm:contents">
-                          <span className="sm:hidden">Start</span>
-                          <TimeSelect
-                            className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
-                            disabled={!slot.available}
-                            onChange={(value) =>
-                              updateSchedule(slot.day_of_week, { starts_at: value })
-                            }
-                            startHour={8}
-                            value={normalizeTime(slot.starts_at)}
-                          />
-                        </label>
-                        <label className="text-xs font-semibold text-[#697178] sm:contents">
-                          <span className="sm:hidden">End</span>
-                          <TimeSelect
-                            className="mt-1 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-sm disabled:bg-[#eee8dd] sm:mt-0"
-                            disabled={!slot.available}
-                            onChange={(value) =>
-                              updateSchedule(slot.day_of_week, { ends_at: value })
-                            }
-                            startHour={8}
-                            value={normalizeTime(slot.ends_at)}
-                          />
-                        </label>
-                        <label className="flex items-center justify-start gap-2 text-xs font-semibold text-[#4d555c] sm:justify-end">
-                          <input
-                            checked={slot.available}
-                            onChange={(event) =>
-                              updateSchedule(slot.day_of_week, {
-                                available: event.target.checked,
-                                starts_at: event.target.checked ? slot.starts_at || "10:00" : null,
-                                ends_at: event.target.checked ? slot.ends_at || "18:00" : null,
-                              })
-                            }
-                            type="checkbox"
-                          />
-                          On
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <button
-                    className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={saving}
-                    onClick={saveStaffRecord}
-                    type="button"
-                  >
-                    {saving ? "Saving..." : "Save staff record"}
-                  </button>
-                  <button
-                    className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={saving || !selectedStaff.active}
-                    onClick={() => {
-                      setManageError("");
-                      setManageMode("deactivate");
-                    }}
-                    type="button"
-                  >
-                    Deactivate
-                  </button>
-                </div>
-
+              <div className="grid gap-2 sm:grid-cols-2">
                 <button
-                  className="h-10 w-full rounded-md border border-[#d6b8b8] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={saving}
+                  onClick={saveStaffRecord}
+                  type="button"
+                >
+                  {saving ? "Saving..." : "Save staff record"}
+                </button>
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={saving || !selectedStaff.active}
                   onClick={() => {
                     setManageError("");
-                    setManageMode("delete");
+                    setManageMode("deactivate");
                   }}
                   type="button"
                 >
-                  Delete user
-                </button>
-
-                <div className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
-                  <h3 className="text-base font-semibold">Security note</h3>
-                  <p className="mt-3 text-sm text-[#4d555c]">
-                    The <strong>Accounting Access</strong> permission grants access to the
-                    /accounting/* routes and all financial data. Grant it only to trusted staff.
-                    The owner role always has accounting access regardless of this setting.
-                  </p>
-                </div>
-
-                <button
-                  className="h-10 w-full rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                  onClick={() => setStaffDetailOpen(false)}
-                  type="button"
-                >
-                  Close
+                  Deactivate
                 </button>
               </div>
-            </section>
-          </div>
-      ) : null}
 
-      {showInviteUser ? (
-        <InviteUserModal
-          error={inviteError}
-          onClose={() => setShowInviteUser(false)}
-          onInvite={inviteUser}
-          saving={saving}
-        />
+              <button
+                className="h-10 w-full rounded-md border border-[#d6b8b8] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={saving}
+                onClick={() => {
+                  setManageError("");
+                  setManageMode("delete");
+                }}
+                type="button"
+              >
+                Delete user
+              </button>
+
+              <div className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
+                <h3 className="text-base font-semibold">Note on accounting access</h3>
+                <p className="mt-3 text-sm text-[#4d555c]">
+                  Accounting access is managed separately. To create or manage accounting app
+                  users, go to{" "}
+                  <a
+                    className="font-semibold text-[#236c8f] hover:underline"
+                    href="/accounting/users"
+                  >
+                    /accounting/users
+                  </a>
+                  . Tattoo Manager staff accounts do not grant accounting access.
+                </p>
+              </div>
+
+              <button
+                className="h-10 w-full rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                onClick={() => setStaffDetailOpen(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
 
       {manageMode && selectedStaff ? (

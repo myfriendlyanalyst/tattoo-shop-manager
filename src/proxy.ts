@@ -1,7 +1,25 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Paths the proxy must not intercept even for authenticated users.
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/force-password-change", "/set-password"];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Pass through Next.js internals, static assets, and API routes.
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/favicon")
+  ) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -23,51 +41,64 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // getUser() validates the JWT with the Supabase Auth server.
+  // Validate the JWT with the Supabase Auth server.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = new URL("/", request.url);
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // Rule: owner always passes; every other role needs active staff + accountingAccess=true.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role === "owner") {
+    // Accounting routes require authentication.
+    if (pathname.startsWith("/accounting")) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    // Operations app handles its own auth; pass through.
     return response;
   }
 
-  const { data: staffRow } = await supabase
-    .from("staff")
-    .select("id")
+  // Public paths are reachable even when authenticated.
+  if (isPublicPath(pathname)) {
+    return response;
+  }
+
+  // Look up the authenticated user's accounting_users record.
+  // Returns null for regular Tattoo Manager staff (no record).
+  const { data: acctUser } = await supabase
+    .from("accounting_users")
+    .select("active, must_change_password, access_level")
     .eq("profile_id", user.id)
-    .eq("active", true)
     .maybeSingle();
 
-  if (staffRow) {
-    const { data: perm } = await supabase
-      .from("staff_permissions")
-      .select("enabled")
-      .eq("staff_id", staffRow.id)
-      .eq("permission_key", "accountingAccess")
-      .maybeSingle();
+  // Force all accounting users to change their temporary password before
+  // accessing any page.
+  if (acctUser?.must_change_password === true) {
+    return NextResponse.redirect(new URL("/force-password-change", request.url));
+  }
 
-    if (perm?.enabled === true) {
+  // Accounting access check.
+  if (pathname.startsWith("/accounting")) {
+    // Tattoo Manager owners bypass accounting_users entirely.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role === "owner") {
       return response;
+    }
+
+    // All others must have an active accounting_users record.
+    if (acctUser?.active !== true) {
+      return NextResponse.redirect(new URL("/requests", request.url));
     }
   }
 
-  return NextResponse.redirect(new URL("/requests", request.url));
+  return response;
 }
 
 export const config = {
-  matcher: ["/accounting/:path*"],
+  // Match all page routes. Excludes _next internals and favicon handled above.
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico).*)"],
 };

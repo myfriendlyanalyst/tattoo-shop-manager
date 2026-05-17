@@ -1,46 +1,32 @@
 /**
- * Shared accounting access check for client-side components.
+ * Client-side accounting access check.
  *
  * Rules:
- *   - profiles.role = 'owner' -> always allowed
- *   - all other roles -> active staff + accountingAccess=true required
+ *   - accounting_users.active = true  → allowed
+ *   - profiles.role = 'owner'         → always allowed (legacy bypass)
  *
- * The same logic runs in src/proxy.ts (server/Edge) using the SSR client.
- * This module is for browser client components only.
+ * The same logic runs in src/proxy.ts (server/Edge).
+ * staff_permissions.accountingAccess is no longer used.
  */
 
 import { supabase } from "@/lib/supabase";
 
 export async function hasAccountingAccess(userId: string): Promise<boolean> {
-  // 1. Fetch the user's app role.
+  // Primary: check accounting_users table.
+  const { data: acctUser } = await supabase
+    .from("accounting_users")
+    .select("active")
+    .eq("profile_id", userId)
+    .maybeSingle();
+
+  if (acctUser?.active === true) return true;
+
+  // Legacy bypass: Tattoo Manager owner role always has accounting access.
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .single();
 
-  if (!profile) return false;
-
-  // Owner always has accounting access, regardless of permissions.
-  if (profile.role === "owner") return true;
-
-  // 2. Resolve the active staff record linked to this auth user.
-  const { data: staffRow } = await supabase
-    .from("staff")
-    .select("id")
-    .eq("profile_id", userId)
-    .eq("active", true)
-    .maybeSingle();
-
-  if (!staffRow) return false;
-
-  // 3. Check the accountingAccess permission key.
-  const { data: perm } = await supabase
-    .from("staff_permissions")
-    .select("enabled")
-    .eq("staff_id", staffRow.id)
-    .eq("permission_key", "accountingAccess")
-    .maybeSingle();
-
-  return perm?.enabled === true;
+  return profile?.role === "owner";
 }
