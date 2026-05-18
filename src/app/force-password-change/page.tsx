@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
-import { getOperationsContext } from "@/lib/operations-access";
 
 export default function ForcePasswordChangePage() {
   const router = useRouter();
@@ -65,7 +64,7 @@ export default function ForcePasswordChangePage() {
       body: JSON.stringify({ newPassword: password }),
     });
 
-    const data = (await res.json()) as { ok?: boolean; error?: string };
+    const data = (await res.json()) as { ok?: boolean; destination?: string; error?: string };
     setSaving(false);
 
     if (!res.ok || !data.ok) {
@@ -73,8 +72,13 @@ export default function ForcePasswordChangePage() {
       return;
     }
 
-    const context = await getOperationsContext();
-    router.replace(context?.role === "accounting" ? "/accounting/dashboard" : "/requests");
+    const destination =
+      data.destination?.startsWith("/") && !data.destination.startsWith("//")
+        ? data.destination
+        : "/requests";
+
+    await supabase.auth.signOut({ scope: "local" });
+    router.replace(`/login?next=${encodeURIComponent(destination)}`);
     router.refresh();
   }
 

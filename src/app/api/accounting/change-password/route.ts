@@ -108,5 +108,8 @@ export async function POST(request: NextRequest) {
     if (flagError) return jsonError(flagError.message, 500);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    destination: acctUser ? "/accounting/dashboard" : "/requests",
+  });
 }

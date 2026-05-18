@@ -37,7 +37,7 @@ export function AppShell({
   const [role, setRole] = useState<OperationsRole | undefined>(undefined);
   const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
   const visibleNavItems =
-    role === undefined || role === "artist"
+    role === "artist"
       ? navItems.filter((item) => ["Requests", "Projects", "Calendar"].includes(item.label))
       : navItems;
 
@@ -57,7 +57,14 @@ export function AppShell({
 
   const nav = (
     <nav className="space-y-1">
-      {visibleNavItems.map((item) => {
+      {role === undefined ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="h-10 rounded-md bg-[#eee8dd]" />
+          ))}
+        </div>
+      ) : (
+      visibleNavItems.map((item) => {
         const isActive = item.label === active;
 
         return (
@@ -83,7 +90,8 @@ export function AppShell({
             ) : null}
           </Link>
         );
-      })}
+      })
+      )}
     </nav>
   );
 
