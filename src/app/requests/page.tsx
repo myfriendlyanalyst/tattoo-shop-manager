@@ -8,6 +8,7 @@ import {
   sendAppointmentConfirmation,
 } from "@/lib/appointment-email";
 import { getSafeUser } from "@/lib/auth-session";
+import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -647,6 +648,8 @@ export default function RequestsPage() {
   const [bookingMode, setBookingMode] = useState(false);
   const [bookingForm, setBookingForm] = useState<BookingForm | null>(null);
   const [assignmentArtistId, setAssignmentArtistId] = useState("");
+  const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
+  const isArtistUser = operationsContext?.isArtist === true;
 
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? requests[0],
@@ -684,6 +687,7 @@ export default function RequestsPage() {
       setError("");
 
       const user = await getSafeUser();
+      const context = await getOperationsContext();
 
       if (!user) {
         setError("Please log in to view requests.");
@@ -747,18 +751,30 @@ export default function RequestsPage() {
         return;
       }
 
-      const nextRequests = (requestResult.data ?? []) as unknown as RequestRecord[];
+      const rawRequests = (requestResult.data ?? []) as unknown as RequestRecord[];
       const nextPermissions = permissionResult.data ?? [];
-      const nextArtists = (staffResult.data ?? []).filter((staff) =>
+      const rawArtists = (staffResult.data ?? []).filter((staff) =>
         canShowInCalendar(staff, nextPermissions),
       );
+      const nextRequests =
+        context?.isArtist && context.staffId
+          ? rawRequests.filter((request) => request.artist_id === context.staffId)
+          : rawRequests;
+      const nextArtists =
+        context?.isArtist && context.staffId
+          ? rawArtists.filter((artist) => artist.id === context.staffId)
+          : rawArtists;
       const nextFiles = await filesWithSignedUrls((fileResult.data ?? []) as RequestFile[]);
 
+      setOperationsContext(context);
       setRequests(nextRequests);
       setArtists(nextArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setRequestFiles(nextFiles);
       setSelectedRequestId(nextRequests[0]?.id ?? "");
+      if (context?.isArtist && context.staffId) {
+        setArtistFilter(context.staffId);
+      }
       setLoading(false);
     }
 
@@ -1193,6 +1209,7 @@ export default function RequestsPage() {
       title="Website and email requests"
       description="Manage Webflow/Gmail requests, artist candidates, and conversion into customer/project records."
       actions={
+        isArtistUser ? null : (
         <>
           <button
             className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
@@ -1211,6 +1228,7 @@ export default function RequestsPage() {
             New request
           </button>
         </>
+        )
       }
     >
       {loading ? (
@@ -1229,15 +1247,19 @@ export default function RequestsPage() {
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 shadow-sm">
           <p className="text-sm font-semibold text-[#30373d]">No requests yet.</p>
           <p className="mt-2 text-sm text-[#697178]">
-            Create a manual request for testing, or connect Make.com to insert Webflow requests.
+            {isArtistUser
+              ? "No assigned requests yet."
+              : "Create a manual request for testing, or connect Make.com to insert Webflow requests."}
           </p>
-          <button
-            className="mt-4 h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
-            onClick={() => setShowNewRequest(true)}
-            type="button"
-          >
-            New request
-          </button>
+          {!isArtistUser ? (
+            <button
+              className="mt-4 h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
+              onClick={() => setShowNewRequest(true)}
+              type="button"
+            >
+              New request
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -1270,6 +1292,7 @@ export default function RequestsPage() {
                       </option>
                     ))}
                   </select>
+                  {!isArtistUser ? (
                   <select
                     className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                     onChange={(event) => {
@@ -1285,6 +1308,7 @@ export default function RequestsPage() {
                       </option>
                     ))}
                   </select>
+                  ) : null}
                 </div>
               </div>
 

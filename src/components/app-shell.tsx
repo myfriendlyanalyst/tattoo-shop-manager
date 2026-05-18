@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthButton } from "@/components/auth-button";
+import { getOperationsContext, type OperationsRole } from "@/lib/operations-access";
 
 const navItems = [
   { label: "Requests", href: "/requests", note: "Start" },
@@ -33,11 +34,30 @@ export function AppShell({
   wide = false,
 }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [role, setRole] = useState<OperationsRole>(null);
   const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
+  const visibleNavItems =
+    role === "artist"
+      ? navItems.filter((item) => ["Requests", "Projects", "Calendar"].includes(item.label))
+      : navItems;
+
+  useEffect(() => {
+    let mounted = true;
+
+    getOperationsContext().then((context) => {
+      if (mounted) {
+        setRole(context?.role ?? null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const nav = (
     <nav className="space-y-1">
-      {navItems.map((item) => {
+      {visibleNavItems.map((item) => {
         const isActive = item.label === active;
 
         return (

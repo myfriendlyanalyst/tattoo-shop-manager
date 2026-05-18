@@ -11,6 +11,7 @@ import {
   sendAppointmentReschedule,
 } from "@/lib/appointment-email";
 import { getSafeUser } from "@/lib/auth-session";
+import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -1001,6 +1002,8 @@ export default function CalendarPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
+  const isArtistUser = operationsContext?.isArtist === true;
   const timeInterval = useTimeInterval();
 
   const visibleArtists = useMemo(() => {
@@ -1072,6 +1075,7 @@ export default function CalendarPage() {
       setError("");
 
       const user = await getSafeUser();
+      const context = await getOperationsContext();
 
       if (!user) {
         setError("Please log in to view the calendar.");
@@ -1157,12 +1161,35 @@ export default function CalendarPage() {
       }
 
       const nextPermissions = permissionResult.data ?? [];
+      const rawArtists = (staffResult.data ?? []).filter((staff) =>
+        canShowInCalendar(staff, nextPermissions),
+      );
+      const nextArtists =
+        context?.isArtist && context.staffId
+          ? rawArtists.filter((artist) => artist.id === context.staffId)
+          : rawArtists;
+      const nextProjects =
+        context?.isArtist && context.staffId
+          ? ((projectResult.data ?? []) as unknown as ProjectRecord[]).filter(
+              (project) => project.artist_id === context.staffId,
+            )
+          : ((projectResult.data ?? []) as unknown as ProjectRecord[]);
+      const nextAppointments =
+        context?.isArtist && context.staffId
+          ? ((appointmentResult.data ?? []) as unknown as AppointmentRow[]).filter(
+              (appointment) => appointment.artist_id === context.staffId,
+            )
+          : ((appointmentResult.data ?? []) as unknown as AppointmentRow[]);
 
-      setArtists((staffResult.data ?? []).filter((staff) => canShowInCalendar(staff, nextPermissions)));
+      setOperationsContext(context);
+      setArtists(nextArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
-      setProjects((projectResult.data ?? []) as unknown as ProjectRecord[]);
+      setProjects(nextProjects);
       setSchedules(scheduleResult.data ?? []);
-      setAppointments(((appointmentResult.data ?? []) as unknown as AppointmentRow[]).map(mapAppointment));
+      setAppointments(nextAppointments.map(mapAppointment));
+      if (context?.isArtist && context.staffId) {
+        setArtistFilter(context.staffId);
+      }
       setLoading(false);
     }
 
@@ -1492,6 +1519,7 @@ export default function CalendarPage() {
       description="Book tattoo sessions by artist. Staff schedules now come from Supabase."
       wide
       actions={
+        isArtistUser ? null : (
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={artists.length === 0}
@@ -1512,6 +1540,7 @@ export default function CalendarPage() {
         >
           New appointment
         </button>
+        )
       }
     >
       {loading ? (
@@ -1552,6 +1581,7 @@ export default function CalendarPage() {
                     value={selectedDate}
                   />
                 </div>
+                {!isArtistUser ? (
                 <label className="block text-sm font-semibold">
                   Artist
                   <select
@@ -1569,6 +1599,7 @@ export default function CalendarPage() {
                     ))}
                   </select>
                 </label>
+                ) : null}
                 <label className="block text-sm font-semibold">
                   Appointment type
                   <select
@@ -1689,6 +1720,10 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
+                          if (isArtistUser) {
+                            return;
+                          }
+
                           const draft = draftFromClick(artist, selectedDate, event, timeInterval);
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
@@ -1849,6 +1884,10 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
+                          if (isArtistUser) {
+                            return;
+                          }
+
                           const draft = draftFromClick(artist, selectedDate, event, timeInterval);
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { DateTimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
+import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
 
 type StaffRecord = {
@@ -745,6 +746,8 @@ export default function ProjectsPage() {
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
   const [editingSession, setEditingSession] = useState<SessionEntryRecord | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
+  const isArtistUser = operationsContext?.isArtist === true;
 
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -893,6 +896,7 @@ export default function ProjectsPage() {
       setError("");
 
       const user = await getSafeUser();
+      const context = await getOperationsContext();
 
       if (!user) {
         setError("Please log in to view projects.");
@@ -987,18 +991,48 @@ export default function ProjectsPage() {
         return;
       }
 
-      const nextProjects = (projectResult.data ?? []) as unknown as ProjectRecord[];
+      const rawProjects = (projectResult.data ?? []) as unknown as ProjectRecord[];
+      const nextProjects =
+        context?.isArtist && context.staffId
+          ? rawProjects.filter((project) => project.artist_id === context.staffId)
+          : rawProjects;
+      const scopedStaff =
+        context?.isArtist && context.staffId
+          ? ((staffResult.data ?? []) as StaffRecord[]).filter((member) => member.id === context.staffId)
+          : ((staffResult.data ?? []) as StaffRecord[]);
+      const scopedAppointments =
+        context?.isArtist && context.staffId
+          ? ((appointmentResult.data ?? []) as AppointmentRecord[]).filter(
+              (appointment) => appointment.artist_id === context.staffId,
+            )
+          : ((appointmentResult.data ?? []) as AppointmentRecord[]);
+      const scopedDeposits =
+        context?.isArtist && context.staffId
+          ? ((depositResult.data ?? []) as DepositRecord[]).filter(
+              (deposit) => deposit.artist_id === context.staffId,
+            )
+          : ((depositResult.data ?? []) as DepositRecord[]);
+      const scopedSessions =
+        context?.isArtist && context.staffId
+          ? ((sessionResult.data ?? []) as SessionEntryRecord[]).filter(
+              (session) => session.artist_id === context.staffId,
+            )
+          : ((sessionResult.data ?? []) as SessionEntryRecord[]);
 
-      setStaff((staffResult.data ?? []) as StaffRecord[]);
+      setOperationsContext(context);
+      setStaff(scopedStaff);
       setProjects(nextProjects);
-      setAppointments((appointmentResult.data ?? []) as AppointmentRecord[]);
-      setDeposits((depositResult.data ?? []) as DepositRecord[]);
+      setAppointments(scopedAppointments);
+      setDeposits(scopedDeposits);
       setDepositApplications(
         (depositApplicationResult.data ?? []) as DepositApplicationRecord[],
       );
       setSessionPayments((sessionPaymentResult.data ?? []) as SessionPaymentRecord[]);
-      setSessions((sessionResult.data ?? []) as SessionEntryRecord[]);
+      setSessions(scopedSessions);
       setSelectedProjectId(nextProjects[0]?.id ?? "");
+      if (context?.isArtist && context.staffId) {
+        setArtistFilter(context.staffId);
+      }
       setLoading(false);
     }
 
@@ -1722,6 +1756,7 @@ export default function ProjectsPage() {
                 placeholder="Search project, customer, artist, email"
                 value={search}
               />
+              {!isArtistUser ? (
               <select
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                 onChange={(event) => {
@@ -1739,6 +1774,7 @@ export default function ProjectsPage() {
                     </option>
                   ))}
               </select>
+              ) : null}
               <select
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                 onChange={(event) => {

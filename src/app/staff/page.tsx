@@ -44,6 +44,12 @@ type StaffForm = {
   permissionKeys: string[];
 };
 
+type CreateStaffForm = {
+  displayName: string;
+  email: string;
+  role: "owner" | "admin" | "artist" | "front_desk";
+};
+
 type ManageStaffMode = "deactivate" | "delete";
 
 // Permissions relevant to Tattoo Manager operations.
@@ -194,6 +200,167 @@ function ManageStaffUserModal({
   );
 }
 
+function CreateStaffModal({
+  error,
+  saving,
+  onClose,
+  onCreate,
+}: {
+  error: string;
+  saving: boolean;
+  onClose: () => void;
+  onCreate: (form: CreateStaffForm) => void;
+}) {
+  const [form, setForm] = useState<CreateStaffForm>({
+    displayName: "",
+    email: "",
+    role: "artist",
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-lg rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold text-[#8a6f4d]">New staff</p>
+            <h3 className="mt-1 text-xl font-semibold">Create staff login</h3>
+            <p className="mt-1 text-sm text-[#697178]">
+              A temporary password will be shown once after creation.
+            </p>
+          </div>
+          <button
+            aria-label="Close new staff"
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold hover:bg-[#eee8dd]"
+            onClick={onClose}
+            type="button"
+          >
+            x
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          {error ? (
+            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-semibold">
+              Display name
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, displayName: event.target.value }))
+                }
+                value={form.displayName}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Email
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, email: event.target.value }))
+                }
+                type="email"
+                value={form.email}
+              />
+            </label>
+          </div>
+
+          <label className="block text-sm font-semibold">
+            Role
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  role: event.target.value as CreateStaffForm["role"],
+                }))
+              }
+              value={form.role}
+            >
+              <option value="artist">Artist</option>
+              <option value="front_desk">Front Desk</option>
+              <option value="admin">Admin</option>
+              <option value="owner">Owner</option>
+            </select>
+          </label>
+
+          <button
+            className="h-10 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => onCreate(form)}
+            type="button"
+          >
+            {saving ? "Creating..." : "Create staff"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function TempPasswordModal({
+  displayName,
+  email,
+  tempPassword,
+  onClose,
+}: {
+  displayName: string;
+  email: string;
+  tempPassword: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copyPassword() {
+    navigator.clipboard.writeText(tempPassword).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
+      <section className="w-full max-w-md rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+        <div className="border-b border-[#e5dfd4] px-5 py-4">
+          <p className="text-xs font-semibold text-[#476b33]">Staff created</p>
+          <h3 className="mt-1 text-xl font-semibold">Temporary password</h3>
+        </div>
+        <div className="space-y-4 px-5 py-5">
+          <p className="rounded-md bg-[#fff8e5] px-3 py-2 text-sm font-semibold text-[#7a5c00]">
+            Copy this password now. It will not be shown again.
+          </p>
+          <p className="text-sm text-[#697178]">
+            Account: <strong>{displayName}</strong> ({email})
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 py-2 font-mono text-sm font-semibold tracking-wider">
+              {tempPassword}
+            </code>
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+              onClick={copyPassword}
+              type="button"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <button
+            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
+            onClick={onClose}
+            type="button"
+          >
+            Done
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
@@ -207,6 +374,13 @@ export default function StaffPage() {
   const [message, setMessage] = useState("");
   const [manageMode, setManageMode] = useState<ManageStaffMode | null>(null);
   const [manageError, setManageError] = useState("");
+  const [showCreateStaff, setShowCreateStaff] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [newTempPassword, setNewTempPassword] = useState<{
+    displayName: string;
+    email: string;
+    password: string;
+  } | null>(null);
 
   useEffect(() => {
     async function loadStaff() {
@@ -419,66 +593,76 @@ export default function StaffPage() {
     setSaving(false);
   }
 
-  async function createStaffRecord() {
+  async function createStaffRecord(createForm: CreateStaffForm) {
+    const displayName = createForm.displayName.trim();
+    const email = createForm.email.trim().toLowerCase();
+
+    if (!displayName) {
+      setCreateError("Display name is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setCreateError("Enter a valid email address.");
+      return;
+    }
+
     setSaving(true);
+    setCreateError("");
     setError("");
     setMessage("");
 
-    const displayName = "New Staff";
-    const maxSortOrder = staff.reduce((max, person) => Math.max(max, staff.indexOf(person)), 0);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
 
-    const { data: staffRow, error: staffError } = await supabase
-      .from("staff")
-      .insert({
-        display_name: displayName,
-        role: "Artist",
-        active: true,
-        sort_order: maxSortOrder + 10,
-      })
-      .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
-      .single();
-
-    if (staffError) {
-      setError(errorMessage(staffError.message));
+    if (!accessToken) {
+      setCreateError("Please log in again.");
       setSaving(false);
       return;
     }
 
-    const schedulePayload = dayLabels.map((_, dayOfWeek) => ({
-      staff_id: staffRow.id,
-      day_of_week: dayOfWeek,
-      available: false,
-      starts_at: null,
-      ends_at: null,
-    }));
+    const response = await fetch("/api/staff-user", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ displayName, email, role: createForm.role }),
+    });
 
-    const scheduleResult = await supabase
-      .from("staff_schedules")
-      .upsert(schedulePayload, { onConflict: "staff_id,day_of_week" });
+    const result = (await response.json()) as {
+      staff?: StaffRecord;
+      tempPassword?: string;
+      error?: string;
+    };
 
-    if (scheduleResult.error) {
-      setError(errorMessage(scheduleResult.error.message));
+    if (!response.ok || !result.staff || !result.tempPassword) {
+      setCreateError(result.error ?? "Could not create staff user.");
       setSaving(false);
       return;
     }
 
-    const newSchedules = schedulePayload.map((slot) => ({
-      ...slot,
-      id: `${slot.staff_id}-${slot.day_of_week}`,
-    }));
+    const newSchedules = dayLabels.map((_, dayOfWeek) =>
+      fallbackSchedule(dayOfWeek, result.staff!.id),
+    );
 
-    setStaff((current) => [...current, staffRow as StaffRecord]);
+    setStaff((current) => [...current, result.staff!]);
     setSchedules((current) => [...current, ...newSchedules]);
-    setSelectedStaffId(staffRow.id);
+    setSelectedStaffId(result.staff.id);
     setForm({
-      displayName,
-      role: "Artist",
+      displayName: result.staff.display_name,
+      role: result.staff.role,
       address: "",
-      schedule: scheduleForStaff(staffRow.id, newSchedules),
+      schedule: scheduleForStaff(result.staff.id, newSchedules),
       permissionKeys: [],
     });
     setStaffDetailOpen(true);
-    setMessage("New staff record created.");
+    setShowCreateStaff(false);
+    setNewTempPassword({
+      displayName: result.staff.display_name,
+      email: result.staff.email ?? email,
+      password: result.tempPassword,
+    });
+    setMessage("Staff login created.");
     setSaving(false);
   }
 
@@ -563,10 +747,13 @@ export default function StaffPage() {
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={saving}
-          onClick={createStaffRecord}
+          onClick={() => {
+            setCreateError("");
+            setShowCreateStaff(true);
+          }}
           type="button"
         >
-          {saving ? "Working..." : "New Staff"}
+          New Staff
         </button>
       }
     >
@@ -940,6 +1127,24 @@ export default function StaffPage() {
           onConfirm={() => manageStaffUser(manageMode)}
           person={selectedStaff}
           saving={saving}
+        />
+      ) : null}
+
+      {showCreateStaff ? (
+        <CreateStaffModal
+          error={createError}
+          onClose={() => setShowCreateStaff(false)}
+          onCreate={createStaffRecord}
+          saving={saving}
+        />
+      ) : null}
+
+      {newTempPassword ? (
+        <TempPasswordModal
+          displayName={newTempPassword.displayName}
+          email={newTempPassword.email}
+          onClose={() => setNewTempPassword(null)}
+          tempPassword={newTempPassword.password}
         />
       ) : null}
     </AppShell>

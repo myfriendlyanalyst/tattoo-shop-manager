@@ -4,9 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Paths the proxy must not intercept even for authenticated users.
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/force-password-change", "/set-password"];
+const ARTIST_ALLOWED_PATHS = ["/requests", "/projects", "/calendar"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+function isArtistAllowedPath(pathname: string) {
+  return ARTIST_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 export async function proxy(request: NextRequest) {
@@ -122,6 +127,10 @@ export async function proxy(request: NextRequest) {
   // regular operations users with accounting access may still use /requests.
   if (acctUser?.active === true && !isOperationsUser && !pathname.startsWith("/accounting")) {
     return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
+  }
+
+  if (profile?.role === "artist" && !isArtistAllowedPath(pathname)) {
+    return NextResponse.redirect(new URL("/requests", request.url));
   }
 
   // Accounting access check.
