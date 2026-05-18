@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { hasAccountingAccess } from "@/lib/accounting-access";
 
 function nextPath() {
   if (typeof window === "undefined") {
@@ -26,15 +25,6 @@ export default function LoginPage() {
   const destination = nextPath();
   const isAccountingLogin = destination.startsWith("/accounting");
 
-  const resolveDestination = useCallback(async (userId: string) => {
-    if (destination !== "/requests") {
-      return destination;
-    }
-
-    const accountingAccess = await hasAccountingAccess(userId);
-    return accountingAccess ? "/accounting/dashboard" : destination;
-  }, [destination]);
-
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -51,15 +41,13 @@ export default function LoginPage() {
       return;
     }
 
-    const user = data.user ?? (await supabase.auth.getUser()).data.user;
-    if (!user) {
+    if (!data.user) {
       setLoading(false);
       setError("Could not verify login session.");
       return;
     }
 
-    const resolvedDestination = await resolveDestination(user.id);
-    window.location.assign(resolvedDestination);
+    window.location.assign(destination);
   }
 
   return (
