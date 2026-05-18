@@ -148,7 +148,7 @@ create table if not exists public.accounting_users (
   profile_id uuid unique references auth.users(id) on delete cascade,
   display_name text not null,
   email text not null unique,
-  access_level text not null default 'viewer' check (access_level in ('owner', 'admin', 'viewer')),
+  access_level text not null default 'admin' check (access_level in ('owner', 'admin')),
   active boolean not null default true,
   must_change_password boolean not null default true,
   created_at timestamptz not null default now(),
@@ -547,6 +547,28 @@ as $$
   )
 $$;
 
+create or replace function public.is_accounting_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'owner'
+    )
+    or exists (
+      select 1 from public.accounting_users au
+      where au.profile_id = auth.uid()
+        and au.active = true
+        and au.access_level in ('owner', 'admin')
+    ),
+    false
+  )
+$$;
+
 create or replace function public.current_staff_id()
 returns uuid
 language sql
@@ -611,6 +633,8 @@ grant execute on function public.is_operations_user() to authenticated;
 grant execute on function public.has_staff_permission(text) to authenticated;
 grant execute on function public.can_access_accounting() to authenticated;
 grant execute on function public.can_access_accounting() to service_role;
+grant execute on function public.is_accounting_admin() to authenticated;
+grant execute on function public.is_accounting_admin() to service_role;
 grant execute on function public.current_staff_id() to authenticated;
 
 -- Profiles
@@ -678,16 +702,7 @@ using (profile_id = auth.uid());
 drop policy if exists "acct_users_select_admin" on public.accounting_users;
 create policy "acct_users_select_admin"
 on public.accounting_users for select
-using (
-  public.current_user_role() = 'owner'
-  or exists (
-    select 1
-    from public.accounting_users au
-    where au.profile_id = auth.uid()
-      and au.active = true
-      and au.access_level in ('owner', 'admin')
-  )
-);
+using (public.is_accounting_admin());
 
 drop policy if exists "acct_users_no_insert" on public.accounting_users;
 create policy "acct_users_no_insert"
@@ -878,8 +893,8 @@ on public.files for all
 using (auth.uid() is not null)
 with check (auth.uid() is not null);
 
--- Accounting and payout data is restricted to the owner role plus staff with
--- the explicit accountingAccess permission. Admin is not automatic here.
+-- Accounting and payout data is restricted to Tattoo Manager owners and
+-- active accounting users.
 drop policy if exists "payouts_admin_all_artist_select_own" on public.payouts;
 drop policy if exists "payouts_admin_select" on public.payouts;
 create policy "payouts_admin_select"

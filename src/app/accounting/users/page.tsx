@@ -114,8 +114,8 @@ function CreateUserModal({
               }
               value={form.accessLevel}
             >
-              <option value="admin">Admin — can manage accounting users</option>
-              <option value="owner">Owner — full accounting access</option>
+              <option value="admin">Admin - can manage accounting users</option>
+              <option value="owner">Owner - full accounting access</option>
             </select>
           </label>
 

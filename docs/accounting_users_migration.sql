@@ -14,8 +14,8 @@ create table if not exists public.accounting_users (
   profile_id           uuid unique references auth.users(id) on delete cascade,
   display_name         text not null,
   email                text not null unique,
-  access_level         text not null default 'viewer'
-                         check (access_level in ('owner', 'admin', 'viewer')),
+  access_level         text not null default 'admin'
+                         check (access_level in ('owner', 'admin')),
   active               boolean not null default true,
   must_change_password boolean not null default true,
   created_at           timestamptz not null default now(),
@@ -41,6 +41,21 @@ create trigger accounting_users_updated_at
 -- ────────────────────────────────────────────────────────────
 
 alter table public.accounting_users enable row level security;
+
+-- Normalize older installs that may still have the removed viewer role.
+update public.accounting_users
+set access_level = 'admin'
+where access_level = 'viewer';
+
+alter table public.accounting_users
+  alter column access_level set default 'admin';
+
+alter table public.accounting_users
+  drop constraint if exists accounting_users_access_level_check;
+
+alter table public.accounting_users
+  add constraint accounting_users_access_level_check
+  check (access_level in ('owner', 'admin'));
 
 grant usage on schema public to service_role;
 grant select on public.accounting_users to authenticated;

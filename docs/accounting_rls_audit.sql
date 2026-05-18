@@ -9,8 +9,10 @@
 -- ============================================================
 -- 1. VERIFY: Accounting access helper functions
 -- Expected:
---   can_access_accounting() allows owner OR accountingAccess=true.
---   has_staff_permission() checks active staff records only.
+--   can_access_accounting() allows Tattoo Manager owner OR
+--   accounting_users.active=true.
+--   is_accounting_admin() allows Tattoo Manager owner OR active
+--   accounting_users with access_level owner/admin.
 -- ============================================================
 
 select
@@ -18,7 +20,7 @@ select
   routine_definition
 from information_schema.routines
 where routine_schema = 'public'
-  and routine_name in ('can_access_accounting', 'has_staff_permission')
+  and routine_name in ('can_access_accounting', 'is_accounting_admin')
 order by routine_name;
 
 
@@ -83,23 +85,25 @@ order by tablename, cmd;
 
 
 -- ============================================================
--- 5. VERIFY: accountingAccess permission state for staff members
--- Expected: only explicitly granted, active staff show true.
--- Owner may be null/false because owner bypasses permission.
+-- 5. VERIFY: accounting user records
+-- Expected:
+--   - access_level is only owner/admin.
+--   - active=true users can access /accounting.
+--   - must_change_password=true users are forced to /force-password-change.
 -- ============================================================
 
 select
-  s.id as staff_id,
-  s.display_name,
-  s.active,
-  p.role as profile_role,
-  sp.enabled as accounting_access
-from staff s
-join profiles p on p.id = s.profile_id
-left join staff_permissions sp
-  on sp.staff_id = s.id
-  and sp.permission_key = 'accountingAccess'
-order by s.active desc, p.role, s.display_name;
+  au.id,
+  au.profile_id,
+  au.display_name,
+  au.email,
+  au.access_level,
+  au.active,
+  au.must_change_password,
+  p.role as profile_role
+from public.accounting_users au
+left join public.profiles p on p.id = au.profile_id
+order by au.active desc, au.access_level, au.display_name;
 
 
 -- ============================================================
@@ -148,11 +152,13 @@ order by tablename;
 -- Access control layers for /accounting/* routes:
 --
 -- Layer 1 - Next.js Proxy (src/proxy.ts)
---   - Redirects unauthenticated users to /?next=/accounting/...
+--   - Redirects unauthenticated accounting routes to /login?next=/accounting/...
 --   - Access rule:
 --       profiles.role = 'owner' -> always allowed
---       active staff + accountingAccess=true -> allowed
+--       accounting_users.active=true -> allowed
 --       all others -> redirect to /requests
+--   - Accounting-only profiles.role='accounting' users are redirected away
+--     from operations pages back to /accounting/dashboard.
 --
 -- Layer 2 - Client-side page guard
 --   - getSafeUser() + hasAccountingAccess(user.id)
