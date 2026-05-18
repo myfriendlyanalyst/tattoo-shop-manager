@@ -93,36 +93,40 @@ export async function proxy(request: NextRequest) {
 
   const acctUser = acctUserById ?? acctUserByEmail;
 
+  const { data: profileById } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const { data: profileByEmail } = profileById
+    ? { data: null }
+    : await adminClient
+        .from("profiles")
+        .select("role")
+        .ilike("email", user.email?.toLowerCase() ?? "")
+        .maybeSingle();
+
+  const profile = profileById ?? profileByEmail;
+  const isOperationsUser = ["owner", "admin", "front_desk", "artist"].includes(
+    profile?.role ?? "",
+  );
+
   // Force all accounting users to change their temporary password before
   // accessing any page.
   if (acctUser?.must_change_password === true) {
     return NextResponse.redirect(new URL("/force-password-change", request.url));
   }
 
-  // Accounting-only users should not browse the Tattoo Manager app.
-  if (acctUser?.active === true && !pathname.startsWith("/accounting")) {
+  // Accounting-only users should not browse the Tattoo Manager app, but
+  // regular operations users with accounting access may still use /requests.
+  if (acctUser?.active === true && !isOperationsUser && !pathname.startsWith("/accounting")) {
     return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
   }
 
   // Accounting access check.
   if (pathname.startsWith("/accounting")) {
     // Tattoo Manager owners bypass accounting_users entirely.
-    const { data: profileById } = await adminClient
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const { data: profileByEmail } = profileById
-      ? { data: null }
-      : await adminClient
-          .from("profiles")
-          .select("role")
-          .ilike("email", user.email?.toLowerCase() ?? "")
-          .maybeSingle();
-
-    const profile = profileById ?? profileByEmail;
-
     if (profile?.role === "owner") {
       return response;
     }
