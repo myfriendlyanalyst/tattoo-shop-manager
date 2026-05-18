@@ -117,9 +117,24 @@ export async function proxy(request: NextRequest) {
     profile?.role ?? "",
   );
 
-  // Force all accounting users to change their temporary password before
-  // accessing any page.
-  if (acctUser?.must_change_password === true) {
+  const { data: staffByProfileId } = await adminClient
+    .from("staff")
+    .select("must_change_password")
+    .eq("profile_id", user.id)
+    .maybeSingle();
+
+  const { data: staffByEmail } = staffByProfileId
+    ? { data: null }
+    : await adminClient
+        .from("staff")
+        .select("must_change_password")
+        .ilike("email", user.email?.toLowerCase() ?? "")
+        .maybeSingle();
+
+  const staffUser = staffByProfileId ?? staffByEmail;
+
+  // Force temporary-password users to set a permanent password before access.
+  if (acctUser?.must_change_password === true || staffUser?.must_change_password === true) {
     return NextResponse.redirect(new URL("/force-password-change", request.url));
   }
 

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 const navItems = [
@@ -33,11 +32,10 @@ export function AccountingShell({
   children,
 }: AccountingShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const router = useRouter();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
-    router.replace("/");
+    window.location.assign("/login");
   }
 
   const nav = (

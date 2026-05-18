@@ -40,6 +40,7 @@ export function AuthButton() {
 
   async function signOut() {
     await supabase.auth.signOut();
+    window.location.assign("/login");
   }
 
   if (loading) {

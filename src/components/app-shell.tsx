@@ -34,10 +34,10 @@ export function AppShell({
   wide = false,
 }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [role, setRole] = useState<OperationsRole>(null);
+  const [role, setRole] = useState<OperationsRole | undefined>(undefined);
   const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
   const visibleNavItems =
-    role === "artist"
+    role === undefined || role === "artist"
       ? navItems.filter((item) => ["Requests", "Projects", "Calendar"].includes(item.label))
       : navItems;
 

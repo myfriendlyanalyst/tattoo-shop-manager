@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
+import { getOperationsContext } from "@/lib/operations-access";
 
 export default function ForcePasswordChangePage() {
   const router = useRouter();
@@ -72,8 +73,8 @@ export default function ForcePasswordChangePage() {
       return;
     }
 
-    // Navigate to accounting dashboard now that must_change_password is cleared.
-    router.replace("/accounting/dashboard");
+    const context = await getOperationsContext();
+    router.replace(context?.role === "accounting" ? "/accounting/dashboard" : "/requests");
     router.refresh();
   }
 
@@ -82,7 +83,7 @@ export default function ForcePasswordChangePage() {
       <section className="w-full max-w-md rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#236c8f]">
-            Oyabun Accounting
+            Oyabun
           </p>
           <h1 className="mt-2 text-2xl font-semibold">Set your password</h1>
           <p className="mt-1 text-sm text-[#697178]">

@@ -110,6 +110,7 @@ create table if not exists public.staff (
   address text,
   start_date date,
   active boolean not null default true,
+  must_change_password boolean not null default false,
   notes text,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),

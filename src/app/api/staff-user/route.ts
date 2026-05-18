@@ -135,6 +135,7 @@ export async function POST(request: NextRequest) {
       role: staffRoleLabel(role),
       email,
       active: true,
+      must_change_password: true,
       sort_order: 999,
     })
     .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
