@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
@@ -493,8 +493,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <AppShell
-      active="Customers"
+    <AppPage
       eyebrow="Customer records"
       title="Customer directory"
       description="Customer records can originate from Requests. Use this page for contact details and a quick project overview; project work is managed in Projects."
@@ -904,6 +903,6 @@ export default function CustomersPage() {
           saving={saving}
         />
       ) : null}
-    </AppShell>
+    </AppPage>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
@@ -155,8 +155,7 @@ export default function EmailLogPage() {
   }, []);
 
   return (
-    <AppShell
-      active="Settings"
+    <AppPage
       eyebrow="Settings"
       title="Email log"
       description="Review automated email activity, scheduled reminders, and delivery failures."
@@ -275,6 +274,6 @@ export default function EmailLogPage() {
           })}
         </div>
       </section>
-    </AppShell>
+    </AppPage>
   );
 }

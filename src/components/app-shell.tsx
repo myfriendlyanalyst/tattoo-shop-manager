@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthButton } from "@/components/auth-button";
-import { getOperationsContext, type OperationsRole } from "@/lib/operations-access";
+import {
+  getCachedOperationsContext,
+  getOperationsContext,
+  type OperationsRole,
+} from "@/lib/operations-access";
 
 const navItems = [
   { label: "Requests", href: "/requests", note: "Start" },
@@ -14,8 +19,13 @@ const navItems = [
   { label: "Settings", href: "/settings" },
 ];
 
+const basicNavLabels = new Set(["Requests", "Projects", "Calendar"]);
+
 type AppShellProps = {
-  active: string;
+  children: React.ReactNode;
+};
+
+type AppPageProps = {
   eyebrow: string;
   title: string;
   description?: string;
@@ -24,21 +34,16 @@ type AppShellProps = {
   wide?: boolean;
 };
 
-export function AppShell({
-  active,
-  eyebrow,
-  title,
-  description,
-  actions,
-  children,
-  wide = false,
-}: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [role, setRole] = useState<OperationsRole | undefined>(undefined);
-  const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
+  const [role, setRole] = useState<OperationsRole | undefined>(() => {
+    const cachedContext = getCachedOperationsContext();
+    return cachedContext === undefined ? undefined : cachedContext?.role ?? null;
+  });
   const visibleNavItems =
-    role === "artist"
-      ? navItems.filter((item) => ["Requests", "Projects", "Calendar"].includes(item.label))
+    role === "artist" || role === undefined
+      ? navItems.filter((item) => basicNavLabels.has(item.label))
       : navItems;
 
   useEffect(() => {
@@ -57,23 +62,15 @@ export function AppShell({
 
   const nav = (
     <nav className="space-y-1">
-      {role === undefined ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((item) => (
-            <div key={item} className="h-10 rounded-md bg-[#eee8dd]" />
-          ))}
-        </div>
-      ) : (
-      visibleNavItems.map((item) => {
-        const isActive = item.label === active;
+      {visibleNavItems.map((item) => {
+        const isActive =
+          pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
 
         return (
           <Link
             key={item.label}
             className={`flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium transition ${
-              isActive
-                ? "bg-[#1f2428] text-white"
-                : "text-[#4d555c] hover:bg-[#eee8dd]"
+              isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
             }`}
             href={item.href}
             onClick={() => setMobileMenuOpen(false)}
@@ -90,8 +87,7 @@ export function AppShell({
             ) : null}
           </Link>
         );
-      })
-      )}
+      })}
     </nav>
   );
 
@@ -110,47 +106,30 @@ export function AppShell({
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="border-b border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 sm:px-6 lg:px-8">
-            <div className={`mx-auto w-full ${contentWidthClass}`}>
-              <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
-                    Oyabun
-                  </p>
-                  <p className="mt-1 text-lg font-semibold">Tattoo Manager</p>
-                </div>
-                <button
-                  aria-label="Open navigation"
-                  className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
-                  onClick={() => setMobileMenuOpen(true)}
-                  type="button"
-                >
-                  <span className="flex w-5 flex-col gap-1.5">
-                    <span className="h-0.5 rounded bg-[#1f2428]" />
-                    <span className="h-0.5 rounded bg-[#1f2428]" />
-                    <span className="h-0.5 rounded bg-[#1f2428]" />
-                  </span>
-                </button>
+          <header className="border-b border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 sm:px-6 lg:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
+                  Oyabun
+                </p>
+                <p className="mt-1 text-lg font-semibold">Tattoo Manager</p>
               </div>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[#8a6f4d]">{eyebrow}</p>
-                  <h2 className="text-2xl font-semibold">{title}</h2>
-                  {description ? (
-                    <p className="mt-1 max-w-3xl text-sm text-[#697178]">{description}</p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {actions}
-                  <AuthButton />
-                </div>
-              </div>
+              <button
+                aria-label="Open navigation"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
+                onClick={() => setMobileMenuOpen(true)}
+                type="button"
+              >
+                <span className="flex w-5 flex-col gap-1.5">
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                  <span className="h-0.5 rounded bg-[#1f2428]" />
+                </span>
+              </button>
             </div>
           </header>
 
-          <div className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
-            <div className={`mx-auto w-full ${contentWidthClass}`}>{children}</div>
-          </div>
+          {children}
         </section>
       </div>
 
@@ -194,5 +173,42 @@ export function AppShell({
         </aside>
       </div>
     </main>
+  );
+}
+
+export function AppPage({
+  eyebrow,
+  title,
+  description,
+  actions,
+  children,
+  wide = false,
+}: AppPageProps) {
+  const contentWidthClass = wide ? "max-w-[96rem]" : "max-w-6xl";
+
+  return (
+    <>
+      <header className="border-b border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 sm:px-6 lg:px-8">
+        <div className={`mx-auto w-full ${contentWidthClass}`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[#8a6f4d]">{eyebrow}</p>
+              <h2 className="text-2xl font-semibold">{title}</h2>
+              {description ? (
+                <p className="mt-1 max-w-3xl text-sm text-[#697178]">{description}</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {actions}
+              <AuthButton />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
+        <div className={`mx-auto w-full ${contentWidthClass}`}>{children}</div>
+      </div>
+    </>
   );
 }

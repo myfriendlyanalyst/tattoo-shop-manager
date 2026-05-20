@@ -80,58 +80,43 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Look up the authenticated user's accounting_users record.
-  // Returns null for regular Tattoo Manager staff (no record).
-  const { data: acctUserById } = await adminClient
-    .from("accounting_users")
-    .select("active, must_change_password, access_level")
-    .eq("profile_id", user.id)
-    .maybeSingle();
+  const email = user.email?.toLowerCase() ?? "";
 
-  const { data: acctUserByEmail } = acctUserById
-    ? { data: null }
-    : await adminClient
-        .from("accounting_users")
-        .select("active, must_change_password, access_level")
-        .ilike("email", user.email?.toLowerCase() ?? "")
-        .maybeSingle();
+  const [acctByIdResult, profileByIdResult, staffByProfileIdResult] = await Promise.all([
+    adminClient
+      .from("accounting_users")
+      .select("active, must_change_password, access_level")
+      .eq("profile_id", user.id)
+      .maybeSingle(),
+    adminClient.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    adminClient.from("staff").select("must_change_password").eq("profile_id", user.id).maybeSingle(),
+  ]);
 
-  const acctUser = acctUserById ?? acctUserByEmail;
+  const acctUserById = acctByIdResult.data;
+  const profileById = profileByIdResult.data;
+  const staffByProfileId = staffByProfileIdResult.data;
 
-  const { data: profileById } = await adminClient
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Fall back to email matching for legacy rows that predate profile_id wiring.
+  const [acctByEmailResult, profileByEmailResult, staffByEmailResult] = await Promise.all([
+    acctUserById
+      ? Promise.resolve({ data: null })
+      : adminClient
+          .from("accounting_users")
+          .select("active, must_change_password, access_level")
+          .ilike("email", email)
+          .maybeSingle(),
+    profileById
+      ? Promise.resolve({ data: null })
+      : adminClient.from("profiles").select("role").ilike("email", email).maybeSingle(),
+    staffByProfileId
+      ? Promise.resolve({ data: null })
+      : adminClient.from("staff").select("must_change_password").ilike("email", email).maybeSingle(),
+  ]);
 
-  const { data: profileByEmail } = profileById
-    ? { data: null }
-    : await adminClient
-        .from("profiles")
-        .select("role")
-        .ilike("email", user.email?.toLowerCase() ?? "")
-        .maybeSingle();
-
-  const profile = profileById ?? profileByEmail;
-  const isOperationsUser = ["owner", "admin", "front_desk", "artist"].includes(
-    profile?.role ?? "",
-  );
-
-  const { data: staffByProfileId } = await adminClient
-    .from("staff")
-    .select("must_change_password")
-    .eq("profile_id", user.id)
-    .maybeSingle();
-
-  const { data: staffByEmail } = staffByProfileId
-    ? { data: null }
-    : await adminClient
-        .from("staff")
-        .select("must_change_password")
-        .ilike("email", user.email?.toLowerCase() ?? "")
-        .maybeSingle();
-
-  const staffUser = staffByProfileId ?? staffByEmail;
+  const acctUser = acctUserById ?? acctByEmailResult.data;
+  const profile = profileById ?? profileByEmailResult.data;
+  const staffUser = staffByProfileId ?? staffByEmailResult.data;
+  const isOperationsUser = ["owner", "admin", "front_desk", "artist"].includes(profile?.role ?? "");
 
   // Force temporary-password users to set a permanent password before access.
   if (acctUser?.must_change_password === true || staffUser?.must_change_password === true) {

@@ -11,7 +11,31 @@ export type OperationsContext = {
   isOperationsAdmin: boolean;
 };
 
-export async function getOperationsContext(): Promise<OperationsContext | null> {
+let cachedOperationsContext: OperationsContext | null | undefined;
+let pendingOperationsContext: Promise<OperationsContext | null> | null = null;
+let authCacheInvalidationBound = false;
+
+export function getCachedOperationsContext() {
+  return cachedOperationsContext;
+}
+
+export function clearOperationsContextCache() {
+  cachedOperationsContext = undefined;
+  pendingOperationsContext = null;
+}
+
+function bindAuthCacheInvalidation() {
+  if (authCacheInvalidationBound || typeof window === "undefined") {
+    return;
+  }
+
+  authCacheInvalidationBound = true;
+  supabase.auth.onAuthStateChange(() => {
+    clearOperationsContextCache();
+  });
+}
+
+async function loadOperationsContext(): Promise<OperationsContext | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -62,4 +86,27 @@ export async function getOperationsContext(): Promise<OperationsContext | null> 
     isArtist: role === "artist",
     isOperationsAdmin: role === "owner" || role === "admin" || role === "front_desk",
   };
+}
+
+export async function getOperationsContext(options: { force?: boolean } = {}): Promise<OperationsContext | null> {
+  bindAuthCacheInvalidation();
+
+  if (!options.force && cachedOperationsContext !== undefined) {
+    return cachedOperationsContext;
+  }
+
+  if (!options.force && pendingOperationsContext) {
+    return pendingOperationsContext;
+  }
+
+  pendingOperationsContext = loadOperationsContext()
+    .then((context) => {
+      cachedOperationsContext = context;
+      return context;
+    })
+    .finally(() => {
+      pendingOperationsContext = null;
+    });
+
+  return pendingOperationsContext;
 }

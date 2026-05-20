@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import {
   readTimeInterval,
   saveTimeInterval,
@@ -42,8 +42,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <AppShell
-      active="Settings"
+    <AppPage
       eyebrow="System setup"
       title="Settings"
       description="Operational defaults for the tattoo shop manager. These values will later move into Supabase-backed settings."
@@ -260,6 +259,6 @@ export default function SettingsPage() {
           </section>
         </div>
       </section>
-    </AppShell>
+    </AppPage>
   );
 }

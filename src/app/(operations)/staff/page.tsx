@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
@@ -738,8 +738,7 @@ export default function StaffPage() {
   }
 
   return (
-    <AppShell
-      active="Staff"
+    <AppPage
       eyebrow="Operations"
       title="Staff and permissions"
       description="Manage artists, front desk users, and owner/admin access. Accounting app users are managed separately at /accounting/users."
@@ -1147,6 +1146,6 @@ export default function StaffPage() {
           tempPassword={newTempPassword.password}
         />
       ) : null}
-    </AppShell>
+    </AppPage>
   );
 }

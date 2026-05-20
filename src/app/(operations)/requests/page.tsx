@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { TimeSelect } from "@/components/time-select";
 import {
   scheduleAppointmentReminder,
@@ -1203,8 +1203,7 @@ export default function RequestsPage() {
   }
 
   return (
-    <AppShell
-      active="Requests"
+    <AppPage
       eyebrow="Request intake"
       title="Website and email requests"
       description="Manage Webflow/Gmail requests, artist candidates, and conversion into customer/project records."
@@ -1865,6 +1864,6 @@ export default function RequestsPage() {
           saving={saving}
         />
       ) : null}
-    </AppShell>
+    </AppPage>
   );
 }

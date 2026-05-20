@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { DateTimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
@@ -1723,8 +1723,7 @@ export default function ProjectsPage() {
   }
 
   return (
-    <AppShell
-      active="Projects"
+    <AppPage
       eyebrow="Project queue"
       title="Projects by artist"
       description="Track each tattoo project separately from the customer profile, including artist ownership, appointments, deposits, waiver state, and session entries."
@@ -2445,6 +2444,6 @@ export default function ProjectsPage() {
           saving={saving}
         />
       ) : null}
-    </AppShell>
+    </AppPage>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 import { TimeSelect, useTimeInterval } from "@/components/time-select";
 import {
   cancelAppointmentReminder,
@@ -1512,8 +1512,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <AppShell
-      active="Calendar"
+    <AppPage
       eyebrow="Appointments"
       title="Calendar and booking"
       description="Book tattoo sessions by artist. Staff schedules now come from Supabase."
@@ -1995,6 +1994,6 @@ export default function CalendarPage() {
           saving={saving}
         />
       ) : null}
-    </AppShell>
+    </AppPage>
   );
 }

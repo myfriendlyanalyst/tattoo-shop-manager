@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AppShell } from "@/components/app-shell";
+import { AppPage } from "@/components/app-shell";
 
 type EntryKind = "Session" | "Deposit" | "Merch";
 
@@ -135,8 +135,7 @@ export default function ArtistEntryPage() {
   }
 
   return (
-    <AppShell
-      active="Artist Entry"
+    <AppPage
       eyebrow="Artist workflow"
       title="Session and deposit entry"
       description="Artists enter individual customer amounts here. Shop-wide revenue and payout reporting stays in the separate accounting app."
@@ -432,6 +431,6 @@ export default function ArtistEntryPage() {
           </section>
         </aside>
       </section>
-    </AppShell>
+    </AppPage>
   );
 }

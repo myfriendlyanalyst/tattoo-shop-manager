@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { getSafeUser } from "@/lib/auth-session";
+import { clearOperationsContextCache } from "@/lib/operations-access";
 
 export function AuthButton() {
   const [user, setUser] = useState<User | null>(null);
@@ -39,6 +40,7 @@ export function AuthButton() {
   }, []);
 
   async function signOut() {
+    clearOperationsContextCache();
     await supabase.auth.signOut();
     window.location.assign("/login");
   }
