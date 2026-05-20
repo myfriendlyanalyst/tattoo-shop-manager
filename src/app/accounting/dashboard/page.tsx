@@ -7,6 +7,13 @@ import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
+import {
+  LineChart,
+  BarChart,
+  DonutChart,
+  type ChartPoint,
+  type ChartSlice,
+} from "@/components/accounting-charts";
 
 type AccountingEntry = {
   id: string;
@@ -27,6 +34,8 @@ type DepositRow = {
   amount: number;
   available: boolean;
 };
+
+type TrendEntry = { entered_at: string; total_amount: number };
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -83,6 +92,7 @@ export default function AccountingDashboardPage() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0);
   const [deposits, setDeposits] = useState<DepositRow[]>([]);
   const [recentEntries, setRecentEntries] = useState<AccountingEntry[]>([]);
+  const [trendData, setTrendData] = useState<TrendEntry[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -102,30 +112,39 @@ export default function AccountingDashboardPage() {
         return;
       }
 
+      const now = new Date();
       const thisMonth = monthRangeFor(0);
       const lastMonth = monthRangeFor(1);
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
       const entrySelect =
         "id, entered_at, entry_type, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method";
 
-      const [monthResult, lastMonthResult, depositResult, recentResult] = await Promise.all([
-        supabase
-          .from("accounting_entries")
-          .select(entrySelect)
-          .gte("entered_at", thisMonth.start)
-          .lt("entered_at", thisMonth.end)
-          .order("entered_at", { ascending: false }),
-        supabase
-          .from("accounting_entries")
-          .select("total_amount")
-          .gte("entered_at", lastMonth.start)
-          .lt("entered_at", lastMonth.end),
-        supabase.from("deposits").select("id, amount, available"),
-        supabase
-          .from("accounting_entries")
-          .select(entrySelect)
-          .order("entered_at", { ascending: false })
-          .limit(20),
-      ]);
+      const [monthResult, lastMonthResult, depositResult, recentResult, trendResult] =
+        await Promise.all([
+          supabase
+            .from("accounting_entries")
+            .select(entrySelect)
+            .gte("entered_at", thisMonth.start)
+            .lt("entered_at", thisMonth.end)
+            .order("entered_at", { ascending: false }),
+          supabase
+            .from("accounting_entries")
+            .select("total_amount")
+            .gte("entered_at", lastMonth.start)
+            .lt("entered_at", lastMonth.end),
+          supabase.from("deposits").select("id, amount, available"),
+          supabase
+            .from("accounting_entries")
+            .select(entrySelect)
+            .order("entered_at", { ascending: false })
+            .limit(20),
+          supabase
+            .from("accounting_entries")
+            .select("entered_at, total_amount")
+            .gte("entered_at", sixMonthsAgo.toISOString())
+            .order("entered_at", { ascending: true }),
+        ]);
 
       if (monthResult.error) {
         setError(monthResult.error.message);
@@ -157,11 +176,16 @@ export default function AccountingDashboardPage() {
       setLastMonthTotal(lastTotal);
       setDeposits((depositResult.data ?? []) as DepositRow[]);
       setRecentEntries((recentResult.data ?? []) as AccountingEntry[]);
+      if (!trendResult.error) {
+        setTrendData((trendResult.data ?? []) as TrendEntry[]);
+      }
       setLoading(false);
     }
 
     load();
   }, [router]);
+
+  const now = new Date();
 
   const monthTotal = monthEntries.reduce((sum, e) => sum + Number(e.total_amount), 0);
   const monthTattoo = monthEntries.reduce((sum, e) => sum + Number(e.tattoo_amount), 0);
@@ -185,10 +209,46 @@ export default function AccountingDashboardPage() {
     .filter((e) => e.tattoo_payment_method === "app")
     .reduce((sum, e) => sum + Number(e.tattoo_amount) + Number(e.tip_amount), 0);
 
+  // ── Chart data ────────────────────────────────────────────────────────────
+
+  // 6-month revenue trend
+  const monthlyTrendPoints: ChartPoint[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const label = d.toLocaleDateString("en-US", { month: "short" });
+    const monthStart = d.getTime();
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+    const value = trendData
+      .filter((e) => {
+        const t = new Date(e.entered_at).getTime();
+        return t >= monthStart && t < monthEnd;
+      })
+      .reduce((sum, e) => sum + Number(e.total_amount), 0);
+    monthlyTrendPoints.push({ label, value });
+  }
+
+  // Artist revenue for this month (bar chart)
+  const artistBarMap: Record<string, number> = {};
+  for (const e of monthEntries) {
+    const name = e.artist_name ?? "Unassigned";
+    artistBarMap[name] = (artistBarMap[name] ?? 0) + Number(e.total_amount);
+  }
+  const artistBarData: ChartPoint[] = Object.entries(artistBarMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+
+  // Revenue breakdown donut
+  const breakdownSlices: ChartSlice[] = [
+    { label: "Tattoo", value: monthTattoo, color: "#236c8f" },
+    { label: "Tips", value: monthTip, color: "#2f6658" },
+    { label: "Merch", value: monthMerch, color: "#775f36" },
+  ].filter((s) => s.value > 0);
+
   const currentMonthLabel = new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
-  }).format(new Date());
+  }).format(now);
 
   return (
     <AccountingShell active="Dashboard" eyebrow="Overview" title="Accounting Dashboard">
@@ -206,6 +266,7 @@ export default function AccountingDashboardPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
+          {/* KPI cards */}
           <div>
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[#697178]">
               {currentMonthLabel}
@@ -266,6 +327,7 @@ export default function AccountingDashboardPage() {
             </div>
           </div>
 
+          {/* Payment method cards */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-md border border-[#d9d3c7] bg-[#e8f3e8] px-4 py-4 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.1em] text-[#2d6a2d]">Cash</p>
@@ -285,6 +347,37 @@ export default function AccountingDashboardPage() {
             </div>
           </div>
 
+          {/* ── Charts ──────────────────────────────────────────────────────── */}
+
+          {/* Revenue trend (6 months) */}
+          <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-base font-bold">Monthly Revenue Trend</h3>
+              <p className="mt-0.5 text-sm text-[#697178]">Last 6 months of total revenue.</p>
+            </div>
+            <LineChart data={monthlyTrendPoints} height={160} color="#236c8f" />
+          </div>
+
+          {/* Artist comparison + Revenue breakdown */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-base font-bold">Artist Comparison</h3>
+                <p className="mt-0.5 text-sm text-[#697178]">Revenue by artist — {currentMonthLabel}.</p>
+              </div>
+              <BarChart data={artistBarData} height={160} color="#236c8f" />
+            </div>
+
+            <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-base font-bold">Revenue Breakdown</h3>
+                <p className="mt-0.5 text-sm text-[#697178]">Tattoo, tips & merch — {currentMonthLabel}.</p>
+              </div>
+              <DonutChart data={breakdownSlices} size={140} />
+            </div>
+          </div>
+
+          {/* Recent transactions */}
           <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#e5dfd4] px-5 py-4">
               <div>

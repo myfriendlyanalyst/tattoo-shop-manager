@@ -14,6 +14,8 @@ type DepositRecord = {
   received_at: string;
   available: boolean;
   used_at: string | null;
+  // Present when the deposit column exists (requires DB migration if absent)
+  used_session_entry_id?: string | null;
   memo: string | null;
   customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
   project: { subject: string } | { subject: string }[] | null;
@@ -52,8 +54,28 @@ function paymentMethodClasses(method: string) {
   );
 }
 
-const depositSelect =
+const depositSelectFull =
+  "id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo, customer:customers(name, email), project:projects(subject), artist:staff(display_name)";
+const depositSelectBase =
   "id, amount, payment_method, received_at, available, used_at, memo, customer:customers(name, email), project:projects(subject), artist:staff(display_name)";
+
+function isMissingUsedEntryColumn(message: string) {
+  return message.includes("used_session_entry_id");
+}
+
+async function fetchDeposits() {
+  const result = await supabase
+    .from("deposits")
+    .select(depositSelectFull)
+    .order("received_at", { ascending: false });
+  if (!result.error || !isMissingUsedEntryColumn(result.error.message)) {
+    return result;
+  }
+  return supabase
+    .from("deposits")
+    .select(depositSelectBase)
+    .order("received_at", { ascending: false });
+}
 
 export default function DepositsPage() {
   const router = useRouter();
@@ -83,10 +105,7 @@ export default function DepositsPage() {
         return;
       }
 
-      const { data, error: queryError } = await supabase
-        .from("deposits")
-        .select(depositSelect)
-        .order("received_at", { ascending: false });
+      const { data, error: queryError } = await fetchDeposits();
 
       if (queryError) {
         setError(queryError.message);
@@ -163,6 +182,45 @@ export default function DepositsPage() {
       ),
     );
     setMessage("Deposit marked as applied.");
+    setSaving(false);
+  }
+
+  async function markUnapplied(deposit: DepositRecord) {
+    if (deposit.used_session_entry_id) {
+      window.alert(
+        "This deposit is linked to a session entry and cannot be reversed here.\n\n" +
+          "To undo: void the related payout or session entry first, then retry.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Undo "applied" for this deposit (${money(Number(deposit.amount))})?\n\n` +
+        "It will return to On Hold status.",
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("deposits")
+      .update({ available: true, used_at: null })
+      .eq("id", deposit.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setDeposits((current) =>
+      current.map((d) =>
+        d.id === deposit.id ? { ...d, available: true, used_at: null } : d,
+      ),
+    );
+    setMessage("Deposit returned to On Hold.");
     setSaving(false);
   }
 
@@ -322,7 +380,23 @@ export default function DepositsPage() {
                                 Mark applied
                               </button>
                             ) : (
-                              <span className="text-xs text-[#697178]">-</span>
+                              <button
+                                className={`h-8 rounded-md border px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  deposit.used_session_entry_id
+                                    ? "cursor-not-allowed border-[#e5dfd4] text-[#9a9a9a]"
+                                    : "border-[#cfc7b8] text-[#30373d] hover:bg-[#eee8dd]"
+                                }`}
+                                disabled={saving}
+                                onClick={() => markUnapplied(deposit)}
+                                title={
+                                  deposit.used_session_entry_id
+                                    ? "Linked to a session entry — void the entry first"
+                                    : "Return to On Hold"
+                                }
+                                type="button"
+                              >
+                                Undo applied
+                              </button>
                             )}
                           </td>
                         </tr>
