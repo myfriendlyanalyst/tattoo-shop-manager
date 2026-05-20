@@ -45,6 +45,7 @@ type NewPayoutForm = {
   period_end: string;
   notes: string;
 };
+type PayoutOverlapRow = Pick<PayoutRow, "id" | "period_start" | "period_end" | "status">;
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -425,6 +426,54 @@ export default function PayoutsPage() {
     setSaving(false);
   }
 
+  async function deleteDraftPayout(payout: PayoutRow) {
+    if (payout.status !== "draft") {
+      setError("Only draft payouts can be deleted.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Delete this draft payout for ${formatDate(payout.period_start)} - ${formatDate(
+          payout.period_end,
+        )}?\n\nThis cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("payouts")
+      .delete()
+      .eq("id", payout.id)
+      .eq("status", "draft");
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setPayouts((current) => current.filter((p) => p.id !== payout.id));
+    setExpandedEntries((current) => {
+      const next = { ...current };
+      delete next[payout.id];
+      return next;
+    });
+    setAdjustmentForm((current) => {
+      const next = { ...current };
+      delete next[payout.id];
+      return next;
+    });
+    setExpandedPayoutId((current) => (current === payout.id ? null : current));
+    setMessage("Draft payout deleted.");
+    setSaving(false);
+  }
+
   async function createPayout() {
     setFormError("");
     if (!form.artist_id) { setFormError("Select an artist."); return; }
@@ -438,6 +487,32 @@ export default function PayoutsPage() {
     }
 
     setSaving(true);
+
+    const { data: overlapping, error: overlapError } = await supabase
+      .from("payouts")
+      .select("id, period_start, period_end, status")
+      .eq("artist_id", form.artist_id)
+      .neq("status", "void")
+      .lte("period_start", form.period_end)
+      .gte("period_end", form.period_start)
+      .limit(1);
+
+    if (overlapError) {
+      setFormError(overlapError.message);
+      setSaving(false);
+      return;
+    }
+
+    const conflict = ((overlapping ?? []) as PayoutOverlapRow[])[0];
+    if (conflict) {
+      setFormError(
+        `This period overlaps an existing ${statusLabel(conflict.status).toLowerCase()} payout (${formatDate(
+          conflict.period_start,
+        )} - ${formatDate(conflict.period_end)}). Void it first or choose a different range.`,
+      );
+      setSaving(false);
+      return;
+    }
 
     const { data, error: insertError } = await supabase
       .from("payouts")
@@ -907,6 +982,14 @@ export default function PayoutsPage() {
                                     type="button"
                                   >
                                     Void
+                                  </button>
+                                  <button
+                                    className="h-8 w-28 rounded border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f5e8e8] disabled:opacity-50"
+                                    disabled={saving}
+                                    onClick={() => deleteDraftPayout(payout)}
+                                    type="button"
+                                  >
+                                    Delete
                                   </button>
                                 </>
                               ) : payout.status === "ready" ? (
