@@ -2,15 +2,15 @@
 
 // ---------------------------------------------------------------------------
 // Pure-SVG chart primitives for the Accounting dashboard.
-// No external dependencies — all layout is calculated inline.
+// No external dependencies; all layout is calculated inline.
 // ---------------------------------------------------------------------------
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// Types
 
 export type ChartPoint = { label: string; value: number };
 export type ChartSlice = { label: string; value: number; color: string };
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// Helpers
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -24,7 +24,7 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
 
-// ─── Line Chart ─────────────────────────────────────────────────────────────
+// Line Chart
 // Shows a trend line with dot markers and axis labels.
 
 export function LineChart({
@@ -144,7 +144,7 @@ export function LineChart({
   );
 }
 
-// ─── Bar Chart ───────────────────────────────────────────────────────────────
+// Bar Chart
 // Vertical bars with value labels on top.
 
 export function BarChart({
@@ -237,7 +237,7 @@ export function BarChart({
               fontSize="10"
               fill="#697178"
             >
-              {d.label.length > 10 ? d.label.slice(0, 9) + "…" : d.label}
+              {d.label.length > 10 ? `${d.label.slice(0, 9)}...` : d.label}
             </text>
           </g>
         );
@@ -246,7 +246,7 @@ export function BarChart({
   );
 }
 
-// ─── Donut Chart ─────────────────────────────────────────────────────────────
+// Donut Chart
 // Compact pie/donut with a legend.
 
 export function DonutChart({
@@ -332,7 +332,7 @@ export function DonutChart({
   );
 }
 
-// ─── Horizontal bar (simple breakdown) ──────────────────────────────────────
+// Horizontal bar
 
 export function StackedBar({
   data,
@@ -361,7 +361,7 @@ export function StackedBar({
   );
 }
 
-// ─── Empty state ─────────────────────────────────────────────────────────────
+// Empty state
 
 function EmptyChart({ height = 160, label = "No data yet" }: { height?: number; label?: string }) {
   return (
@@ -373,3 +373,4 @@ function EmptyChart({ height = 160, label = "No data yet" }: { height?: number; 
     </div>
   );
 }
+
