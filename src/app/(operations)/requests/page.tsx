@@ -99,7 +99,6 @@ type NewRequestForm = {
   requestedArtistLabel: string;
   artistId: string;
   tattooTimingPreference: string;
-  preferredAppointmentDate: string;
   notes: string;
 };
 
@@ -138,7 +137,6 @@ const tattooTimingOptions = [
   { value: "asap", label: "ASAP" },
   { value: "within_1_2_weeks", label: "Within 1-2 weeks" },
   { value: "flexible", label: "Flexible" },
-  { value: "preferred_date", label: "Preferred date" },
 ];
 const paymentMethods = [
   { value: "cash", label: "Cash" },
@@ -257,20 +255,16 @@ function displayDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function displayDate(value: string | null) {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
-}
-
 function displayEmailList(value: string[] | null) {
   return value && value.length > 0 ? value.join(", ") : "-";
+}
+
+function displayEmailSender(message: RequestMessage) {
+  const name = message.from_name?.trim();
+  const email = message.from_email?.trim();
+
+  if (name && email) return `${name} <${email}>`;
+  return name || email || "-";
 }
 
 function tattooTimingLabel(value: string | null) {
@@ -363,9 +357,6 @@ function requestDetailMemo(request: RequestRecord) {
     request.tattoo_timing_preference
       ? `Timing preference: ${tattooTimingLabel(request.tattoo_timing_preference)}`
       : null,
-    request.preferred_appointment_date
-      ? `Preferred date: ${displayDate(request.preferred_appointment_date)}`
-      : null,
     request.reference_image_url ? `Reference image: ${request.reference_image_url}` : null,
     request.requested_artist_label ? `Requested artist: ${request.requested_artist_label}` : null,
   ]
@@ -423,7 +414,6 @@ function NewRequestModal({
     requestedArtistLabel: "Any available",
     artistId: "",
     tattooTimingPreference: "",
-    preferredAppointmentDate: "",
     notes: "",
   });
 
@@ -599,10 +589,6 @@ function NewRequestModal({
                   setForm((current) => ({
                     ...current,
                     tattooTimingPreference: event.target.value,
-                    preferredAppointmentDate:
-                      event.target.value === "preferred_date"
-                        ? current.preferredAppointmentDate
-                        : "",
                   }))
                 }
                 value={form.tattooTimingPreference}
@@ -613,24 +599,6 @@ function NewRequestModal({
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm font-semibold">
-              Preferred date
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm disabled:bg-[#eee8dd]"
-                disabled={form.tattooTimingPreference !== "preferred_date"}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    preferredAppointmentDate: event.target.value,
-                    tattooTimingPreference: event.target.value
-                      ? "preferred_date"
-                      : current.tattooTimingPreference,
-                  }))
-                }
-                type="date"
-                value={form.preferredAppointmentDate}
-              />
             </label>
           </div>
           <textarea
@@ -710,7 +678,7 @@ export default function RequestsPage() {
       return false;
     }
 
-    return isAnyAvailableLabel(selectedRequest.requested_artist_label) && !selectedRequest.artist_id;
+    return !selectedRequest.artist_id;
   }, [selectedRequest]);
 
   useEffect(() => {
@@ -871,7 +839,6 @@ export default function RequestsPage() {
     const approximateSize = form.approximateSize.trim();
     const placement = form.placement.trim();
     const tattooTimingPreference = form.tattooTimingPreference || null;
-    const preferredAppointmentDate = form.preferredAppointmentDate || null;
     const requestName = requestNameFromParts(clientName, placement);
 
     if (
@@ -904,11 +871,6 @@ export default function RequestsPage() {
       return;
     }
 
-    if (tattooTimingPreference === "preferred_date" && !preferredAppointmentDate) {
-      setNewRequestError("Preferred date is required when timing is set to Preferred date.");
-      return;
-    }
-
     setSaving(true);
     setNewRequestError("");
 
@@ -931,7 +893,7 @@ export default function RequestsPage() {
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
         tattoo_timing_preference: tattooTimingPreference,
-        preferred_appointment_date: preferredAppointmentDate,
+        preferred_appointment_date: null,
         age_confirmed: false,
         artist_id: form.artistId || null,
         priority: "normal",
@@ -997,12 +959,17 @@ export default function RequestsPage() {
   }
 
   async function assignRequestArtist() {
-    if (!selectedRequest || !assignmentArtistId) {
+    if (!selectedRequest) {
+      return;
+    }
+
+    const nextArtistId = assignmentArtistId || effectiveArtistId(selectedRequest, artists);
+    if (!nextArtistId) {
       return;
     }
 
     const requestPatch = {
-      artist_id: assignmentArtistId,
+      artist_id: nextArtistId,
       status: selectedRequest.status === "new" ? "forwarded" : selectedRequest.status,
       forwarded_at: selectedRequest.forwarded_at ?? new Date().toISOString(),
     };
@@ -1025,9 +992,9 @@ export default function RequestsPage() {
           ? {
               ...request,
               ...requestPatch,
-              artist: artists.find((item) => item.id === assignmentArtistId)
+              artist: artists.find((item) => item.id === nextArtistId)
                 ? {
-                    display_name: artists.find((item) => item.id === assignmentArtistId)!
+                    display_name: artists.find((item) => item.id === nextArtistId)!
                       .display_name,
                   }
                 : request.artist,
@@ -1703,16 +1670,10 @@ export default function RequestsPage() {
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
                         <p className="text-[#697178]">Timing preference</p>
                         <p className="mt-1 font-semibold">
                           {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
-                        <p className="text-[#697178]">Preferred date</p>
-                        <p className="mt-1 font-semibold">
-                          {displayDate(selectedRequest.preferred_appointment_date)}
                         </p>
                       </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
@@ -1756,59 +1717,49 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div
-                      className={`mt-3 grid gap-3 text-sm ${
-                        isAnyAvailableLabel(selectedRequest.requested_artist_label)
-                          ? "lg:grid-cols-3"
-                          : "lg:grid-cols-1"
-                      }`}
-                    >
+                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-3">
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Requested artist</p>
                         <p className="mt-1 font-semibold">
                           {selectedRequest.requested_artist_label || "Any available"}
                         </p>
                       </div>
-                      {isAnyAvailableLabel(selectedRequest.requested_artist_label) ? (
-                        <>
-                          <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                            <p className="text-[#697178]">Selected artist</p>
-                            <p className="mt-1 font-semibold">
-                              {selectedArtistName(selectedRequest)}
-                            </p>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Selected artist</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedArtistName(selectedRequest)}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                        <p className="text-[#697178]">Artist assignment</p>
+                        {needsArtistAssignment ? (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
+                            <select
+                              className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) => setAssignmentArtistId(event.target.value)}
+                              value={assignmentArtistId || effectiveArtistId(selectedRequest, artists)}
+                            >
+                              <option value="">Select artist</option>
+                              {artists.map((artist) => (
+                                <option key={artist.id} value={artist.id}>
+                                  {artist.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={saving || !(assignmentArtistId || effectiveArtistId(selectedRequest, artists))}
+                              onClick={assignRequestArtist}
+                              type="button"
+                            >
+                              Confirm
+                            </button>
                           </div>
-                          <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                            <p className="text-[#697178]">Artist assignment</p>
-                            {needsArtistAssignment ? (
-                              <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
-                                <select
-                                  className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                                  disabled={saving}
-                                  onChange={(event) => setAssignmentArtistId(event.target.value)}
-                                  value={assignmentArtistId}
-                                >
-                                  <option value="">Select artist</option>
-                                  {artists.map((artist) => (
-                                    <option key={artist.id} value={artist.id}>
-                                      {artist.display_name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                                  disabled={saving || !assignmentArtistId}
-                                  onClick={assignRequestArtist}
-                                  type="button"
-                                >
-                                  Confirm
-                                </button>
-                              </div>
-                            ) : (
-                              <p className="mt-1 font-semibold text-[#697178]">Assigned</p>
-                            )}
-                          </div>
-                        </>
-                      ) : null}
+                        ) : (
+                          <p className="mt-1 font-semibold text-[#697178]">Assigned</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1865,8 +1816,7 @@ export default function RequestsPage() {
                                   {email.subject || selectedRequest.subject}
                                 </p>
                                 <p className="mt-1 text-xs text-[#697178]">
-                                  From {email.from_name || email.from_email || "-"} / To{" "}
-                                  {displayEmailList(email.to_emails)}
+                                  From {displayEmailSender(email)} / To {displayEmailList(email.to_emails)}
                                 </p>
                               </div>
                               <div className="flex shrink-0 items-center gap-2">

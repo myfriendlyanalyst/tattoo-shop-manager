@@ -113,6 +113,11 @@ function normalizeTattooTimingPreference(value: unknown) {
   return null;
 }
 
+function reqIdFromSubject(value: string | null) {
+  const match = value?.match(/\[REQ:([^\]]+)\]/i);
+  return match?.[1]?.trim() || null;
+}
+
 export async function POST(request: NextRequest) {
   if (!supabaseUrl || !supabaseServiceRoleKey || !webhookSecret) {
     return jsonError("Request email webhook is not configured.", 500);
@@ -137,7 +142,7 @@ export async function POST(request: NextRequest) {
   const sentAt = isValidDate(cleanText(payload.sentAt))
     ? new Date(cleanText(payload.sentAt)).toISOString()
     : null;
-  const externalId = cleanText(payload.request?.externalId) || null;
+  const externalId = cleanText(payload.request?.externalId) || reqIdFromSubject(subject);
 
   if (!threadId && !messageId && !fromEmail) {
     return jsonError("threadId, messageId, or fromEmail is required.", 400);
@@ -172,7 +177,10 @@ export async function POST(request: NextRequest) {
     | {
         id: string;
         status: string;
+        email: string | null;
+        artist_id: string | null;
         client_reply_at: string | null;
+        artist_reply_at: string | null;
       }
     | null = null;
   let createdRequest = false;
@@ -180,7 +188,7 @@ export async function POST(request: NextRequest) {
   if (externalId) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, client_reply_at")
+      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
       .eq("external_source", "webflow")
       .eq("external_id", externalId)
       .maybeSingle();
@@ -192,7 +200,7 @@ export async function POST(request: NextRequest) {
   if (!requestRow && threadId) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, client_reply_at")
+      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
       .eq("gmail_thread_id", threadId)
       .order("received_at", { ascending: false })
       .limit(1)
@@ -205,7 +213,7 @@ export async function POST(request: NextRequest) {
   if (!requestRow && fromEmail && subject) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, client_reply_at")
+      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
       .ilike("email", fromEmail)
       .ilike("subject", `%${subject.replace(/^(re|fw|fwd):\s*/i, "").slice(0, 60)}%`)
       .order("received_at", { ascending: false })
@@ -249,7 +257,7 @@ export async function POST(request: NextRequest) {
         source_email_from: fromEmail,
         source_email_to: asEmailArray(payload.toEmails).join(", "),
       })
-      .select("id, status, client_reply_at")
+      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
       .single();
 
     if (error) return jsonError(error.message, 500);
@@ -297,16 +305,40 @@ export async function POST(request: NextRequest) {
     return jsonError(messageError.message, 500);
   }
 
-  if (direction === "inbound" && !createdRequest) {
+  if (direction === "inbound" && !createdRequest && provider !== "webflow") {
     const terminalStatuses = new Set(["booked", "denied"]);
-    const requestPatch: Record<string, string> = { client_reply_at: receivedAt };
-    if (!terminalStatuses.has(requestRow.status)) {
-      requestPatch.status = "client_replied";
+    const requestPatch: Record<string, string> = {};
+    const normalizedFromEmail = fromEmail?.toLowerCase() ?? "";
+    const normalizedClientEmail = requestRow.email?.toLowerCase() ?? "";
+    let artistEmail = "";
+
+    if (requestRow.artist_id) {
+      const { data: artist, error: artistError } = await adminClient
+        .from("staff")
+        .select("email")
+        .eq("id", requestRow.artist_id)
+        .maybeSingle();
+
+      if (artistError) return jsonError(artistError.message, 500);
+      artistEmail = artist?.email?.toLowerCase() ?? "";
     }
 
-    const { error } = await adminClient.from("requests").update(requestPatch).eq("id", requestRow.id);
+    if (artistEmail && normalizedFromEmail === artistEmail) {
+      requestPatch.artist_reply_at = receivedAt;
+      if (!terminalStatuses.has(requestRow.status)) {
+        requestPatch.status = "artist_replied";
+      }
+    } else if (normalizedClientEmail && normalizedFromEmail === normalizedClientEmail) {
+      requestPatch.client_reply_at = receivedAt;
+      if (!terminalStatuses.has(requestRow.status)) {
+        requestPatch.status = "client_replied";
+      }
+    }
 
-    if (error) return jsonError(error.message, 500);
+    if (Object.keys(requestPatch).length > 0) {
+      const { error } = await adminClient.from("requests").update(requestPatch).eq("id", requestRow.id);
+      if (error) return jsonError(error.message, 500);
+    }
   }
 
   return NextResponse.json({

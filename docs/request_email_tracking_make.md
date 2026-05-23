@@ -86,10 +86,40 @@ Flexible / Anytime    -> flexible
 The webhook finds an existing request in this order:
 
 1. `external_source = "webflow"` and `external_id`
-2. `gmail_thread_id`
-3. incoming email address + similar subject fallback
+2. `[REQ:<external_id>]` inside the email subject
+3. `gmail_thread_id`
+4. incoming email address + similar subject fallback
 
 If no request is found, it creates a new request using the `request` object or
 best-effort email fields.
 
 Duplicate Gmail retries are safe because `provider + messageId` is unique.
+
+## Artist Reply Test
+
+For testing with `admin@oyabuntattoo.com` as the artist inbox:
+
+1. Make sure the selected staff artist has `email = admin@oyabuntattoo.com`.
+2. Keep `[REQ:{{Webflow Submission ID}}]` in the subject when forwarding to the artist.
+3. Watch replies from the artist inbox with Gmail > Watch emails.
+4. POST the reply email to `/api/requests/email-webhook` with:
+
+```json
+{
+  "provider": "gmail",
+  "direction": "inbound",
+  "threadId": "{{Thread ID}}",
+  "messageId": "{{Message ID}}",
+  "fromEmail": "{{From Email}}",
+  "fromName": "{{From Name}}",
+  "toEmails": ["{{To Email}}"],
+  "subject": "{{Subject}}",
+  "bodyText": "{{Plain text body}}",
+  "snippet": "{{Snippet}}",
+  "receivedAt": "{{Date}}"
+}
+```
+
+When `fromEmail` matches the assigned artist email, the request moves to
+`artist_replied`. When it matches the client email, the request moves to
+`client_replied`.
