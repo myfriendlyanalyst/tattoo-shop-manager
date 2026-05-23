@@ -7,7 +7,7 @@ import {
   scheduleAppointmentReminder,
   sendAppointmentConfirmation,
 } from "@/lib/appointment-email";
-import { getSafeUser } from "@/lib/auth-session";
+import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
 
@@ -25,6 +25,7 @@ type StaffPermission = {
 
 type RequestRecord = {
   id: string;
+  request_number: number | null;
   customer_id: string | null;
   project_id: string | null;
   client_name: string;
@@ -127,7 +128,7 @@ const statusOptions = [
 
 const referenceBucket = "request-references";
 const requestSelect =
-  "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+  "id, request_number, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 const requestMessageSelect =
   "id, request_id, provider, provider_thread_id, provider_message_id, direction, from_email, from_name, to_emails, cc_emails, subject, body_text, snippet, received_at";
 
@@ -198,6 +199,10 @@ function requestNameFromParts(clientName: string, placement: string) {
   const projectType = cleanPlacement ? `${cleanPlacement} tattoo` : "Tattoo project";
 
   return cleanClient ? `${cleanClient} - ${projectType}` : projectType;
+}
+
+function requestCode(request: Pick<RequestRecord, "request_number" | "id">) {
+  return request.request_number ? `REQ-${String(request.request_number).padStart(5, "0")}` : `REQ-${request.id.slice(0, 5)}`;
 }
 
 function statusLabel(status: string) {
@@ -978,10 +983,30 @@ export default function RequestsPage() {
     setError("");
     setMessage("");
 
-    const result = await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
+    const session = await getSafeSession();
+    if (!session) {
+      setError("Please log in to forward this request.");
+      setSaving(false);
+      return;
+    }
 
-    if (result.error) {
-      setError(result.error.message);
+    const response = await fetch(`/api/requests/${selectedRequest.id}/artist-assignment`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ artistId: nextArtistId }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      sent?: boolean;
+      toEmail?: string;
+      subject?: string;
+    };
+
+    if (!response.ok) {
+      setError(payload.error || "Artist forwarding failed.");
       setSaving(false);
       return;
     }
@@ -1002,7 +1027,11 @@ export default function RequestsPage() {
           : request,
       ),
     );
-    setMessage("Artist assigned.");
+    setMessage(
+      payload.sent
+        ? `Artist assigned and email sent to ${payload.toEmail}.`
+        : "Artist assigned.",
+    );
     setSaving(false);
   }
 
@@ -1403,7 +1432,8 @@ export default function RequestsPage() {
                           }}
                         >
                           <td className="px-4 py-4">
-                            <p className="font-semibold">{request.subject}</p>
+                            <p className="text-xs font-bold text-[#8a6f4d]">{requestCode(request)}</p>
+                            <p className="mt-1 font-semibold">{request.subject}</p>
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
                             <p className="font-semibold text-[#1f2428]">{request.client_name}</p>
@@ -1442,6 +1472,7 @@ export default function RequestsPage() {
                     <div>
                       <h3 className="text-lg font-semibold">{selectedRequest.subject}</h3>
                       <p className="mt-1 text-sm text-[#697178]">
+                        {requestCode(selectedRequest)} /{" "}
                         {bookingMode
                           ? "Book project, first appointment, and optional deposit."
                           : statusLabel(selectedRequest.status)}

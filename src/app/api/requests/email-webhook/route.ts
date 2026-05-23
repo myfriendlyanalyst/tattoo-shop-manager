@@ -118,6 +118,12 @@ function reqIdFromSubject(value: string | null) {
   return match?.[1]?.trim() || null;
 }
 
+function reqNumberFromSubject(value: string | null) {
+  const match = value?.match(/\bREQ[-\s]?0*([0-9]{1,10})\b/i);
+  const parsed = Number(match?.[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export async function POST(request: NextRequest) {
   if (!supabaseUrl || !supabaseServiceRoleKey || !webhookSecret) {
     return jsonError("Request email webhook is not configured.", 500);
@@ -143,6 +149,7 @@ export async function POST(request: NextRequest) {
     ? new Date(cleanText(payload.sentAt)).toISOString()
     : null;
   const externalId = cleanText(payload.request?.externalId) || reqIdFromSubject(subject);
+  const requestNumber = reqNumberFromSubject(subject);
 
   if (!threadId && !messageId && !fromEmail) {
     return jsonError("threadId, messageId, or fromEmail is required.", 400);
@@ -176,6 +183,7 @@ export async function POST(request: NextRequest) {
   let requestRow:
     | {
         id: string;
+        request_number: number | null;
         status: string;
         email: string | null;
         artist_id: string | null;
@@ -188,9 +196,20 @@ export async function POST(request: NextRequest) {
   if (externalId) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
       .eq("external_source", "webflow")
       .eq("external_id", externalId)
+      .maybeSingle();
+
+    if (error) return jsonError(error.message, 500);
+    requestRow = data;
+  }
+
+  if (!requestRow && requestNumber) {
+    const { data, error } = await adminClient
+      .from("requests")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
+      .eq("request_number", requestNumber)
       .maybeSingle();
 
     if (error) return jsonError(error.message, 500);
@@ -200,7 +219,7 @@ export async function POST(request: NextRequest) {
   if (!requestRow && threadId) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
       .eq("gmail_thread_id", threadId)
       .order("received_at", { ascending: false })
       .limit(1)
@@ -213,7 +232,7 @@ export async function POST(request: NextRequest) {
   if (!requestRow && fromEmail && subject) {
     const { data, error } = await adminClient
       .from("requests")
-      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
       .ilike("email", fromEmail)
       .ilike("subject", `%${subject.replace(/^(re|fw|fwd):\s*/i, "").slice(0, 60)}%`)
       .order("received_at", { ascending: false })
@@ -257,7 +276,7 @@ export async function POST(request: NextRequest) {
         source_email_from: fromEmail,
         source_email_to: asEmailArray(payload.toEmails).join(", "),
       })
-      .select("id, status, email, artist_id, client_reply_at, artist_reply_at")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
       .single();
 
     if (error) return jsonError(error.message, 500);
@@ -343,6 +362,9 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     requestId: requestRow.id,
+    requestCode: requestRow.request_number
+      ? `REQ-${String(requestRow.request_number).padStart(5, "0")}`
+      : null,
     messageId: message.id,
     duplicate: false,
   });

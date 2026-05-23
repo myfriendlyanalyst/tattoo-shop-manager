@@ -100,9 +100,11 @@ Duplicate Gmail retries are safe because `provider + messageId` is unique.
 For testing with `admin@oyabuntattoo.com` as the artist inbox:
 
 1. Make sure the selected staff artist has `email = admin@oyabuntattoo.com`.
-2. Keep `[REQ:{{Webflow Submission ID}}]` in the subject when forwarding to the artist.
-3. Watch replies from the artist inbox with Gmail > Watch emails.
-4. POST the reply email to `/api/requests/email-webhook` with:
+2. Run `docs/request_number_and_artist_forwarding.sql` so requests get short codes such as `REQ-00023`.
+3. Assign the artist in the Request detail. The app sends the artist email automatically through Resend.
+4. Keep the `REQ-00023` code in the subject when the artist replies.
+5. Watch replies from the artist inbox with Gmail > Watch emails.
+6. POST the reply email to `/api/requests/email-webhook` with:
 
 ```json
 {
