@@ -29,7 +29,6 @@ type EmailWebhookPayload = {
     placement?: string;
     requestedArtistLabel?: string;
     tattooTimingPreference?: string;
-    preferredAppointmentDate?: string;
     ageConfirmed?: boolean;
     externalId?: string;
   };
@@ -83,6 +82,33 @@ function snippetFromPayload(payload: EmailWebhookPayload) {
 
   const text = cleanText(payload.bodyText);
   if (text) return text.replace(/\s+/g, " ").slice(0, 500);
+
+  return null;
+}
+
+function normalizeTattooTimingPreference(value: unknown) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+
+  const compact = raw.toLowerCase().replace(/[\s_-]+/g, "");
+
+  if (compact === "asap" || compact.includes("assoonaspossible")) {
+    return "asap";
+  }
+
+  if (
+    compact.includes("1~2") ||
+    compact.includes("1-2") ||
+    compact.includes("12weeks") ||
+    compact.includes("within2weeks") ||
+    compact === "within12weeks"
+  ) {
+    return "within_1_2_weeks";
+  }
+
+  if (compact.includes("flexible") || compact.includes("anytime")) {
+    return "flexible";
+  }
 
   return null;
 }
@@ -194,6 +220,9 @@ export async function POST(request: NextRequest) {
     const requestPayload = payload.request ?? {};
     const clientName = cleanText(requestPayload.clientName) || fromName || fromEmail || "Email client";
     const email = cleanEmail(requestPayload.email) || fromEmail;
+    const tattooTimingPreference = normalizeTattooTimingPreference(
+      requestPayload.tattooTimingPreference,
+    );
 
     const { data, error } = await adminClient
       .from("requests")
@@ -206,8 +235,8 @@ export async function POST(request: NextRequest) {
         approximate_size: cleanText(requestPayload.approximateSize) || null,
         placement: cleanText(requestPayload.placement) || null,
         requested_artist_label: cleanText(requestPayload.requestedArtistLabel) || null,
-        tattoo_timing_preference: cleanText(requestPayload.tattooTimingPreference) || null,
-        preferred_appointment_date: cleanText(requestPayload.preferredAppointmentDate) || null,
+        tattoo_timing_preference: tattooTimingPreference,
+        preferred_appointment_date: null,
         age_confirmed: Boolean(requestPayload.ageConfirmed),
         status: "new",
         priority: "normal",

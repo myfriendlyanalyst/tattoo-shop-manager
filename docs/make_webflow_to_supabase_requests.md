@@ -99,6 +99,10 @@ The app expects these Webflow-specific fields to be stored as separate columns:
 - `requested_artist_label`
 - `age_confirmed`
 
+When using `POST /api/requests/email-webhook`, send the Webflow `When` label as
+`request.tattooTimingPreference`. The webhook normalizes labels such as
+`Within 1~2 Weeks` to the database value `within_1_2_weeks`.
+
 ## Artist Selection
 
 Recommended first version:

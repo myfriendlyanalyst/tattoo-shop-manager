@@ -63,6 +63,7 @@ Body:
     "approximateSize": "{{Approximate Size (in inches)}}",
     "placement": "{{Placement on your Body}}",
     "requestedArtistLabel": "{{Artist you want to consult with}}",
+    "tattooTimingPreference": "{{When are you looking to get tattooed?}}",
     "ageConfirmed": true,
     "externalId": "{{Webflow Submission ID}}"
   }
@@ -71,6 +72,14 @@ Body:
 
 If the Gmail message is only a reply and does not include the `request` object,
 the app will attach it by `threadId` when a matching request already exists.
+
+The webhook accepts human Webflow timing labels and stores the app-safe value:
+
+```text
+ASAP                  -> asap
+Within 1~2 Weeks      -> within_1_2_weeks
+Flexible / Anytime    -> flexible
+```
 
 ## Matching Rules
 
