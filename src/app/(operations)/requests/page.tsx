@@ -63,6 +63,23 @@ type RequestFile = {
   url?: string;
 };
 
+type RequestMessage = {
+  id: string;
+  request_id: string;
+  provider: string;
+  provider_thread_id: string | null;
+  provider_message_id: string | null;
+  direction: "inbound" | "outbound";
+  from_email: string | null;
+  from_name: string | null;
+  to_emails: string[] | null;
+  cc_emails: string[] | null;
+  subject: string | null;
+  body_text: string | null;
+  snippet: string | null;
+  received_at: string;
+};
+
 type CustomerRecord = {
   id: string;
   name: string;
@@ -112,6 +129,8 @@ const statusOptions = [
 const referenceBucket = "request-references";
 const requestSelect =
   "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+const requestMessageSelect =
+  "id, request_id, provider, provider_thread_id, provider_message_id, direction, from_email, from_name, to_emails, cc_emails, subject, body_text, snippet, received_at";
 
 const projectTypes = ["Walk-in", "One Done", "Multiple Session"];
 const tattooTimingOptions = [
@@ -248,6 +267,10 @@ function displayDate(value: string | null) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(`${value}T00:00:00`));
+}
+
+function displayEmailList(value: string[] | null) {
+  return value && value.length > 0 ? value.join(", ") : "-";
 }
 
 function tattooTimingLabel(value: string | null) {
@@ -633,6 +656,7 @@ function NewRequestModal({
 export default function RequestsPage() {
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [requestFiles, setRequestFiles] = useState<RequestFile[]>([]);
+  const [requestMessages, setRequestMessages] = useState<RequestMessage[]>([]);
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
@@ -673,6 +697,14 @@ export default function RequestsPage() {
     return requestFiles.filter((file) => file.request_id === selectedRequest.id);
   }, [requestFiles, selectedRequest]);
 
+  const selectedMessages = useMemo(() => {
+    if (!selectedRequest) {
+      return [];
+    }
+
+    return requestMessages.filter((email) => email.request_id === selectedRequest.id);
+  }, [requestMessages, selectedRequest]);
+
   const needsArtistAssignment = useMemo(() => {
     if (!selectedRequest) {
       return false;
@@ -695,7 +727,7 @@ export default function RequestsPage() {
         return;
       }
 
-      const [requestResult, staffResult, permissionResult, customerResult, fileResult] = await Promise.all([
+      const [requestResult, staffResult, permissionResult, customerResult, fileResult, messageResult] = await Promise.all([
         supabase
           .from("requests")
           .select(requestSelect)
@@ -719,6 +751,10 @@ export default function RequestsPage() {
           .eq("file_type", "reference")
           .not("request_id", "is", null)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("request_messages")
+          .select(requestMessageSelect)
+          .order("received_at", { ascending: false }),
       ]);
 
       if (requestResult.error) {
@@ -771,7 +807,13 @@ export default function RequestsPage() {
       setArtists(nextArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setRequestFiles(nextFiles);
+      setRequestMessages(messageResult.error ? [] : ((messageResult.data ?? []) as RequestMessage[]));
       setSelectedRequestId(nextRequests[0]?.id ?? "");
+      if (messageResult.error) {
+        setError(
+          `${messageResult.error.message}. Run docs/request_email_tracking_migration.sql in Supabase SQL Editor.`,
+        );
+      }
       if (context?.isArtist && context.staffId) {
         setArtistFilter(context.staffId);
       }
@@ -1796,6 +1838,59 @@ export default function RequestsPage() {
                         </li>
                       ))}
                     </ol>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold">Email tracking</h4>
+                      <span className="rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
+                        {selectedMessages.length} messages
+                      </span>
+                    </div>
+                    {selectedMessages.length === 0 ? (
+                      <p className="mt-3 rounded-md border border-dashed border-[#d9d3c7] px-3 py-4 text-sm font-semibold text-[#697178]">
+                        No tracked emails yet. Connect the Make.com Gmail watcher to start
+                        recording this request thread automatically.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {selectedMessages.map((email) => (
+                          <article
+                            className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                            key={email.id}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="font-semibold">
+                                  {email.subject || selectedRequest.subject}
+                                </p>
+                                <p className="mt-1 text-xs text-[#697178]">
+                                  From {email.from_name || email.from_email || "-"} / To{" "}
+                                  {displayEmailList(email.to_emails)}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span
+                                  className={`rounded px-2 py-1 text-xs font-bold ${
+                                    email.direction === "inbound"
+                                      ? "bg-[#e8f0ee] text-[#2f6658]"
+                                      : "bg-[#e5edf4] text-[#315f82]"
+                                  }`}
+                                >
+                                  {email.direction === "inbound" ? "Inbound" : "Outbound"}
+                                </span>
+                                <span className="text-xs font-semibold text-[#697178]">
+                                  {displayDateTime(email.received_at)}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="mt-3 whitespace-pre-wrap text-[#4d555c]">
+                              {email.snippet || email.body_text || "No preview text."}
+                            </p>
+                          </article>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {selectedRequest.notes ? (

@@ -187,3 +187,11 @@ Recommended first email-thread version:
 - Gmail remains the place where owner replies.
 - Make.com watches new messages in the Gmail thread.
 - Make.com inserts read-only message records into Supabase later.
+
+Implemented app-side setup:
+
+```text
+docs/request_email_tracking_migration.sql
+docs/request_email_tracking_make.md
+POST /api/requests/email-webhook
+```
