@@ -57,7 +57,7 @@ function textLine(label: string, value: string | null | undefined) {
   return `${label}: ${value || "-"}`;
 }
 
-function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, responseUrl: string) {
+function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, acceptUrl: string, passUrl: string) {
   const code = requestCode(request.request_number);
   const subject = `${code} | ${request.subject} | ${artist.display_name}`;
   const text = [
@@ -74,7 +74,8 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, respon
     "Description:",
     request.tattoo_description || request.subject,
     "",
-    `Open this link to accept/pass and draft the client email: ${responseUrl}`,
+    `Accept / draft client email: ${acceptUrl}`,
+    `Pass this request back to the shop: ${passUrl}`,
   ].join("\n");
 
   const html = `
@@ -104,11 +105,14 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, respon
       <h3 style="margin:18px 0 8px">Description</h3>
       <p style="white-space:pre-wrap;margin:0 0 18px">${request.tattoo_description || request.subject}</p>
       <p>
-        <a href="${responseUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700;margin-right:8px">
+        <a href="${acceptUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700;margin:0 8px 8px 0">
           Accept / draft client email
         </a>
+        <a href="${passUrl}" style="display:inline-block;background:#fff;color:#8a3030;text-decoration:none;border:1px solid #8a3030;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 0 8px 0">
+          Pass
+        </a>
       </p>
-      <p style="font-size:13px;color:#697178">Use the same page to pass this request back to the shop.</p>
+      <p style="font-size:13px;color:#697178">Accept opens an editable client email draft in the app. Pass opens a confirmation page and does not email the client.</p>
     </div>
   `;
 
@@ -225,8 +229,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (tokenError) return jsonError(tokenError.message, 500);
 
-  const responseUrl = `${request.nextUrl.origin}/artist-response?token=${encodeURIComponent(actionToken)}`;
-  const { subject, text, html } = renderArtistForwardEmail(typedRequest, typedArtist, responseUrl);
+  const encodedToken = encodeURIComponent(actionToken);
+  const acceptUrl = `${request.nextUrl.origin}/artist-response?token=${encodedToken}`;
+  const passUrl = `${request.nextUrl.origin}/artist-response?token=${encodedToken}&intent=pass`;
+  const { subject, text, html } = renderArtistForwardEmail(typedRequest, typedArtist, acceptUrl, passUrl);
   const replyTo = emailReplyTo || undefined;
 
   const resendResponse = await fetch("https://api.resend.com/emails", {

@@ -22,6 +22,7 @@ type RequestRow = {
   email: string | null;
   phone: string | null;
   subject: string;
+  source_email_subject: string | null;
   tattoo_description: string | null;
   approximate_size: string | null;
   placement: string | null;
@@ -84,8 +85,8 @@ function defaultTemplate(artist: ArtistRow) {
   );
 }
 
-function draftSubject(request: RequestRow, artist: ArtistRow) {
-  return `${requestCode(request.request_number)} | ${artist.display_name} reviewed your tattoo request`;
+function draftSubject(request: RequestRow) {
+  return request.source_email_subject?.trim() || request.subject;
 }
 
 function draftBody(request: RequestRow, artist: ArtistRow) {
@@ -109,11 +110,9 @@ function draftBody(request: RequestRow, artist: ArtistRow) {
 }
 
 function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
-  const params = new URLSearchParams({
-    subject: `Re: ${subject}`,
-  });
-  if (contactEmail) params.set("cc", contactEmail);
-  return `mailto:${artist.email ?? ""}?${params.toString()}`;
+  const params = [`subject=${encodeURIComponent(`Re: ${subject}`)}`];
+  if (contactEmail) params.push(`cc=${encodeURIComponent(contactEmail)}`);
+  return `mailto:${encodeURIComponent(artist.email ?? "")}?${params.join("&")}`;
 }
 
 function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: string, bodyText: string) {
@@ -157,7 +156,7 @@ async function loadTokenBundle(token: string) {
   const [requestResult, artistResult] = await Promise.all([
     client
       .from("requests")
-      .select("id, request_number, client_name, email, phone, subject, tattoo_description, approximate_size, placement, requested_artist_label, tattoo_timing_preference, status")
+      .select("id, request_number, client_name, email, phone, subject, source_email_subject, tattoo_description, approximate_size, placement, requested_artist_label, tattoo_timing_preference, status")
       .eq("id", typedToken.request_id)
       .single(),
     client
@@ -202,7 +201,7 @@ export async function GET(request: NextRequest) {
       email: bundle.artist.email,
     },
     draft: {
-      subject: draftSubject(bundle.request, bundle.artist),
+      subject: draftSubject(bundle.request),
       bodyText: draftBody(bundle.request, bundle.artist),
     },
   });
@@ -251,7 +250,7 @@ export async function POST(request: NextRequest) {
   if (!bundle.request.email) return jsonError("Client email is missing.", 400);
   if (!bundle.artist.email) return jsonError("Artist email is missing.", 400);
 
-  const subject = payload.subject?.trim() || draftSubject(bundle.request, bundle.artist);
+  const subject = payload.subject?.trim() || draftSubject(bundle.request);
   const bodyText = payload.bodyText?.trim() || draftBody(bundle.request, bundle.artist);
   const ccEmails = contactEmail ? [contactEmail] : [];
 

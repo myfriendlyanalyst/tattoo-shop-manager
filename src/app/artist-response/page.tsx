@@ -28,6 +28,8 @@ type DraftData = {
 function ArtistResponseContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
+  const intent = searchParams.get("intent") ?? "accept";
+  const isPassIntent = intent === "pass";
   const [data, setData] = useState<DraftData | null>(null);
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -92,9 +94,13 @@ function ArtistResponseContent() {
       <section className="mx-auto max-w-3xl rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-5 py-5">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8a6f4d]">Artist response</p>
-          <h1 className="mt-1 text-2xl font-black">Draft client email</h1>
+          <h1 className="mt-1 text-2xl font-black">
+            {isPassIntent ? "Pass request back to shop" : "Draft client email"}
+          </h1>
           <p className="mt-2 text-sm text-[#697178]">
-            Review and edit the message before it goes to the client.
+            {isPassIntent
+              ? "Confirm this only if you do not want to take the request. The client will not be emailed."
+              : "Review and edit the message before it goes to the client."}
           </p>
         </div>
 
@@ -156,6 +162,12 @@ function ArtistResponseContent() {
                 />
               </label>
 
+              {isPassIntent ? (
+                <p className="rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+                  Passing returns this request to the shop so another artist can be assigned.
+                </p>
+              ) : null}
+
               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                 <p className="text-xs text-[#697178]">
                   The sent email uses Reply-To {data.artist.email || "the artist"} and CCs the shop tracking inbox when configured.
@@ -166,7 +178,7 @@ function ArtistResponseContent() {
                   onClick={() => submit("pass")}
                   type="button"
                 >
-                  Pass
+                  {saving && isPassIntent ? "Passing..." : isPassIntent ? "Confirm pass" : "Pass"}
                 </button>
                 <button
                   className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"

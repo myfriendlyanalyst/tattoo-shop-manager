@@ -126,6 +126,14 @@ function reqNumberFromSubject(value: string | null) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function threadSubject(value: string | null) {
+  return cleanText(value)
+    .replace(/\+/g, " ")
+    .replace(/^(re|fw|fwd):\s*/i, "")
+    .trim()
+    .slice(0, 80);
+}
+
 function isAnyAvailableLabel(value: string) {
   return value.trim().toLowerCase() === "any available";
 }
@@ -158,7 +166,8 @@ function renderArtistForwardEmail(
     tattoo_timing_preference: string | null;
   },
   artist: { display_name: string },
-  responseUrl: string,
+  acceptUrl: string,
+  passUrl: string,
 ) {
   const code = requestCode(request.request_number);
   const subject = `${code} | ${request.subject} | ${artist.display_name}`;
@@ -176,7 +185,8 @@ function renderArtistForwardEmail(
     "Description:",
     request.tattoo_description || request.subject,
     "",
-    `Open this link to accept/pass and draft the client email: ${responseUrl}`,
+    `Accept / draft client email: ${acceptUrl}`,
+    `Pass this request back to the shop: ${passUrl}`,
   ].join("\n");
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f2428">
@@ -190,11 +200,14 @@ function renderArtistForwardEmail(
       <h3 style="margin:18px 0 8px">Description</h3>
       <p style="white-space:pre-wrap;margin:0 0 18px">${request.tattoo_description || request.subject}</p>
       <p>
-        <a href="${responseUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700">
+        <a href="${acceptUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700;margin:0 8px 8px 0">
           Accept / draft client email
         </a>
+        <a href="${passUrl}" style="display:inline-block;background:#fff;color:#8a3030;text-decoration:none;border:1px solid #8a3030;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 0 8px 0">
+          Pass
+        </a>
       </p>
-      <p style="font-size:13px;color:#697178">Use the same page to pass this request back to the shop.</p>
+      <p style="font-size:13px;color:#697178">Accept opens an editable client email draft in the app. Pass opens a confirmation page and does not email the client.</p>
     </div>
   `;
 
@@ -231,8 +244,11 @@ async function maybeForwardMatchedArtist(
   });
   if (tokenError) return;
 
-  const responseUrl = `${new URL(requestUrl).origin}/artist-response?token=${encodeURIComponent(token)}`;
-  const email = renderArtistForwardEmail(requestRow, artist, responseUrl);
+  const encodedToken = encodeURIComponent(token);
+  const origin = new URL(requestUrl).origin;
+  const acceptUrl = `${origin}/artist-response?token=${encodedToken}`;
+  const passUrl = `${origin}/artist-response?token=${encodedToken}&intent=pass`;
+  const email = renderArtistForwardEmail(requestRow, artist, acceptUrl, passUrl);
   const now = new Date().toISOString();
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
@@ -387,11 +403,27 @@ export async function POST(request: NextRequest) {
   }
 
   if (!requestRow && fromEmail && subject) {
+    const normalizedSubject = threadSubject(subject);
     const { data, error } = await adminClient
       .from("requests")
       .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
       .ilike("email", fromEmail)
-      .ilike("subject", `%${subject.replace(/^(re|fw|fwd):\s*/i, "").slice(0, 60)}%`)
+      .ilike("subject", `%${normalizedSubject}%`)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return jsonError(error.message, 500);
+    requestRow = data;
+  }
+
+  if (!requestRow && fromEmail && subject) {
+    const normalizedSubject = threadSubject(subject);
+    const { data, error } = await adminClient
+      .from("requests")
+      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
+      .ilike("email", fromEmail)
+      .ilike("source_email_subject", `%${normalizedSubject}%`)
       .order("received_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -470,10 +502,6 @@ export async function POST(request: NextRequest) {
     const updatePatch: Record<string, string | null> = {};
     if (threadId) updatePatch.gmail_thread_id = threadId;
     if (messageId) updatePatch.gmail_message_id = messageId;
-    if (subject) updatePatch.source_email_subject = subject;
-    if (fromEmail) updatePatch.source_email_from = fromEmail;
-    const toEmails = asEmailArray(payload.toEmails);
-    if (toEmails.length > 0) updatePatch.source_email_to = toEmails.join(", ");
 
     if (Object.keys(updatePatch).length > 0) {
       const { error } = await adminClient.from("requests").update(updatePatch).eq("id", requestRow.id);
