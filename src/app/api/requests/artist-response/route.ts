@@ -77,6 +77,12 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+function displayFrom(artist: ArtistRow) {
+  const match = emailFrom?.match(/<([^>]+)>/);
+  const address = match?.[1] ?? emailFrom;
+  return `${artist.display_name} via Oyabun Tattoo <${address}>`;
+}
+
 function defaultTemplate(artist: ArtistRow) {
   return (
     artist.artist_accept_template?.trim() ||
@@ -124,9 +130,27 @@ function draftBody(request: RequestRow, artist: ArtistRow) {
   ].join("\n");
 }
 
+function replyBody(request: RequestRow, artist: ArtistRow) {
+  return [
+    `Hi ${artist.display_name},`,
+    "",
+    "",
+    "",
+    "--- Request summary ---",
+    `Request: ${requestCode(request.request_number)}`,
+    `Name: ${request.client_name}`,
+    `Placement: ${request.placement || "-"}`,
+    `Approximate size: ${request.approximate_size ? `${request.approximate_size} inch` : "-"}`,
+    `Timing: ${timingLabel(request.tattoo_timing_preference)}`,
+  ].join("\n");
+}
+
 function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
-  const params = [`subject=${encodeURIComponent(`Re: ${subject}`)}`];
-  return `mailto:${encodeURIComponent(artist.email ?? "")}?${params.join("&")}`;
+  const params = [
+    `subject=${encodeURIComponent(`Re: ${subject}`)}`,
+    `body=${encodeURIComponent(replyBody(request, artist))}`,
+  ];
+  return `mailto:${artist.email ?? ""}?${params.join("&")}`;
 }
 
 function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: string, bodyText: string) {
@@ -274,7 +298,7 @@ export async function POST(request: NextRequest) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: emailFrom,
+      from: displayFrom(bundle.artist),
       to: [bundle.request.email],
       subject,
       html: renderClientEmail(bundle.request, bundle.artist, subject, bodyText),

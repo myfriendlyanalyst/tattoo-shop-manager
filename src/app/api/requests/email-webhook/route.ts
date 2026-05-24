@@ -50,12 +50,18 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
+function clientNameFromSubject(value: unknown) {
+  const subject = cleanText(value);
+  const match = subject.match(/request\s+from\s+(.+?)\s+for\s+(.+)$/i);
+  return match?.[1]?.trim() ?? "";
+}
+
 function clientNameFromPayload(payload: EmailWebhookPayload) {
   const firstName = cleanText(payload.request?.firstName);
   const lastName = cleanText(payload.request?.lastName);
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
 
-  return fullName || cleanText(payload.request?.clientName);
+  return fullName || clientNameFromSubject(payload.subject) || cleanText(payload.request?.clientName);
 }
 
 function asEmailArray(value: string[] | string | undefined) {
