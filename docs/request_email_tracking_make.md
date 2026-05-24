@@ -22,7 +22,8 @@ After setting it, redeploy the app.
 
 ## Make.com Scenario
 
-Recommended first version:
+Recommended first version if the shop only needs to import emails that already
+arrived at Gmail:
 
 1. Gmail > Watch emails
 2. Optional filter: only messages from the website form or matching request labels
@@ -56,7 +57,9 @@ Body:
   "snippet": "{{Snippet}}",
   "receivedAt": "{{Date}}",
   "request": {
-    "clientName": "{{Name}}",
+    "firstName": "{{First Name}}",
+    "lastName": "{{Last Name}}",
+    "clientName": "{{First Name}} {{Last Name}}",
     "email": "{{Email Address}}",
     "phone": "{{Phone Number}}",
     "tattooDescription": "{{Tattoo Description}}",
@@ -69,6 +72,24 @@ Body:
   }
 }
 ```
+
+If the initial contact email also needs the short request code in the subject,
+use this order instead:
+
+1. Webflow > Watch Events
+2. HTTP > Make a request to `/api/requests/email-webhook`
+3. Gmail > Send an Email
+
+The HTTP response includes `requestCode`, for example `REQ-00025`. Use that
+Gmail subject format:
+
+```text
+{{HTTP.requestCode}} | Request from {{First Name}} {{Last Name}} for {{Artists}}
+```
+
+The app cannot know `REQ-00025` until the webhook creates the request row, so
+Gmail must run after the HTTP module if the first contact email should include
+that code.
 
 If the Gmail message is only a reply and does not include the `request` object,
 the app will attach it by `threadId` when a matching request already exists.
@@ -95,7 +116,7 @@ best-effort email fields.
 
 Duplicate Gmail retries are safe because `provider + messageId` is unique.
 
-## Artist Reply Test
+## Artist First Email Test
 
 For testing with `admin@oyabuntattoo.com` as the artist inbox:
 
@@ -103,26 +124,8 @@ For testing with `admin@oyabuntattoo.com` as the artist inbox:
 2. Run `docs/request_number_and_artist_forwarding.sql` so requests get short codes such as `REQ-00023`.
 3. Assign the artist in the Request detail. The app sends the artist email automatically through Resend.
 4. The artist clicks `Accept / draft client email`, edits the prepared client email, then sends it.
-5. The client email uses Reply-To = artist email and CC = the configured shop tracking inbox.
-6. Watch replies copied to the shop inbox with Gmail > Watch emails.
-7. POST the copied reply email to `/api/requests/email-webhook` with:
-
-```json
-{
-  "provider": "gmail",
-  "direction": "inbound",
-  "threadId": "{{Thread ID}}",
-  "messageId": "{{Message ID}}",
-  "fromEmail": "{{From Email}}",
-  "fromName": "{{From Name}}",
-  "toEmails": ["{{To Email}}"],
-  "subject": "{{Subject}}",
-  "bodyText": "{{Plain text body}}",
-  "snippet": "{{Snippet}}",
-  "receivedAt": "{{Date}}"
-}
-```
+5. The client email uses Reply-To = artist email, so later client replies go directly to the artist.
 
 When the artist sends the client draft, the request moves to
-`client_waiting_for_reply`. When a copied client reply reaches the webhook and
-`fromEmail` matches the client email, the request moves to `client_replied`.
+`client_waiting_for_reply` and the outbound email is recorded in `request_messages`.
+For now, the app intentionally stops tracking after this first client email.

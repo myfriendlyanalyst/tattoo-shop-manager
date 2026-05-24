@@ -213,7 +213,7 @@ function statusLabel(status: string) {
     client_replied: "Client Replied",
     consultation: "Booked",
     booked: "Booked",
-    client_waiting_for_reply: "Waiting Client",
+    client_waiting_for_reply: "First Email Sent",
     no_answer: "No answer from client",
     denied: "Declined by shop",
     sent: "Sent",
@@ -336,14 +336,9 @@ function timelineFor(request: RequestRecord) {
       done: Boolean(request.forwarded_at),
     },
     {
-      label: "Artist replied",
+      label: "First client email sent",
       value: displayDateTime(request.artist_reply_at),
       done: Boolean(request.artist_reply_at),
-    },
-    {
-      label: "Client replied",
-      value: displayDateTime(request.client_reply_at),
-      done: Boolean(request.client_reply_at),
     },
     {
       label: "Project booked",
@@ -1802,7 +1797,7 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-sm font-semibold">Timeline</h4>
-                    <ol className="mt-3 grid gap-2 overflow-x-auto pb-1 sm:grid-cols-5">
+                    <ol className="mt-3 grid gap-2 overflow-x-auto pb-1 sm:grid-cols-4">
                       {timelineFor(selectedRequest).map((item) => (
                         <li
                           key={item.label}
@@ -1830,15 +1825,15 @@ export default function RequestsPage() {
 
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-semibold">Email tracking</h4>
+                      <h4 className="text-sm font-semibold">Email log</h4>
                       <span className="rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
                         {selectedMessages.length} messages
                       </span>
                     </div>
                     {selectedMessages.length === 0 ? (
                       <p className="mt-3 rounded-md border border-dashed border-[#d9d3c7] px-3 py-4 text-sm font-semibold text-[#697178]">
-                        No tracked emails yet. Connect the Make.com Gmail watcher to start
-                        recording this request thread automatically.
+                        No email activity yet. The first artist-to-client email will be recorded
+                        here after the artist sends it from the draft page.
                       </p>
                     ) : (
                       <div className="mt-3 space-y-2">

@@ -16,6 +16,7 @@ type StaffRecord = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  artist_accept_template: string | null;
   start_date: string | null;
   active: boolean;
 };
@@ -40,6 +41,7 @@ type StaffForm = {
   displayName: string;
   role: string;
   address: string;
+  artistAcceptTemplate: string;
   schedule: StaffSchedule[];
   permissionKeys: string[];
 };
@@ -399,7 +401,7 @@ export default function StaffPage() {
         supabase
           .from("staff")
           .select(
-            "id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active",
+            "id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, active",
           )
           .order("sort_order", { ascending: true }),
         supabase
@@ -445,6 +447,7 @@ export default function StaffPage() {
               displayName: nextStaff[0].display_name,
               role: nextStaff[0].role,
               address: nextStaff[0].address ?? "",
+              artistAcceptTemplate: nextStaff[0].artist_accept_template ?? "",
               schedule: scheduleForStaff(nextSelectedId, nextSchedules),
               permissionKeys: permissionKeysForStaff(nextSelectedId, nextPermissions),
             }
@@ -470,6 +473,7 @@ export default function StaffPage() {
       displayName: person.display_name,
       role: person.role,
       address: person.address ?? "",
+      artistAcceptTemplate: person.artist_accept_template ?? "",
       schedule: scheduleForStaff(person.id, schedules),
       permissionKeys: permissionKeysForStaff(person.id, staffPermissions),
     });
@@ -512,6 +516,7 @@ export default function StaffPage() {
         display_name: form.displayName.trim(),
         role: form.role,
         address: form.address.trim() || null,
+        artist_accept_template: form.artistAcceptTemplate.trim() || null,
       })
       .eq("id", selectedStaff.id);
 
@@ -563,6 +568,7 @@ export default function StaffPage() {
               display_name: form.displayName.trim(),
               role: form.role,
               address: form.address.trim() || null,
+              artist_accept_template: form.artistAcceptTemplate.trim() || null,
             }
           : person,
       ),
@@ -652,6 +658,7 @@ export default function StaffPage() {
       displayName: result.staff.display_name,
       role: result.staff.role,
       address: "",
+      artistAcceptTemplate: result.staff.artist_accept_template ?? "",
       schedule: scheduleForStaff(result.staff.id, newSchedules),
       permissionKeys: [],
     });
@@ -724,6 +731,7 @@ export default function StaffPage() {
               displayName: nextSelected.display_name,
               role: nextSelected.role,
               address: nextSelected.address ?? "",
+              artistAcceptTemplate: nextSelected.artist_accept_template ?? "",
               schedule: scheduleForStaff(nextSelected.id, schedules),
               permissionKeys: permissionKeysForStaff(nextSelected.id, staffPermissions),
             }
@@ -973,6 +981,28 @@ export default function StaffPage() {
                   value={form.address}
                 />
               </label>
+
+              {form.role === "Artist" ? (
+                <label className="block text-sm font-semibold">
+                  Artist accept email template
+                  <textarea
+                    className="mt-2 min-h-36 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm leading-6"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current
+                          ? { ...current, artistAcceptTemplate: event.target.value }
+                          : current,
+                      )
+                    }
+                    placeholder="Pricing and scheduling depend on final size, placement, detail, and availability. Please reply directly so we can discuss next steps."
+                    value={form.artistAcceptTemplate}
+                  />
+                  <span className="mt-2 block text-xs font-normal text-[#697178]">
+                    Used as the default body text when this artist accepts a request and drafts
+                    the first client email.
+                  </span>
+                </label>
+              ) : null}
 
               <div>
                 <h4 className="text-sm font-semibold">Permissions</h4>

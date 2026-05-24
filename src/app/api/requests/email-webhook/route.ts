@@ -24,6 +24,8 @@ type EmailWebhookPayload = {
   receivedAt?: string;
   request?: {
     clientName?: string;
+    firstName?: string;
+    lastName?: string;
     email?: string;
     phone?: string;
     tattooDescription?: string;
@@ -48,6 +50,14 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
+function clientNameFromPayload(payload: EmailWebhookPayload) {
+  const firstName = cleanText(payload.request?.firstName);
+  const lastName = cleanText(payload.request?.lastName);
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  return fullName || cleanText(payload.request?.clientName);
+}
+
 function asEmailArray(value: string[] | string | undefined) {
   if (Array.isArray(value)) {
     return value.map(cleanEmail).filter(Boolean);
@@ -68,7 +78,7 @@ function isValidDate(value: string) {
 }
 
 function requestSubjectFromPayload(payload: EmailWebhookPayload) {
-  const clientName = cleanText(payload.request?.clientName);
+  const clientName = clientNameFromPayload(payload);
   const placement = cleanText(payload.request?.placement);
   const description = cleanText(payload.request?.tattooDescription);
   const subject = cleanText(payload.subject);
@@ -305,7 +315,7 @@ export async function POST(request: NextRequest) {
   const threadId = cleanText(payload.threadId) || null;
   const messageId = cleanText(payload.messageId) || null;
   const fromEmail = cleanEmail(payload.fromEmail) || cleanEmail(payload.request?.email) || null;
-  const fromName = cleanText(payload.fromName) || cleanText(payload.request?.clientName) || null;
+  const fromName = cleanText(payload.fromName) || clientNameFromPayload(payload) || null;
   const subject = cleanText(payload.subject) || null;
   const receivedAt = isValidDate(cleanText(payload.receivedAt))
     ? new Date(cleanText(payload.receivedAt)).toISOString()
@@ -434,7 +444,7 @@ export async function POST(request: NextRequest) {
 
   if (!requestRow) {
     const requestPayload = payload.request ?? {};
-    const clientName = cleanText(requestPayload.clientName) || fromName || fromEmail || "Email client";
+    const clientName = clientNameFromPayload(payload) || fromName || fromEmail || "Email client";
     const email = cleanEmail(requestPayload.email) || fromEmail;
     const tattooTimingPreference = normalizeTattooTimingPreference(
       requestPayload.tattooTimingPreference,

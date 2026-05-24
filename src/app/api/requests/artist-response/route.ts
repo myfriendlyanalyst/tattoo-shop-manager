@@ -5,7 +5,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM;
-const contactEmail = process.env.EMAIL_REPLY_TO;
 
 type TokenRow = {
   id: string;
@@ -85,8 +84,24 @@ function defaultTemplate(artist: ArtistRow) {
   );
 }
 
-function draftSubject(request: RequestRow) {
-  return request.source_email_subject?.trim() || request.subject;
+function cleanPublicSubject(value: string | null) {
+  return (value ?? "")
+    .replace(/\+/g, " ")
+    .replace(/\[REQ:[^\]]+\]\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function draftSubject(request: RequestRow, artist: ArtistRow) {
+  const code = requestCode(request.request_number);
+  const sourceSubject = cleanPublicSubject(request.source_email_subject);
+  const baseSubject = cleanPublicSubject(request.subject);
+
+  if (sourceSubject) {
+    return sourceSubject.includes(code) ? sourceSubject : `${code} | ${sourceSubject}`;
+  }
+
+  return `${code} | ${baseSubject || "Tattoo request"} | ${artist.display_name}`;
 }
 
 function draftBody(request: RequestRow, artist: ArtistRow) {
@@ -111,7 +126,6 @@ function draftBody(request: RequestRow, artist: ArtistRow) {
 
 function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
   const params = [`subject=${encodeURIComponent(`Re: ${subject}`)}`];
-  if (contactEmail) params.push(`cc=${encodeURIComponent(contactEmail)}`);
   return `mailto:${encodeURIComponent(artist.email ?? "")}?${params.join("&")}`;
 }
 
@@ -201,7 +215,7 @@ export async function GET(request: NextRequest) {
       email: bundle.artist.email,
     },
     draft: {
-      subject: draftSubject(bundle.request),
+      subject: draftSubject(bundle.request, bundle.artist),
       bodyText: draftBody(bundle.request, bundle.artist),
     },
   });
@@ -250,9 +264,8 @@ export async function POST(request: NextRequest) {
   if (!bundle.request.email) return jsonError("Client email is missing.", 400);
   if (!bundle.artist.email) return jsonError("Artist email is missing.", 400);
 
-  const subject = payload.subject?.trim() || draftSubject(bundle.request);
+  const subject = payload.subject?.trim() || draftSubject(bundle.request, bundle.artist);
   const bodyText = payload.bodyText?.trim() || draftBody(bundle.request, bundle.artist);
-  const ccEmails = contactEmail ? [contactEmail] : [];
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -263,7 +276,6 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       from: emailFrom,
       to: [bundle.request.email],
-      cc: ccEmails.length > 0 ? ccEmails : undefined,
       subject,
       html: renderClientEmail(bundle.request, bundle.artist, subject, bodyText),
       text: bodyText,
@@ -283,7 +295,7 @@ export async function POST(request: NextRequest) {
 
   await bundle.client
     .from("requests")
-    .update({ status: "client_waiting_for_reply" })
+    .update({ status: "client_waiting_for_reply", artist_reply_at: now })
     .eq("id", bundle.request.id);
 
   await bundle.client
@@ -298,7 +310,7 @@ export async function POST(request: NextRequest) {
     direction: "outbound",
     from_email: emailFrom,
     to_emails: [bundle.request.email],
-    cc_emails: ccEmails,
+    cc_emails: [],
     subject,
     body_text: bodyText,
     snippet: bodyText.replace(/\s+/g, " ").slice(0, 500),

@@ -170,7 +170,7 @@ function ArtistResponseContent() {
 
               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                 <p className="text-xs text-[#697178]">
-                  The sent email uses Reply-To {data.artist.email || "the artist"} and CCs the shop tracking inbox when configured.
+                  The sent email uses Reply-To {data.artist.email || "the artist"} so the client can continue directly with the artist.
                 </p>
                 <button
                   className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-bold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
