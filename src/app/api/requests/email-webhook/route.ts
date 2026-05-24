@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const webhookSecret = process.env.REQUEST_EMAIL_WEBHOOK_SECRET;
+const resendApiKey = process.env.RESEND_API_KEY;
+const emailFrom = process.env.EMAIL_FROM;
 
 type EmailWebhookPayload = {
   provider?: string;
@@ -124,6 +126,153 @@ function reqNumberFromSubject(value: string | null) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function isAnyAvailableLabel(value: string) {
+  return value.trim().toLowerCase() === "any available";
+}
+
+function requestCode(requestNumber: number | null) {
+  return `REQ-${String(requestNumber ?? 0).padStart(5, "0")}`;
+}
+
+function timingLabel(value: string | null) {
+  return (
+    {
+      asap: "ASAP",
+      within_1_2_weeks: "Within 1-2 weeks",
+      flexible: "Flexible",
+    }[value ?? ""] ?? "Not specified"
+  );
+}
+
+function renderArtistForwardEmail(
+  request: {
+    request_number: number | null;
+    client_name: string;
+    email: string | null;
+    phone: string | null;
+    subject: string;
+    tattoo_description: string | null;
+    approximate_size: string | null;
+    placement: string | null;
+    requested_artist_label: string | null;
+    tattoo_timing_preference: string | null;
+  },
+  artist: { display_name: string },
+  responseUrl: string,
+) {
+  const code = requestCode(request.request_number);
+  const subject = `${code} | ${request.subject} | ${artist.display_name}`;
+  const text = [
+    `${code} - New tattoo request`,
+    "",
+    `Client: ${request.client_name}`,
+    `Email: ${request.email || "-"}`,
+    `Phone: ${request.phone || "-"}`,
+    `Requested artist: ${request.requested_artist_label || "-"}`,
+    `Size: ${request.approximate_size ? `${request.approximate_size} inch` : "-"}`,
+    `Placement: ${request.placement || "-"}`,
+    `Timing: ${timingLabel(request.tattoo_timing_preference)}`,
+    "",
+    "Description:",
+    request.tattoo_description || request.subject,
+    "",
+    `Open this link to accept/pass and draft the client email: ${responseUrl}`,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1f2428">
+      <h2 style="margin:0 0 8px">${code} - New tattoo request</h2>
+      <p style="margin:0 0 16px;color:#697178">Assigned to ${artist.display_name}</p>
+      <p><strong>Client:</strong> ${request.client_name}<br>
+      <strong>Email:</strong> ${request.email || "-"}<br>
+      <strong>Phone:</strong> ${request.phone || "-"}<br>
+      <strong>Placement:</strong> ${request.placement || "-"}<br>
+      <strong>Size:</strong> ${request.approximate_size ? `${request.approximate_size} inch` : "-"}</p>
+      <h3 style="margin:18px 0 8px">Description</h3>
+      <p style="white-space:pre-wrap;margin:0 0 18px">${request.tattoo_description || request.subject}</p>
+      <p>
+        <a href="${responseUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700">
+          Accept / draft client email
+        </a>
+      </p>
+      <p style="font-size:13px;color:#697178">Use the same page to pass this request back to the shop.</p>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+async function maybeForwardMatchedArtist(
+  requestUrl: string,
+  requestRow: {
+    id: string;
+    request_number: number | null;
+    client_name: string;
+    email: string | null;
+    phone: string | null;
+    subject: string;
+    tattoo_description: string | null;
+    approximate_size: string | null;
+    placement: string | null;
+    requested_artist_label: string | null;
+    tattoo_timing_preference: string | null;
+  },
+  artist: { id: string; display_name: string; email: string | null },
+) {
+  if (!artist.email || !resendApiKey || !emailFrom) return;
+
+  const client = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const token = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
+  const { error: tokenError } = await client.from("request_artist_action_tokens").insert({
+    request_id: requestRow.id,
+    artist_id: artist.id,
+    token,
+  });
+  if (tokenError) return;
+
+  const responseUrl = `${new URL(requestUrl).origin}/artist-response?token=${encodeURIComponent(token)}`;
+  const email = renderArtistForwardEmail(requestRow, artist, responseUrl);
+  const now = new Date().toISOString();
+
+  const resendResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: emailFrom,
+      to: [artist.email],
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    }),
+  });
+  const resendPayload = (await resendResponse.json().catch(() => ({}))) as { id?: string };
+  if (!resendResponse.ok) return;
+
+  await client
+    .from("requests")
+    .update({ status: "forwarded", forwarded_at: now })
+    .eq("id", requestRow.id);
+
+  await client.from("request_messages").insert({
+    request_id: requestRow.id,
+    provider: "resend",
+    provider_message_id: resendPayload.id ?? null,
+    direction: "outbound",
+    from_email: emailFrom,
+    to_emails: [artist.email],
+    subject: email.subject,
+    body_text: email.text,
+    snippet: email.text.replace(/\s+/g, " ").slice(0, 500),
+    sent_at: now,
+    received_at: now,
+    raw_payload: { providerResponse: resendPayload, purpose: "artist_forward_auto" },
+  });
+}
+
 export async function POST(request: NextRequest) {
   if (!supabaseUrl || !supabaseServiceRoleKey || !webhookSecret) {
     return jsonError("Request email webhook is not configured.", 500);
@@ -186,6 +335,14 @@ export async function POST(request: NextRequest) {
         request_number: number | null;
         status: string;
         email: string | null;
+        client_name?: string;
+        phone?: string | null;
+        subject?: string;
+        tattoo_description?: string | null;
+        approximate_size?: string | null;
+        placement?: string | null;
+        requested_artist_label?: string | null;
+        tattoo_timing_preference?: string | null;
         artist_id: string | null;
         client_reply_at: string | null;
         artist_reply_at: string | null;
@@ -250,6 +407,16 @@ export async function POST(request: NextRequest) {
     const tattooTimingPreference = normalizeTattooTimingPreference(
       requestPayload.tattooTimingPreference,
     );
+    const requestedArtistLabel = cleanText(requestPayload.requestedArtistLabel);
+    const { data: matchedArtist } =
+      requestedArtistLabel && !isAnyAvailableLabel(requestedArtistLabel)
+        ? await adminClient
+            .from("staff")
+            .select("id, display_name, email")
+            .eq("active", true)
+            .ilike("display_name", requestedArtistLabel)
+            .maybeSingle()
+        : { data: null };
 
     const { data, error } = await adminClient
       .from("requests")
@@ -261,10 +428,11 @@ export async function POST(request: NextRequest) {
         tattoo_description: cleanText(requestPayload.tattooDescription) || cleanText(payload.bodyText) || null,
         approximate_size: cleanText(requestPayload.approximateSize) || null,
         placement: cleanText(requestPayload.placement) || null,
-        requested_artist_label: cleanText(requestPayload.requestedArtistLabel) || null,
+        requested_artist_label: requestedArtistLabel || null,
         tattoo_timing_preference: tattooTimingPreference,
         preferred_appointment_date: null,
         age_confirmed: Boolean(requestPayload.ageConfirmed),
+        artist_id: matchedArtist?.id ?? null,
         status: "new",
         priority: "normal",
         received_at: receivedAt,
@@ -276,12 +444,28 @@ export async function POST(request: NextRequest) {
         source_email_from: fromEmail,
         source_email_to: asEmailArray(payload.toEmails).join(", "),
       })
-      .select("id, request_number, status, email, artist_id, client_reply_at, artist_reply_at")
+      .select("id, request_number, status, email, client_name, phone, subject, tattoo_description, approximate_size, placement, requested_artist_label, tattoo_timing_preference, artist_id, client_reply_at, artist_reply_at")
       .single();
 
     if (error) return jsonError(error.message, 500);
     requestRow = data;
     createdRequest = true;
+
+    if (matchedArtist) {
+      await maybeForwardMatchedArtist(request.url, {
+        id: data.id,
+        request_number: data.request_number,
+        client_name: data.client_name,
+        email: data.email,
+        phone: data.phone ?? null,
+        subject: data.subject,
+        tattoo_description: data.tattoo_description ?? null,
+        approximate_size: data.approximate_size ?? null,
+        placement: data.placement ?? null,
+        requested_artist_label: data.requested_artist_label ?? null,
+        tattoo_timing_preference: data.tattoo_timing_preference ?? null,
+      }, matchedArtist);
+    }
   } else {
     const updatePatch: Record<string, string | null> = {};
     if (threadId) updatePatch.gmail_thread_id = threadId;

@@ -973,12 +973,6 @@ export default function RequestsPage() {
       return;
     }
 
-    const requestPatch = {
-      artist_id: nextArtistId,
-      status: selectedRequest.status === "new" ? "forwarded" : selectedRequest.status,
-      forwarded_at: selectedRequest.forwarded_at ?? new Date().toISOString(),
-    };
-
     setSaving(true);
     setError("");
     setMessage("");
@@ -1003,6 +997,12 @@ export default function RequestsPage() {
       sent?: boolean;
       toEmail?: string;
       subject?: string;
+      warning?: string;
+      request?: {
+        artist_id?: string | null;
+        status?: string;
+        forwarded_at?: string | null;
+      };
     };
 
     if (!response.ok) {
@@ -1010,6 +1010,12 @@ export default function RequestsPage() {
       setSaving(false);
       return;
     }
+
+    const requestPatch = {
+      artist_id: payload.request?.artist_id ?? nextArtistId,
+      status: payload.request?.status ?? selectedRequest.status,
+      forwarded_at: payload.request?.forwarded_at ?? selectedRequest.forwarded_at,
+    };
 
     setRequests((current) =>
       current.map((request) =>
@@ -1030,7 +1036,7 @@ export default function RequestsPage() {
     setMessage(
       payload.sent
         ? `Artist assigned and email sent to ${payload.toEmail}.`
-        : "Artist assigned.",
+        : payload.warning || "Artist assigned, but email was not sent.",
     );
     setSaving(false);
   }

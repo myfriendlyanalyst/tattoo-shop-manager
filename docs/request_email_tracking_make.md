@@ -102,9 +102,10 @@ For testing with `admin@oyabuntattoo.com` as the artist inbox:
 1. Make sure the selected staff artist has `email = admin@oyabuntattoo.com`.
 2. Run `docs/request_number_and_artist_forwarding.sql` so requests get short codes such as `REQ-00023`.
 3. Assign the artist in the Request detail. The app sends the artist email automatically through Resend.
-4. Keep the `REQ-00023` code in the subject when the artist replies.
-5. Watch replies from the artist inbox with Gmail > Watch emails.
-6. POST the reply email to `/api/requests/email-webhook` with:
+4. The artist clicks `Accept / draft client email`, edits the prepared client email, then sends it.
+5. The client email uses Reply-To = artist email and CC = the configured shop tracking inbox.
+6. Watch replies copied to the shop inbox with Gmail > Watch emails.
+7. POST the copied reply email to `/api/requests/email-webhook` with:
 
 ```json
 {
@@ -122,6 +123,6 @@ For testing with `admin@oyabuntattoo.com` as the artist inbox:
 }
 ```
 
-When `fromEmail` matches the assigned artist email, the request moves to
-`artist_replied`. When it matches the client email, the request moves to
-`client_replied`.
+When the artist sends the client draft, the request moves to
+`client_waiting_for_reply`. When a copied client reply reaches the webhook and
+`fromEmail` matches the client email, the request moves to `client_replied`.

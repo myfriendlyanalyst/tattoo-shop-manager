@@ -57,7 +57,7 @@ function textLine(label: string, value: string | null | undefined) {
   return `${label}: ${value || "-"}`;
 }
 
-function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow) {
+function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, responseUrl: string) {
   const code = requestCode(request.request_number);
   const subject = `${code} | ${request.subject} | ${artist.display_name}`;
   const text = [
@@ -74,7 +74,7 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow) {
     "Description:",
     request.tattoo_description || request.subject,
     "",
-    `Reply to this email with ${code} in the subject so the request can be tracked automatically.`,
+    `Open this link to accept/pass and draft the client email: ${responseUrl}`,
   ].join("\n");
 
   const html = `
@@ -103,7 +103,12 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow) {
       </table>
       <h3 style="margin:18px 0 8px">Description</h3>
       <p style="white-space:pre-wrap;margin:0 0 18px">${request.tattoo_description || request.subject}</p>
-      <p style="font-size:13px;color:#697178">Reply with ${code} in the subject to keep this request tracked.</p>
+      <p>
+        <a href="${responseUrl}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700;margin-right:8px">
+          Accept / draft client email
+        </a>
+      </p>
+      <p style="font-size:13px;color:#697178">Use the same page to pass this request back to the shop.</p>
     </div>
   `;
 
@@ -184,16 +189,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const typedRequest = requestRow as RequestRow;
   const typedArtist = artist as ArtistRow;
+
+  const { data: assignedRequest, error: assignError } = await access.adminClient
+    .from("requests")
+    .update({ artist_id: artistId })
+    .eq("id", typedRequest.id)
+    .select("id, request_number, artist_id, status, forwarded_at, artist:staff(display_name)")
+    .single();
+
+  if (assignError) return jsonError(assignError.message, 500);
+
   if (!typedArtist.email) {
-    return jsonError("Selected artist does not have an email address.", 400);
+    return NextResponse.json({
+      request: assignedRequest,
+      sent: false,
+      warning: "Artist assigned, but email was not sent because the selected artist does not have an email address.",
+    });
   }
 
   if (!resendApiKey || !emailFrom) {
-    return jsonError("Missing RESEND_API_KEY or EMAIL_FROM.", 500);
+    return NextResponse.json({
+      request: assignedRequest,
+      sent: false,
+      warning: "Artist assigned, but email was not sent because RESEND_API_KEY or EMAIL_FROM is missing.",
+    });
   }
 
   const forwardedAt = new Date().toISOString();
-  const { subject, text, html } = renderArtistForwardEmail(typedRequest, typedArtist);
+  const actionToken = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
+  const { error: tokenError } = await access.adminClient.from("request_artist_action_tokens").insert({
+    request_id: typedRequest.id,
+    artist_id: typedArtist.id,
+    token: actionToken,
+  });
+
+  if (tokenError) return jsonError(tokenError.message, 500);
+
+  const responseUrl = `${request.nextUrl.origin}/artist-response?token=${encodeURIComponent(actionToken)}`;
+  const { subject, text, html } = renderArtistForwardEmail(typedRequest, typedArtist, responseUrl);
   const replyTo = emailReplyTo || undefined;
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
@@ -219,7 +252,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   };
 
   if (!resendResponse.ok) {
-    return jsonError(resendPayload.message || resendPayload.error || "Artist email failed.", 502);
+    const errorMessage = resendPayload.message || resendPayload.error || "Artist email failed.";
+    return NextResponse.json({
+      request: assignedRequest,
+      sent: false,
+      warning: `Artist assigned, but email was not sent: ${errorMessage}`,
+    });
   }
 
   const { data: updatedRequest, error: updateError } = await access.adminClient

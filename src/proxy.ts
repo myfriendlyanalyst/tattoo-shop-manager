@@ -3,7 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Paths the proxy must not intercept even for authenticated users.
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/force-password-change", "/set-password"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/force-password-change",
+  "/set-password",
+  "/artist-response",
+];
 const ARTIST_ALLOWED_PATHS = ["/requests", "/projects", "/calendar"];
 
 function isPublicPath(pathname: string) {
