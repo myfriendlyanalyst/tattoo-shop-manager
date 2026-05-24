@@ -88,6 +88,10 @@ function requestSubjectFromPayload(payload: EmailWebhookPayload) {
   return subject || "Email request";
 }
 
+function publicThreadSubject(code: string, clientName: string, artistLabel: string | null) {
+  return `${code} | Request from ${clientName || "client"} for ${artistLabel || "Any available"}`;
+}
+
 function snippetFromPayload(payload: EmailWebhookPayload) {
   const snippet = cleanText(payload.snippet);
   if (snippet) return snippet.slice(0, 500);
@@ -180,7 +184,7 @@ function renderArtistForwardEmail(
   passUrl: string,
 ) {
   const code = requestCode(request.request_number);
-  const subject = `${code} | ${request.subject} | ${artist.display_name}`;
+  const subject = publicThreadSubject(code, request.client_name, artist.display_name);
   const text = [
     `${code} - New tattoo request`,
     "",
@@ -490,22 +494,36 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) return jsonError(error.message, 500);
-    requestRow = data;
+
+    const publicSubject = publicThreadSubject(
+      requestCode(data.request_number),
+      data.client_name,
+      data.requested_artist_label ?? matchedArtist?.display_name ?? null,
+    );
+    const { data: normalizedRequest, error: normalizedError } = await adminClient
+      .from("requests")
+      .update({ source_email_subject: publicSubject })
+      .eq("id", data.id)
+      .select("id, request_number, status, email, client_name, phone, subject, tattoo_description, approximate_size, placement, requested_artist_label, tattoo_timing_preference, artist_id, client_reply_at, artist_reply_at")
+      .single();
+
+    if (normalizedError) return jsonError(normalizedError.message, 500);
+    requestRow = normalizedRequest;
     createdRequest = true;
 
     if (matchedArtist) {
       await maybeForwardMatchedArtist(request.url, {
-        id: data.id,
-        request_number: data.request_number,
-        client_name: data.client_name,
-        email: data.email,
-        phone: data.phone ?? null,
-        subject: data.subject,
-        tattoo_description: data.tattoo_description ?? null,
-        approximate_size: data.approximate_size ?? null,
-        placement: data.placement ?? null,
-        requested_artist_label: data.requested_artist_label ?? null,
-        tattoo_timing_preference: data.tattoo_timing_preference ?? null,
+        id: normalizedRequest.id,
+        request_number: normalizedRequest.request_number,
+        client_name: normalizedRequest.client_name,
+        email: normalizedRequest.email,
+        phone: normalizedRequest.phone ?? null,
+        subject: normalizedRequest.subject,
+        tattoo_description: normalizedRequest.tattoo_description ?? null,
+        approximate_size: normalizedRequest.approximate_size ?? null,
+        placement: normalizedRequest.placement ?? null,
+        requested_artist_label: normalizedRequest.requested_artist_label ?? null,
+        tattoo_timing_preference: normalizedRequest.tattoo_timing_preference ?? null,
       }, matchedArtist);
     }
   } else {

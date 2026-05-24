@@ -43,6 +43,10 @@ function requestCode(requestNumber: number | null) {
   return `REQ-${String(requestNumber ?? 0).padStart(5, "0")}`;
 }
 
+function publicThreadSubject(code: string, clientName: string, artistLabel: string | null) {
+  return `${code} | Request from ${clientName || "client"} for ${artistLabel || "Any available"}`;
+}
+
 function timingLabel(value: string | null) {
   return (
     {
@@ -59,7 +63,7 @@ function textLine(label: string, value: string | null | undefined) {
 
 function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, acceptUrl: string, passUrl: string) {
   const code = requestCode(request.request_number);
-  const subject = `${code} | ${request.subject} | ${artist.display_name}`;
+  const subject = publicThreadSubject(code, request.client_name, artist.display_name);
   const text = [
     `${code} - New tattoo request`,
     "",
@@ -194,9 +198,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const typedRequest = requestRow as RequestRow;
   const typedArtist = artist as ArtistRow;
 
+  const publicSubject = publicThreadSubject(
+    requestCode(typedRequest.request_number),
+    typedRequest.client_name,
+    typedArtist.display_name,
+  );
+
   const { data: assignedRequest, error: assignError } = await access.adminClient
     .from("requests")
-    .update({ artist_id: artistId })
+    .update({ artist_id: artistId, source_email_subject: publicSubject })
     .eq("id", typedRequest.id)
     .select("id, request_number, artist_id, status, forwarded_at, artist:staff(display_name)")
     .single();
