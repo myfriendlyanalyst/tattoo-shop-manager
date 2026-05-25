@@ -130,26 +130,8 @@ function draftBody(request: RequestRow, artist: ArtistRow) {
   ].join("\n");
 }
 
-function replyBody(request: RequestRow, artist: ArtistRow) {
-  return [
-    `Hi ${artist.display_name},`,
-    "",
-    "",
-    "",
-    "--- Request summary ---",
-    `Request: ${requestCode(request.request_number)}`,
-    `Name: ${request.client_name}`,
-    `Placement: ${request.placement || "-"}`,
-    `Approximate size: ${request.approximate_size ? `${request.approximate_size} inch` : "-"}`,
-    `Timing: ${timingLabel(request.tattoo_timing_preference)}`,
-  ].join("\n");
-}
-
 function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
-  const params = [
-    `subject=${encodeURIComponent(`Re: ${subject}`)}`,
-    `body=${encodeURIComponent(replyBody(request, artist))}`,
-  ];
+  const params = [`subject=${encodeURIComponent(`Re: ${subject}`)}`];
   return `mailto:${artist.email ?? ""}?${params.join("&")}`;
 }
 

@@ -177,13 +177,16 @@ export async function DELETE(
 
   const { data: target, error: targetError } = await adminClient
     .from("accounting_users")
-    .select("profile_id, access_level")
+    .select("profile_id, email, access_level")
     .eq("id", id)
     .maybeSingle();
 
   if (targetError) return jsonError(targetError.message, 500);
   if (!target) return jsonError("User not found.", 404);
-  if (target.profile_id === callerId) {
+  if (
+    target.profile_id === callerId ||
+    target.email?.toLowerCase() === callerEmail
+  ) {
     return jsonError("You cannot delete your own accounting account.", 400);
   }
   if (!isOwnerRole && target.access_level === "owner") {
@@ -200,6 +203,18 @@ export async function DELETE(
   if (target.profile_id) {
     const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(target.profile_id);
     if (authDeleteError) return jsonError(authDeleteError.message, 500);
+  } else if (target.email) {
+    const { data: usersData, error: listError } = await adminClient.auth.admin.listUsers();
+    if (listError) return jsonError(listError.message, 500);
+
+    const matchingUser = usersData.users.find(
+      (user) => user.email?.toLowerCase() === target.email?.toLowerCase(),
+    );
+
+    if (matchingUser) {
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(matchingUser.id);
+      if (authDeleteError) return jsonError(authDeleteError.message, 500);
+    }
   }
 
   return NextResponse.json({ ok: true });

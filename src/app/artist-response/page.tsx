@@ -89,6 +89,14 @@ function ArtistResponseContent() {
     setSaving(false);
   }
 
+  function cancelResponse() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.close();
+  }
+
   return (
     <main className="min-h-screen bg-[#f7f2e9] px-4 py-8 text-[#1f2428]">
       <section className="mx-auto max-w-3xl rounded-md border border-[#d9d3c7] bg-white shadow-sm">
@@ -173,21 +181,27 @@ function ArtistResponseContent() {
                   The sent email uses Reply-To {data.artist.email || "the artist"} so the client can continue directly with the artist.
                 </p>
                 <button
-                  className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-bold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+                  className={`h-10 rounded-md border px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isPassIntent
+                      ? "border-[#8a3030] text-[#8a3030] hover:bg-[#f3e1e1]"
+                      : "border-[#cfc7b8] text-[#30373d] hover:bg-[#eee8dd]"
+                  }`}
                   disabled={saving || Boolean(message)}
-                  onClick={() => submit("pass")}
+                  onClick={() => (isPassIntent ? submit("pass") : cancelResponse())}
                   type="button"
                 >
-                  {saving && isPassIntent ? "Passing..." : isPassIntent ? "Confirm pass" : "Pass"}
+                  {saving && isPassIntent ? "Passing..." : isPassIntent ? "Confirm pass" : "Cancel"}
                 </button>
-                <button
-                  className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={saving || Boolean(message)}
-                  onClick={() => submit("send")}
-                  type="button"
-                >
-                  {saving ? "Sending..." : "Send to client"}
-                </button>
+                {!isPassIntent ? (
+                  <button
+                    className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={saving || Boolean(message)}
+                    onClick={() => submit("send")}
+                    type="button"
+                  >
+                    {saving ? "Sending..." : "Send to client"}
+                  </button>
+                ) : null}
               </div>
             </>
           ) : null}

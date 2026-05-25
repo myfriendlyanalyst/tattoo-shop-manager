@@ -115,6 +115,19 @@ type BookingForm = {
   depositMemo: string;
 };
 
+type BookRequestResponse = {
+  customer?: CustomerRecord | null;
+  request?: {
+    customer_id: string;
+    project_id: string;
+    status: string;
+    booked_at: string;
+  };
+  projectId?: string;
+  appointmentId?: string;
+  error?: string;
+};
+
 const statusOptions = [
   "new",
   "forwarded",
@@ -362,22 +375,6 @@ function timelineFor(request: RequestRecord) {
       done: Boolean(request.booked_at),
     },
   ];
-}
-
-function requestDetailMemo(request: RequestRecord) {
-  return [
-    request.notes,
-    request.tattoo_description ? `Tattoo description: ${request.tattoo_description}` : null,
-    request.approximate_size ? `Approximate size: ${request.approximate_size} inch` : null,
-    request.placement ? `Placement: ${request.placement}` : null,
-    request.tattoo_timing_preference
-      ? `Timing preference: ${tattooTimingLabel(request.tattoo_timing_preference)}`
-      : null,
-    request.reference_image_url ? `Reference image: ${request.reference_image_url}` : null,
-    request.requested_artist_label ? `Requested artist: ${request.requested_artist_label}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
 }
 
 function projectSubjectFromRequest(request: RequestRecord) {
@@ -1126,113 +1123,54 @@ export default function RequestsPage() {
     setError("");
     setMessage("");
 
-    let customerId = selectedRequest.customer_id;
+    const session = await getSafeSession();
+    const token = session?.access_token;
 
-    if (!customerId) {
-      const matchingCustomer = customers.find(
-        (customer) => normalizeEmail(customer.email) === normalizeEmail(selectedRequest.email),
+    if (!token) {
+      setError("Missing login session.");
+      setSaving(false);
+      return;
+    }
+
+    const response = await fetch(`/api/requests/${selectedRequest.id}/book`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        artistId: bookingArtistId,
+        projectSubject: bookingForm.projectSubject.trim(),
+        projectType: bookingForm.projectType,
+        appointmentDate: bookingForm.appointmentDate,
+        startTime: bookingForm.startTime,
+        endTime: bookingForm.endTime,
+        appointmentNotes: bookingForm.appointmentNotes,
+        depositAmount,
+        depositPaymentMethod: bookingForm.depositPaymentMethod,
+        depositMemo: bookingForm.depositMemo,
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as BookRequestResponse;
+
+    if (!response.ok || !payload.request || !payload.appointmentId) {
+      setError(payload.error ?? "Request booking failed.");
+      setSaving(false);
+      return;
+    }
+
+    const emailResult = await sendAppointmentConfirmation(payload.appointmentId);
+    const reminderResult = await scheduleAppointmentReminder(payload.appointmentId);
+
+    if (payload.customer) {
+      setCustomers((current) =>
+        current.some((customer) => customer.id === payload.customer?.id)
+          ? current
+          : [...current, payload.customer as CustomerRecord],
       );
-
-      customerId = matchingCustomer?.id ?? null;
     }
 
-    if (!customerId) {
-      const customerResult = await supabase
-        .from("customers")
-        .insert({
-          name: selectedRequest.client_name,
-          email: selectedRequest.email,
-          phone: selectedRequest.phone,
-          notes: requestDetailMemo(selectedRequest),
-        })
-        .select("id, name, email, phone")
-        .single();
-
-      if (customerResult.error) {
-        setError(customerResult.error.message);
-        setSaving(false);
-        return;
-      }
-
-      customerId = customerResult.data.id;
-      setCustomers((current) => [...current, customerResult.data as CustomerRecord]);
-    }
-
-    const projectResult = await supabase
-      .from("projects")
-      .insert({
-        customer_id: customerId,
-        artist_id: bookingArtistId,
-        subject: bookingForm.projectSubject.trim(),
-        size: selectedRequest.approximate_size,
-        session_type: bookingForm.projectType,
-        status: "booked",
-        waiver_signed: false,
-        waiver_status: "missing",
-        memo: requestDetailMemo(selectedRequest),
-      })
-      .select("id")
-      .single();
-
-    if (projectResult.error) {
-      setError(projectResult.error.message);
-      setSaving(false);
-      return;
-    }
-
-    const appointmentResult = await supabase
-      .from("appointments")
-      .insert({
-        customer_id: customerId,
-        project_id: projectResult.data.id,
-        artist_id: bookingArtistId,
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        appointment_type: bookingForm.projectType,
-        status: "scheduled",
-        notes: bookingForm.appointmentNotes.trim() || null,
-      })
-      .select("id")
-      .single();
-
-    if (appointmentResult.error) {
-      setError(appointmentResult.error.message);
-      setSaving(false);
-      return;
-    }
-
-    const emailResult = await sendAppointmentConfirmation(appointmentResult.data.id);
-    const reminderResult = await scheduleAppointmentReminder(appointmentResult.data.id);
-
-    if (depositAmount > 0) {
-      const depositResult = await supabase
-        .from("deposits")
-        .insert({
-          customer_id: customerId,
-          project_id: projectResult.data.id,
-          artist_id: bookingArtistId,
-          amount: depositAmount,
-          payment_method: bookingForm.depositPaymentMethod,
-          received_at: new Date().toISOString(),
-          available: true,
-          memo: bookingForm.depositMemo.trim() || null,
-        });
-
-      if (depositResult.error) {
-        setError(depositResult.error.message);
-        setSaving(false);
-        return;
-      }
-    }
-
-    const requestPatch = {
-      customer_id: customerId,
-      project_id: projectResult.data.id,
-      status: "booked",
-      booked_at: selectedRequest.booked_at ?? new Date().toISOString(),
-    };
-
-    await supabase.from("requests").update(requestPatch).eq("id", selectedRequest.id);
+    const requestPatch = payload.request;
 
     setRequests((current) =>
       current.map((request) =>
