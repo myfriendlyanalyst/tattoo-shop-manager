@@ -93,7 +93,35 @@ async function requireOperationsUser(token: string) {
   if (profileByEmailError) return { error: profileByEmailError.message, status: 500 as const, adminClient };
 
   const role = profileById?.role ?? profileByEmail?.role;
-  if (!["owner", "admin", "front_desk"].includes(role ?? "")) {
+  if (["owner", "admin", "front_desk"].includes(role ?? "")) {
+    return { user: userData.user, adminClient };
+  }
+
+  const { data: staffByProfileId, error: staffByProfileIdError } = await adminClient
+    .from("staff")
+    .select("role, active")
+    .eq("profile_id", userData.user.id)
+    .maybeSingle();
+
+  if (staffByProfileIdError) {
+    return { error: staffByProfileIdError.message, status: 500 as const, adminClient };
+  }
+
+  const { data: staffByEmail, error: staffByEmailError } = staffByProfileId
+    ? { data: null, error: null }
+    : await adminClient
+        .from("staff")
+        .select("role, active")
+        .ilike("email", email)
+        .maybeSingle();
+
+  if (staffByEmailError) {
+    return { error: staffByEmailError.message, status: 500 as const, adminClient };
+  }
+
+  const staff = staffByProfileId ?? staffByEmail;
+  const staffRole = staff?.role?.toLowerCase().replace(/\s+/g, "_");
+  if (!staff?.active || !["owner", "admin", "front_desk"].includes(staffRole ?? "")) {
     return { error: "Only operations staff can book requests.", status: 403 as const, adminClient };
   }
 
