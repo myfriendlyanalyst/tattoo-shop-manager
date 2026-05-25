@@ -72,7 +72,7 @@ function requestDetailMemo(request: RequestRow) {
     .join("\n");
 }
 
-async function requireOperationsUser(token: string, requestId: string) {
+async function requireBookingUser(token: string, requestId: string, bookingArtistId: string) {
   const authClient = createClient(supabaseUrl!, supabaseAnonKey!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
@@ -147,6 +147,28 @@ async function requireOperationsUser(token: string, requestId: string) {
     }
   }
 
+  let assignedArtistId: string | null = null;
+  let assignedArtistErrorMessage: string | null = null;
+
+  if (staff?.active && staff.id && staffRole === "artist") {
+    const { data: assignedRequest, error: assignedRequestError } = await adminClient
+      .from("requests")
+      .select("artist_id")
+      .eq("id", requestId)
+      .maybeSingle();
+
+    assignedArtistId = assignedRequest?.artist_id ?? null;
+    assignedArtistErrorMessage = assignedRequestError?.message ?? null;
+
+    if (assignedRequestError) {
+      return { error: assignedRequestError.message, status: 500 as const, adminClient };
+    }
+
+    if (assignedRequest?.artist_id === staff.id && bookingArtistId === staff.id) {
+      return { user: userData.user, adminClient };
+    }
+  }
+
   const clearRoles = [...profileRoles, staffRole].filter(Boolean);
   const forbiddenRoles = new Set(["artist", "accounting"]);
   let readableRequestErrorMessage: string | null = null;
@@ -168,7 +190,7 @@ async function requireOperationsUser(token: string, requestId: string) {
   }
 
   return {
-    error: "Only operations staff can book requests.",
+    error: "Only operations staff or the assigned artist can book requests.",
     status: 403 as const,
     adminClient,
     debug: {
@@ -178,6 +200,9 @@ async function requireOperationsUser(token: string, requestId: string) {
       profileByEmailRole: profileByEmail?.role ?? null,
       staffByProfileId,
       staffByEmail,
+      bookingArtistId,
+      assignedArtistId,
+      assignedArtistError: assignedArtistErrorMessage,
       canReadRequest,
       readableRequestError: readableRequestErrorMessage,
     },
@@ -193,14 +218,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!token) return jsonError("Missing login session.", 401);
 
   const { id } = await params;
-  const access = await requireOperationsUser(token, id);
-  if (!("user" in access)) {
-    return NextResponse.json(
-      { error: access.error, debug: "debug" in access ? access.debug : undefined },
-      { status: access.status },
-    );
-  }
-
   const payload = (await request.json()) as BookingPayload;
   const artistId = payload.artistId?.trim() ?? "";
   const projectSubject = payload.projectSubject?.trim() ?? "";
@@ -212,6 +229,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (!artistId) return jsonError("Select an artist before booking this project.", 400);
   if (!projectSubject) return jsonError("Project name is required.", 400);
+
+  const access = await requireBookingUser(token, id, artistId);
+  if (!("user" in access)) {
+    return NextResponse.json(
+      { error: access.error, debug: "debug" in access ? access.debug : undefined },
+      { status: access.status },
+    );
+  }
 
   const startsAt = localDateTimeFromParts(appointmentDate, startTime);
   const endsAt = localDateTimeFromParts(appointmentDate, endTime);
