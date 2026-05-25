@@ -40,6 +40,10 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function roleKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
+}
+
 function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
@@ -86,20 +90,19 @@ async function requireOperationsUser(token: string) {
 
   if (profileByIdError) return { error: profileByIdError.message, status: 500 as const, adminClient };
 
-  const { data: profileByEmail, error: profileByEmailError } = profileById
-    ? { data: null, error: null }
-    : await adminClient.from("profiles").select("role").ilike("email", email).maybeSingle();
+  const { data: profileByEmail, error: profileByEmailError } =
+    await adminClient.from("profiles").select("role").ilike("email", email).maybeSingle();
 
   if (profileByEmailError) return { error: profileByEmailError.message, status: 500 as const, adminClient };
 
-  const role = profileById?.role ?? profileByEmail?.role;
-  if (["owner", "admin", "front_desk"].includes(role ?? "")) {
+  const profileRoles = [roleKey(profileById?.role), roleKey(profileByEmail?.role)];
+  if (profileRoles.some((role) => ["owner", "admin", "front_desk"].includes(role))) {
     return { user: userData.user, adminClient };
   }
 
   const { data: staffByProfileId, error: staffByProfileIdError } = await adminClient
     .from("staff")
-    .select("role, active")
+    .select("id, role, active")
     .eq("profile_id", userData.user.id)
     .maybeSingle();
 
@@ -107,11 +110,10 @@ async function requireOperationsUser(token: string) {
     return { error: staffByProfileIdError.message, status: 500 as const, adminClient };
   }
 
-  const { data: staffByEmail, error: staffByEmailError } = staffByProfileId
-    ? { data: null, error: null }
-    : await adminClient
+  const { data: staffByEmail, error: staffByEmailError } =
+    await adminClient
         .from("staff")
-        .select("role, active")
+        .select("id, role, active")
         .ilike("email", email)
         .maybeSingle();
 
@@ -120,12 +122,40 @@ async function requireOperationsUser(token: string) {
   }
 
   const staff = staffByProfileId ?? staffByEmail;
-  const staffRole = staff?.role?.toLowerCase().replace(/\s+/g, "_");
-  if (!staff?.active || !["owner", "admin", "front_desk"].includes(staffRole ?? "")) {
-    return { error: "Only operations staff can book requests.", status: 403 as const, adminClient };
+  const staffRole = roleKey(staff?.role);
+  if (staff?.active && ["owner", "admin", "front_desk"].includes(staffRole)) {
+    return { user: userData.user, adminClient };
   }
 
-  return { user: userData.user, adminClient };
+  if (staff?.active && staff.id) {
+    const { data: permissions, error: permissionError } = await adminClient
+      .from("staff_permissions")
+      .select("permission_key, enabled")
+      .eq("staff_id", staff.id)
+      .in("permission_key", ["calendarBooking", "staffAdmin"]);
+
+    if (permissionError) {
+      return { error: permissionError.message, status: 500 as const, adminClient };
+    }
+
+    if (permissions?.some((permission) => permission.enabled)) {
+      return { user: userData.user, adminClient };
+    }
+  }
+
+  return {
+    error: "Only operations staff can book requests.",
+    status: 403 as const,
+    adminClient,
+    debug: {
+      userId: userData.user.id,
+      email,
+      profileByIdRole: profileById?.role ?? null,
+      profileByEmailRole: profileByEmail?.role ?? null,
+      staffByProfileId,
+      staffByEmail,
+    },
+  };
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -138,7 +168,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const access = await requireOperationsUser(token);
   if (!("user" in access)) {
-    return jsonError(access.error, access.status);
+    return NextResponse.json(
+      { error: access.error, debug: "debug" in access ? access.debug : undefined },
+      { status: access.status },
+    );
   }
 
   const { id } = await params;
