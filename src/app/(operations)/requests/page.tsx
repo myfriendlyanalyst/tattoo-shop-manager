@@ -126,6 +126,7 @@ type BookRequestResponse = {
   projectId?: string;
   appointmentId?: string;
   error?: string;
+  debug?: unknown;
 };
 
 const statusOptions = [
@@ -1154,7 +1155,8 @@ export default function RequestsPage() {
     const payload = (await response.json().catch(() => ({}))) as BookRequestResponse;
 
     if (!response.ok || !payload.request || !payload.appointmentId) {
-      setError(payload.error ?? "Request booking failed.");
+      const debugMessage = payload.debug ? ` ${JSON.stringify(payload.debug)}` : "";
+      setError(`${payload.error ?? "Request booking failed."}${debugMessage}`);
       setSaving(false);
       return;
     }

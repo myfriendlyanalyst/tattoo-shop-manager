@@ -44,6 +44,10 @@ function roleKey(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
 }
 
+function isOperationsRole(value: string | null | undefined) {
+  return ["owner", "admin", "front_desk"].includes(roleKey(value));
+}
+
 function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
@@ -68,7 +72,7 @@ function requestDetailMemo(request: RequestRow) {
     .join("\n");
 }
 
-async function requireOperationsUser(token: string) {
+async function requireOperationsUser(token: string, requestId: string) {
   const authClient = createClient(supabaseUrl!, supabaseAnonKey!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
@@ -96,7 +100,7 @@ async function requireOperationsUser(token: string) {
   if (profileByEmailError) return { error: profileByEmailError.message, status: 500 as const, adminClient };
 
   const profileRoles = [roleKey(profileById?.role), roleKey(profileByEmail?.role)];
-  if (profileRoles.some((role) => ["owner", "admin", "front_desk"].includes(role))) {
+  if (profileRoles.some(isOperationsRole)) {
     return { user: userData.user, adminClient };
   }
 
@@ -123,7 +127,7 @@ async function requireOperationsUser(token: string) {
 
   const staff = staffByProfileId ?? staffByEmail;
   const staffRole = roleKey(staff?.role);
-  if (staff?.active && ["owner", "admin", "front_desk"].includes(staffRole)) {
+  if (staff?.active && isOperationsRole(staffRole)) {
     return { user: userData.user, adminClient };
   }
 
@@ -143,6 +147,26 @@ async function requireOperationsUser(token: string) {
     }
   }
 
+  const clearRoles = [...profileRoles, staffRole].filter(Boolean);
+  const forbiddenRoles = new Set(["artist", "accounting"]);
+  let readableRequestErrorMessage: string | null = null;
+  let canReadRequest = false;
+
+  if (!clearRoles.some((role) => forbiddenRoles.has(role))) {
+    const { data: readableRequest, error: readableRequestError } = await authClient
+      .from("requests")
+      .select("id")
+      .eq("id", requestId)
+      .maybeSingle();
+
+    readableRequestErrorMessage = readableRequestError?.message ?? null;
+    canReadRequest = Boolean(readableRequest?.id);
+
+    if (readableRequest?.id) {
+      return { user: userData.user, adminClient };
+    }
+  }
+
   return {
     error: "Only operations staff can book requests.",
     status: 403 as const,
@@ -154,6 +178,8 @@ async function requireOperationsUser(token: string) {
       profileByEmailRole: profileByEmail?.role ?? null,
       staffByProfileId,
       staffByEmail,
+      canReadRequest,
+      readableRequestError: readableRequestErrorMessage,
     },
   };
 }
@@ -166,7 +192,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const token = request.headers.get("authorization")?.replace("Bearer ", "");
   if (!token) return jsonError("Missing login session.", 401);
 
-  const access = await requireOperationsUser(token);
+  const { id } = await params;
+  const access = await requireOperationsUser(token, id);
   if (!("user" in access)) {
     return NextResponse.json(
       { error: access.error, debug: "debug" in access ? access.debug : undefined },
@@ -174,7 +201,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const { id } = await params;
   const payload = (await request.json()) as BookingPayload;
   const artistId = payload.artistId?.trim() ?? "";
   const projectSubject = payload.projectSubject?.trim() ?? "";
