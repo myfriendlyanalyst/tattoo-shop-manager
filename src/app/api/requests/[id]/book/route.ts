@@ -40,6 +40,14 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function databaseError(message: string) {
+  const grantHint = message.toLowerCase().includes("permission denied")
+    ? " Run docs/supabase_service_role_operational_grants.sql in Supabase SQL Editor."
+    : "";
+
+  return jsonError(`${message}.${grantHint}`.replace("..", "."), 500);
+}
+
 function roleKey(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
 }
@@ -255,7 +263,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .eq("id", id)
     .single();
 
-  if (requestError) return jsonError(requestError.message, 500);
+  if (requestError) return databaseError(requestError.message);
 
   const typedRequest = requestRow as RequestRow;
   if (typedRequest.project_id) {
@@ -274,7 +282,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .limit(1)
       .maybeSingle();
 
-    if (matchingError) return jsonError(matchingError.message, 500);
+    if (matchingError) return databaseError(matchingError.message);
     customer = matchingCustomer;
     customerId = matchingCustomer?.id ?? null;
   }
@@ -291,7 +299,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select("id, name, email, phone")
       .single();
 
-    if (customerError) return jsonError(customerError.message, 500);
+    if (customerError) return databaseError(customerError.message);
     customer = createdCustomer;
     customerId = createdCustomer.id;
   }
@@ -313,7 +321,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select("id")
     .single();
 
-  if (projectError) return jsonError(projectError.message, 500);
+  if (projectError) return databaseError(projectError.message);
 
   const { data: appointment, error: appointmentError } = await access.adminClient
     .from("appointments")
@@ -330,7 +338,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select("id")
     .single();
 
-  if (appointmentError) return jsonError(appointmentError.message, 500);
+  if (appointmentError) return databaseError(appointmentError.message);
 
   if (depositAmount > 0) {
     const { error: depositError } = await access.adminClient.from("deposits").insert({
@@ -344,7 +352,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       memo: payload.depositMemo?.trim() || null,
     });
 
-    if (depositError) return jsonError(depositError.message, 500);
+    if (depositError) return databaseError(depositError.message);
   }
 
   const requestPatch = {
@@ -359,7 +367,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .update(requestPatch)
     .eq("id", typedRequest.id);
 
-  if (requestUpdateError) return jsonError(requestUpdateError.message, 500);
+  if (requestUpdateError) return databaseError(requestUpdateError.message);
 
   return NextResponse.json({
     customer,
