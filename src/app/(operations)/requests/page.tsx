@@ -272,6 +272,22 @@ function displayEmailSender(message: RequestMessage) {
   return name || email || "-";
 }
 
+function emailLogEventLabel(message: RequestMessage) {
+  if (message.provider === "webflow") return "Request received";
+  if (message.provider === "resend" && message.to_emails?.some((email) => email.includes("@oyabuntattoo.com"))) {
+    return "Forwarded to artist";
+  }
+  if (message.provider === "resend" && message.direction === "outbound") {
+    return "First client email sent";
+  }
+  if (message.provider === "artist_action") return "Artist action";
+  return message.direction === "inbound" ? "Inbound email" : "Outbound email";
+}
+
+function emailLogBody(message: RequestMessage) {
+  return message.body_text || message.snippet || "No preview text.";
+}
+
 function tattooTimingLabel(value: string | null) {
   return tattooTimingOptions.find((option) => option.value === (value ?? ""))?.label ?? value ?? "-";
 }
@@ -1838,15 +1854,20 @@ export default function RequestsPage() {
                     ) : (
                       <div className="mt-3 space-y-2">
                         {selectedMessages.map((email) => (
-                          <article
-                            className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
+                          <details
+                            className="group rounded-md border border-[#e4dccf] bg-[#fdfbf7] text-sm"
                             key={email.id}
                           >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <p className="font-semibold">
-                                  {email.subject || selectedRequest.subject}
-                                </p>
+                            <summary className="grid cursor-pointer list-none gap-2 px-3 py-3 marker:hidden sm:grid-cols-[1fr_auto] sm:items-start">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded bg-[#1f2428] px-2 py-1 text-xs font-bold text-white">
+                                    {emailLogEventLabel(email)}
+                                  </span>
+                                  <p className="min-w-0 flex-1 truncate font-semibold">
+                                    {email.subject || selectedRequest.subject}
+                                  </p>
+                                </div>
                                 <p className="mt-1 text-xs text-[#697178]">
                                   From {displayEmailSender(email)} / To {displayEmailList(email.to_emails)}
                                 </p>
@@ -1864,12 +1885,20 @@ export default function RequestsPage() {
                                 <span className="text-xs font-semibold text-[#697178]">
                                   {displayDateTime(email.received_at)}
                                 </span>
+                                <span className="text-xs font-bold text-[#8a6f4d] group-open:hidden">
+                                  Open
+                                </span>
+                                <span className="hidden text-xs font-bold text-[#8a6f4d] group-open:inline">
+                                  Close
+                                </span>
                               </div>
+                            </summary>
+                            <div className="border-t border-[#e4dccf] px-3 py-3">
+                              <p className="whitespace-pre-wrap break-words text-[#4d555c]">
+                                {emailLogBody(email)}
+                              </p>
                             </div>
-                            <p className="mt-3 whitespace-pre-wrap text-[#4d555c]">
-                              {email.snippet || email.body_text || "No preview text."}
-                            </p>
-                          </article>
+                          </details>
                         ))}
                       </div>
                     )}
