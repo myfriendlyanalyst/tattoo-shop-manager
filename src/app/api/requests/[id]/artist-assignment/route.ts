@@ -156,6 +156,10 @@ async function requireOperationsUser(token: string) {
     return { error: "Only users with Request assignment permission can forward requests.", status: 403 as const, adminClient };
   }
 
+  if (role === "owner") {
+    return { user: userData.user, adminClient };
+  }
+
   const { data: staffByProfileId, error: staffByProfileIdError } = await adminClient
     .from("staff")
     .select("id")

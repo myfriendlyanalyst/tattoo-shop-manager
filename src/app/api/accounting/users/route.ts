@@ -59,7 +59,7 @@ async function resolveCallerAccess(token: string): Promise<CallerAccess> {
   const userId = userData.user.id;
   const userEmail = userData.user.email?.toLowerCase() ?? "";
 
-  // Owner by Tattoo Manager role is always allowed. Prefer the auth id, but
+  // Owner/Admin by Tattoo Manager role is always allowed. Prefer the auth id, but
   // fall back to email because older data can have mismatched profile ids.
   const { data: profileById } = await adminClient
     .from("profiles")
@@ -77,8 +77,8 @@ async function resolveCallerAccess(token: string): Promise<CallerAccess> {
 
   const profile = profileById ?? profileByEmail;
 
-  if (profile?.role === "owner") {
-    return { userId, isOwner: true, error: null };
+  if (profile?.role === "owner" || profile?.role === "admin") {
+    return { userId, isOwner: profile.role === "owner", error: null };
   }
 
   // Otherwise must be an active accounting user with admin or owner access_level.

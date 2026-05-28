@@ -141,8 +141,8 @@ export async function proxy(request: NextRequest) {
 
   // Accounting access check.
   if (pathname.startsWith("/accounting")) {
-    // Tattoo Manager owners bypass accounting_users entirely.
-    if (profile?.role === "owner") {
+    // Tattoo Manager admins bypass accounting_users entirely for system management.
+    if (profile?.role === "owner" || profile?.role === "admin") {
       return response;
     }
 

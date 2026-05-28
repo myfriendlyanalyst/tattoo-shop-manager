@@ -48,7 +48,7 @@ async function canManageAccounting(token: string): Promise<ManageAccountingAcces
         .maybeSingle();
 
   const profile = profileById ?? profileByEmail;
-  if (profile?.role === "owner") {
+  if (profile?.role === "owner" || profile?.role === "admin") {
     return { allowed: true };
   }
 

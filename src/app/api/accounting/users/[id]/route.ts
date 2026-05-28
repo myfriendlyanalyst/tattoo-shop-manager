@@ -59,8 +59,9 @@ export async function PATCH(
   const callerProfile = callerProfileById ?? callerProfileByEmail;
 
   const isOwnerRole = callerProfile?.role === "owner";
+  const isSystemAccountingAdmin = callerProfile?.role === "owner" || callerProfile?.role === "admin";
 
-  if (!isOwnerRole) {
+  if (!isSystemAccountingAdmin) {
     const { data: callerAcctById } = await adminClient
       .from("accounting_users")
       .select("access_level, active")
@@ -153,9 +154,11 @@ export async function DELETE(
         .select("role")
         .ilike("email", callerEmail)
         .maybeSingle();
-  const isOwnerRole = (callerProfileById ?? callerProfileByEmail)?.role === "owner";
+  const callerRole = (callerProfileById ?? callerProfileByEmail)?.role;
+  const isOwnerRole = callerRole === "owner";
+  const isSystemAccountingAdmin = callerRole === "owner" || callerRole === "admin";
 
-  if (!isOwnerRole) {
+  if (!isSystemAccountingAdmin) {
     const { data: callerAcctById } = await adminClient
       .from("accounting_users")
       .select("access_level, active")

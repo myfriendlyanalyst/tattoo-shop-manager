@@ -40,5 +40,5 @@ export async function hasAccountingAccess(userId: string): Promise<boolean> {
     .eq("id", userId)
     .maybeSingle();
 
-  return profile?.role === "owner";
+  return profile?.role === "owner" || profile?.role === "admin";
 }

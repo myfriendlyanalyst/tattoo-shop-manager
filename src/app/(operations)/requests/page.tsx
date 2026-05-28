@@ -763,7 +763,8 @@ export default function RequestsPage() {
       const nextPermissions = permissionResult.data ?? [];
       const canAssignRequests =
         !context?.isArtist &&
-        hasStaffPermission(context?.staffId, nextPermissions, "requestAssignment");
+        (context?.role === "owner" ||
+          hasStaffPermission(context?.staffId, nextPermissions, "requestAssignment"));
       const rawArtists = (staffResult.data ?? []).filter((staff) =>
         canShowInCalendar(staff, nextPermissions),
       );
