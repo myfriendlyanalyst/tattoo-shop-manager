@@ -57,12 +57,31 @@ type ManageStaffMode = "deactivate" | "delete";
 // Permissions relevant to Tattoo Manager operations.
 // Accounting access is managed separately in /accounting/users.
 const permissions = [
-  { key: "artistSchedule", label: "Artist Schedule" },
-  { key: "calendarBooking", label: "Calendar / Booking" },
-  { key: "session", label: "Session" },
-  { key: "deposit", label: "Deposit" },
-  { key: "merch", label: "Merch" },
-  { key: "staffAdmin", label: "Staff Admin" },
+  {
+    key: "calendarBooking",
+    label: "Calendar booking",
+    description: "Show this staff member on the calendar and allow appointment booking.",
+  },
+  {
+    key: "session",
+    label: "Session entry",
+    description: "Allow recording tattoo sessions and payments.",
+  },
+  {
+    key: "deposit",
+    label: "Deposit management",
+    description: "Allow creating, applying, and correcting deposits.",
+  },
+  {
+    key: "merch",
+    label: "Merch sales",
+    description: "Allow recording merchandise sales.",
+  },
+  {
+    key: "staffAdmin",
+    label: "Staff admin",
+    description: "Allow staff settings and permission management.",
+  },
 ];
 
 const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1012,7 +1031,12 @@ export default function StaffPage() {
                       key={permission.key}
                       className="flex items-center justify-between rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3 text-sm"
                     >
-                      <span className="font-semibold">{permission.label}</span>
+                      <span>
+                        <span className="block font-semibold">{permission.label}</span>
+                        <span className="mt-1 block text-xs font-normal text-[#697178]">
+                          {permission.description}
+                        </span>
+                      </span>
                       <input
                         checked={form.permissionKeys.includes(permission.key)}
                         onChange={(event) =>

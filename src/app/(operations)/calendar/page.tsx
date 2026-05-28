@@ -1744,10 +1744,6 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          if (isArtistUser) {
-                            return;
-                          }
-
                           const draft = draftFromClick(artist, selectedDate, event, timeInterval);
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
@@ -1908,10 +1904,6 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          if (isArtistUser) {
-                            return;
-                          }
-
                           const draft = draftFromClick(artist, selectedDate, event, timeInterval);
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
