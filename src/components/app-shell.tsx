@@ -7,6 +7,9 @@ import { AuthButton } from "@/components/auth-button";
 import {
   getCachedOperationsContext,
   getOperationsContext,
+  operationsViewModeChangedEvent,
+  setOperationsViewMode,
+  type OperationsContext,
   type OperationsRole,
 } from "@/lib/operations-access";
 
@@ -41,54 +44,98 @@ export function AppShell({ children }: AppShellProps) {
     const cachedContext = getCachedOperationsContext();
     return cachedContext === undefined ? undefined : cachedContext?.role ?? null;
   });
+  const [operationsContext, setOperationsContext] = useState<OperationsContext | null | undefined>(
+    () => getCachedOperationsContext(),
+  );
+  const isArtistView = operationsContext?.isArtist === true;
   const visibleNavItems =
-    role === "artist" || role === undefined
+    isArtistView || role === undefined
       ? navItems.filter((item) => basicNavLabels.has(item.label))
       : navItems;
 
   useEffect(() => {
     let mounted = true;
 
-    getOperationsContext().then((context) => {
-      if (mounted) {
-        setRole(context?.role ?? null);
-      }
-    });
+    function loadContext(options: { force?: boolean } = {}) {
+      getOperationsContext(options).then((context) => {
+        if (mounted) {
+          setRole(context?.role ?? null);
+          setOperationsContext(context);
+        }
+      });
+    }
+
+    loadContext();
+
+    function handleViewModeChange() {
+      loadContext({ force: true });
+    }
+
+    window.addEventListener(operationsViewModeChangedEvent, handleViewModeChange);
 
     return () => {
       mounted = false;
+      window.removeEventListener(operationsViewModeChangedEvent, handleViewModeChange);
     };
   }, []);
 
-  const nav = (
-    <nav className="space-y-1">
-      {visibleNavItems.map((item) => {
-        const isActive =
-          pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+  const viewToggle = operationsContext?.canUseArtistView ? (
+    <div className="mb-4 grid grid-cols-2 rounded-md border border-[#d9d3c7] bg-[#f7f2e9] p-1 text-xs font-bold">
+      <button
+        className={`h-8 rounded ${operationsContext.viewMode === "admin" ? "bg-[#1f2428] text-white" : "text-[#4d555c]"}`}
+        onClick={() => {
+          setOperationsViewMode("admin");
+          window.location.reload();
+        }}
+        type="button"
+      >
+        Admin View
+      </button>
+      <button
+        className={`h-8 rounded ${operationsContext.viewMode === "artist" ? "bg-[#1f2428] text-white" : "text-[#4d555c]"}`}
+        onClick={() => {
+          setOperationsViewMode("artist");
+          window.location.reload();
+        }}
+        type="button"
+      >
+        Artist View
+      </button>
+    </div>
+  ) : null;
 
-        return (
-          <Link
-            key={item.label}
-            className={`flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium transition ${
-              isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
-            }`}
-            href={item.href}
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <span className="flex-1">{item.label}</span>
-            {item.note ? (
-              <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                  isActive ? "bg-white/15 text-white" : "bg-[#e7ded0] text-[#7d684d]"
-                }`}
-              >
-                {item.note}
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
-    </nav>
+  const nav = (
+    <>
+      {viewToggle}
+      <nav className="space-y-1">
+        {visibleNavItems.map((item) => {
+          const isActive =
+            pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+
+          return (
+            <Link
+              key={item.label}
+              className={`flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium transition ${
+                isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
+              }`}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <span className="flex-1">{item.label}</span>
+              {item.note ? (
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                    isActive ? "bg-white/15 text-white" : "bg-[#e7ded0] text-[#7d684d]"
+                  }`}
+                >
+                  {item.note}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 
   return (

@@ -1,19 +1,25 @@
 import { supabase } from "@/lib/supabase";
 
 export type OperationsRole = "owner" | "admin" | "artist" | "front_desk" | "accounting" | null;
+export type OperationsViewMode = "admin" | "artist";
 
 export type OperationsContext = {
   userId: string;
   email: string;
   role: OperationsRole;
+  staffRole: string | null;
   staffId: string | null;
   isArtist: boolean;
   isOperationsAdmin: boolean;
+  canUseArtistView: boolean;
+  viewMode: OperationsViewMode;
 };
 
 let cachedOperationsContext: OperationsContext | null | undefined;
 let pendingOperationsContext: Promise<OperationsContext | null> | null = null;
 let authCacheInvalidationBound = false;
+const operationsViewModeKey = "oyabun.operationsViewMode";
+export const operationsViewModeChangedEvent = "oyabun:operations-view-mode-changed";
 
 export function getCachedOperationsContext() {
   return cachedOperationsContext;
@@ -22,6 +28,24 @@ export function getCachedOperationsContext() {
 export function clearOperationsContextCache() {
   cachedOperationsContext = undefined;
   pendingOperationsContext = null;
+}
+
+export function getOperationsViewMode(): OperationsViewMode {
+  if (typeof window === "undefined") {
+    return "admin";
+  }
+
+  return window.localStorage.getItem(operationsViewModeKey) === "artist" ? "artist" : "admin";
+}
+
+export function setOperationsViewMode(mode: OperationsViewMode) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(operationsViewModeKey, mode);
+  clearOperationsContextCache();
+  window.dispatchEvent(new Event(operationsViewModeChangedEvent));
 }
 
 function bindAuthCacheInvalidation() {
@@ -64,7 +88,7 @@ async function loadOperationsContext(): Promise<OperationsContext | null> {
 
   const { data: staffByProfileId } = await supabase
     .from("staff")
-    .select("id")
+    .select("id, role")
     .eq("profile_id", user.id)
     .maybeSingle();
 
@@ -72,19 +96,29 @@ async function loadOperationsContext(): Promise<OperationsContext | null> {
     ? { data: null }
     : await supabase
         .from("staff")
-        .select("id")
+        .select("id, role")
         .ilike("email", email)
         .maybeSingle();
 
   const role = (profile?.role ?? null) as OperationsRole;
+  const staff = staffByProfileId ?? staffByEmail;
+  const staffId = staff?.id ?? null;
+  const staffRole = staff?.role ?? null;
+  const isOperationsAdmin = role === "owner" || role === "admin" || role === "front_desk";
+  const canUseArtistView = Boolean(staffId) && (role === "artist" || isOperationsAdmin);
+  const viewMode = canUseArtistView ? getOperationsViewMode() : "admin";
+  const isArtist = role === "artist" || (viewMode === "artist" && canUseArtistView);
 
   return {
     userId: user.id,
     email,
     role,
-    staffId: staffByProfileId?.id ?? staffByEmail?.id ?? null,
-    isArtist: role === "artist",
-    isOperationsAdmin: role === "owner" || role === "admin" || role === "front_desk",
+    staffRole,
+    staffId,
+    isArtist,
+    isOperationsAdmin,
+    canUseArtistView,
+    viewMode,
   };
 }
 

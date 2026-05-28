@@ -329,6 +329,22 @@ function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]
   return staff.role === "Artist";
 }
 
+function hasStaffPermission(
+  staffId: string | null | undefined,
+  permissionRows: StaffPermission[],
+  permissionKey: string,
+) {
+  return Boolean(
+    staffId &&
+      permissionRows.some(
+        (permission) =>
+          permission.staff_id === staffId &&
+          permission.permission_key === permissionKey &&
+          permission.enabled,
+      ),
+  );
+}
+
 function timelineFor(request: RequestRecord) {
   return [
     { label: "Request received", value: displayDateTime(request.received_at), done: true },
@@ -627,6 +643,7 @@ export default function RequestsPage() {
   const [bookingForm, setBookingForm] = useState<BookingForm | null>(null);
   const [schedulePrompt, setSchedulePrompt] = useState<SchedulePrompt | null>(null);
   const [assignmentArtistId, setAssignmentArtistId] = useState("");
+  const [canAssignRequests, setCanAssignRequests] = useState(false);
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
   const isArtistUser = operationsContext?.isArtist === true;
 
@@ -665,8 +682,8 @@ export default function RequestsPage() {
       return false;
     }
 
-    return !selectedRequest.artist_id;
-  }, [selectedRequest]);
+    return canAssignRequests && !selectedRequest.artist_id;
+  }, [canAssignRequests, selectedRequest]);
 
   useEffect(() => {
     async function loadRequests() {
@@ -695,7 +712,7 @@ export default function RequestsPage() {
         supabase
           .from("staff_permissions")
           .select("staff_id, permission_key, enabled")
-          .eq("permission_key", "calendarBooking"),
+          .in("permission_key", ["calendarBooking", "requestAssignment"]),
         supabase
           .from("customers")
           .select("id, name, email, phone")
@@ -744,6 +761,9 @@ export default function RequestsPage() {
 
       const rawRequests = (requestResult.data ?? []) as unknown as RequestRecord[];
       const nextPermissions = permissionResult.data ?? [];
+      const canAssignRequests =
+        !context?.isArtist &&
+        hasStaffPermission(context?.staffId, nextPermissions, "requestAssignment");
       const rawArtists = (staffResult.data ?? []).filter((staff) =>
         canShowInCalendar(staff, nextPermissions),
       );
@@ -758,6 +778,7 @@ export default function RequestsPage() {
       const nextFiles = await filesWithSignedUrls((fileResult.data ?? []) as RequestFile[]);
 
       setOperationsContext(context);
+      setCanAssignRequests(canAssignRequests);
       setRequests(nextRequests);
       setArtists(nextArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
@@ -1662,7 +1683,13 @@ export default function RequestsPage() {
                             </button>
                           </div>
                         ) : (
-                          <p className="mt-1 font-semibold text-[#697178]">Assigned</p>
+                          <p className="mt-1 font-semibold text-[#697178]">
+                            {selectedRequest.artist_id
+                              ? "Assigned"
+                              : canAssignRequests
+                                ? "Unassigned"
+                                : "Request assignment permission required"}
+                          </p>
                         )}
                       </div>
                     </div>

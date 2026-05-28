@@ -153,7 +153,45 @@ async function requireOperationsUser(token: string) {
 
   const role = profileById?.role ?? profileByEmail?.role;
   if (!["owner", "admin", "front_desk"].includes(role ?? "")) {
-    return { error: "Only operations staff can forward requests.", status: 403 as const, adminClient };
+    return { error: "Only users with Request assignment permission can forward requests.", status: 403 as const, adminClient };
+  }
+
+  const { data: staffByProfileId, error: staffByProfileIdError } = await adminClient
+    .from("staff")
+    .select("id")
+    .eq("profile_id", userData.user.id)
+    .maybeSingle();
+
+  if (staffByProfileIdError) {
+    return { error: staffByProfileIdError.message, status: 500 as const, adminClient };
+  }
+
+  const { data: staffByEmail, error: staffByEmailError } = staffByProfileId
+    ? { data: null, error: null }
+    : await adminClient.from("staff").select("id").ilike("email", email).maybeSingle();
+
+  if (staffByEmailError) {
+    return { error: staffByEmailError.message, status: 500 as const, adminClient };
+  }
+
+  const staffId = staffByProfileId?.id ?? staffByEmail?.id ?? null;
+  if (!staffId) {
+    return { error: "Request assignment permission requires a linked staff record.", status: 403 as const, adminClient };
+  }
+
+  const { data: permission, error: permissionError } = await adminClient
+    .from("staff_permissions")
+    .select("enabled")
+    .eq("staff_id", staffId)
+    .eq("permission_key", "requestAssignment")
+    .maybeSingle();
+
+  if (permissionError) {
+    return { error: permissionError.message, status: 500 as const, adminClient };
+  }
+
+  if (!permission?.enabled) {
+    return { error: "Request assignment permission is required.", status: 403 as const, adminClient };
   }
 
   return { user: userData.user, adminClient };

@@ -58,6 +58,11 @@ type ManageStaffMode = "deactivate" | "delete";
 // Accounting access is managed separately in /accounting/users.
 const permissions = [
   {
+    key: "requestAssignment",
+    label: "Request assignment",
+    description: "Allow assigning incoming requests to artists and sending artist review emails.",
+  },
+  {
     key: "calendarBooking",
     label: "Calendar booking",
     description: "Show this staff member on the calendar and allow appointment booking.",
