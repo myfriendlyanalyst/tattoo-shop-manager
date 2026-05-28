@@ -233,6 +233,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const appointmentDate = payload.appointmentDate?.trim() ?? "";
   const startTime = payload.startTime?.trim() ?? "";
   const endTime = payload.endTime?.trim() ?? "";
+  const hasAppointmentDetails = Boolean(appointmentDate || startTime || endTime);
   const depositAmount = Number(payload.depositAmount ?? 0);
 
   if (!artistId) return jsonError("Select an artist before booking this project.", 400);
@@ -246,9 +247,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const startsAt = localDateTimeFromParts(appointmentDate, startTime);
-  const endsAt = localDateTimeFromParts(appointmentDate, endTime);
-  if (!appointmentDate || !startTime || !endTime || endsAt <= startsAt) {
+  const startsAt = hasAppointmentDetails ? localDateTimeFromParts(appointmentDate, startTime) : null;
+  const endsAt = hasAppointmentDetails ? localDateTimeFromParts(appointmentDate, endTime) : null;
+  if (hasAppointmentDetails && (!appointmentDate || !startTime || !endTime || !endsAt || !startsAt || endsAt <= startsAt)) {
     return jsonError("First appointment needs a valid date, start time, and end time.", 400);
   }
   if (!Number.isFinite(depositAmount) || depositAmount < 0) {
@@ -313,7 +314,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       subject: projectSubject,
       size: typedRequest.approximate_size,
       session_type: projectType,
-      status: "booked",
+      status: hasAppointmentDetails ? "booked" : "on_hold",
       waiver_signed: false,
       waiver_status: "missing",
       memo,
@@ -323,22 +324,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   if (projectError) return databaseError(projectError.message);
 
-  const { data: appointment, error: appointmentError } = await access.adminClient
-    .from("appointments")
-    .insert({
-      customer_id: customerId,
-      project_id: project.id,
-      artist_id: artistId,
-      starts_at: startsAt.toISOString(),
-      ends_at: endsAt.toISOString(),
-      appointment_type: projectType,
-      status: "scheduled",
-      notes: payload.appointmentNotes?.trim() || null,
-    })
-    .select("id")
-    .single();
+  let appointment: { id: string } | null = null;
 
-  if (appointmentError) return databaseError(appointmentError.message);
+  if (hasAppointmentDetails && startsAt && endsAt) {
+    const { data: appointmentData, error: appointmentError } = await access.adminClient
+      .from("appointments")
+      .insert({
+        customer_id: customerId,
+        project_id: project.id,
+        artist_id: artistId,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        appointment_type: projectType,
+        status: "scheduled",
+        notes: payload.appointmentNotes?.trim() || null,
+      })
+      .select("id")
+      .single();
+
+    if (appointmentError) return databaseError(appointmentError.message);
+    appointment = appointmentData;
+  }
 
   if (depositAmount > 0) {
     const { error: depositError } = await access.adminClient.from("deposits").insert({
@@ -373,6 +379,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     customer,
     request: requestPatch,
     projectId: project.id,
-    appointmentId: appointment.id,
+    appointmentId: appointment?.id ?? null,
   });
 }

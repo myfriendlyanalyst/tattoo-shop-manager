@@ -92,6 +92,7 @@ type DraftAppointment = {
   date: string;
   start: string;
   end: string;
+  prefillProjectId?: string;
 };
 
 type NewAppointmentForm = {
@@ -666,7 +667,10 @@ function NewAppointmentModal({
   onClose: () => void;
   onSave: (form: NewAppointmentForm) => void;
 }) {
-  const firstProject = projects[0];
+  const preferredProject = draft.prefillProjectId
+    ? projects.find((project) => project.id === draft.prefillProjectId)
+    : null;
+  const firstProject = preferredProject ?? projects[0];
   const firstCustomer = customers[0];
   const firstProjectCustomer = relatedOne(firstProject?.customer ?? null);
   const initialCustomer = firstProjectCustomer ?? firstCustomer;
@@ -1189,6 +1193,27 @@ export default function CalendarPage() {
       setAppointments(nextAppointments.map(mapAppointment));
       if (context?.isArtist && context.staffId) {
         setArtistFilter(context.staffId);
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const prefillProjectId = params.get("projectId") ?? "";
+      const prefillArtistId = params.get("artistId") ?? "";
+      const prefillProject = nextProjects.find((project) => project.id === prefillProjectId);
+      const prefillArtist = nextArtists.find(
+        (artist) => artist.id === (prefillProject?.artist_id ?? prefillArtistId),
+      );
+
+      if (prefillProject && prefillArtist) {
+        setArtistFilter(prefillArtist.id);
+        setDraftAppointment({
+          artistId: prefillArtist.id,
+          artist: prefillArtist.display_name,
+          date: selectedDate,
+          start: "12:00",
+          end: "13:00",
+          prefillProjectId: prefillProject.id,
+        });
+        window.history.replaceState(null, "", "/calendar");
       }
       setLoading(false);
     }
