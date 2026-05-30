@@ -69,6 +69,12 @@ export function AuthButton() {
       <span className="hidden max-w-[220px] truncate text-sm font-medium text-[#4d555c] sm:inline">
         {user.email}
       </span>
+      <Link
+        className="rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+        href="/change-password"
+      >
+        Password
+      </Link>
       <button
         className="rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
         onClick={signOut}

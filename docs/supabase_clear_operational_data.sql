@@ -6,21 +6,44 @@
 -- - public.staff
 -- - public.staff_permissions
 -- - public.staff_schedules
+-- - public.accounting_users
 --
--- This removes customer/request/project/calendar/session/deposit/accounting records.
+-- This removes customer/request/project/calendar/session/deposit/accounting
+-- records, request email logs, artist response tokens, and request numbers.
 -- Review the table list before running in Supabase SQL Editor.
 
-truncate table
-  public.files,
-  public.request_artist_candidates,
-  public.requests,
-  public.session_payments,
-  public.deposit_applications,
-  public.payout_items,
-  public.payouts,
-  public.deposits,
-  public.session_entries,
-  public.appointments,
-  public.projects,
-  public.customers
-restart identity cascade;
+begin;
+
+do $$
+declare
+  existing_tables text;
+begin
+  select string_agg(format('public.%I', tablename), ', ')
+  into existing_tables
+  from pg_tables
+  where schemaname = 'public'
+    and tablename = any(array[
+      'request_artist_action_tokens',
+      'request_messages',
+      'files',
+      'request_artist_candidates',
+      'requests',
+      'session_payments',
+      'deposit_applications',
+      'payout_items',
+      'payouts',
+      'deposits',
+      'session_entries',
+      'appointments',
+      'projects',
+      'customers'
+    ]);
+
+  if existing_tables is not null then
+    execute 'truncate table ' || existing_tables || ' restart identity cascade';
+  end if;
+end $$;
+
+alter sequence if exists public.request_number_seq restart with 1;
+
+commit;

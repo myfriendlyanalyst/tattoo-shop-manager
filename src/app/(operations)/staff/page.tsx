@@ -39,16 +39,22 @@ type StaffPermission = {
 
 type StaffForm = {
   displayName: string;
+  legalName: string;
   role: string;
+  phone: string;
   address: string;
   artistAcceptTemplate: string;
+  startDate: string;
   schedule: StaffSchedule[];
   permissionKeys: string[];
 };
 
 type CreateStaffForm = {
   displayName: string;
+  legalName: string;
   email: string;
+  phone: string;
+  startDate: string;
   role: "owner" | "admin" | "artist" | "front_desk";
 };
 
@@ -239,7 +245,10 @@ function CreateStaffModal({
 }) {
   const [form, setForm] = useState<CreateStaffForm>({
     displayName: "",
+    legalName: "",
     email: "",
+    phone: "",
+    startDate: "",
     role: "artist",
   });
 
@@ -283,6 +292,16 @@ function CreateStaffModal({
               />
             </label>
             <label className="text-sm font-semibold">
+              Legal name
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, legalName: event.target.value }))
+                }
+                value={form.legalName}
+              />
+            </label>
+            <label className="text-sm font-semibold">
               Email
               <input
                 className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -293,9 +312,20 @@ function CreateStaffModal({
                 value={form.email}
               />
             </label>
+            <label className="text-sm font-semibold">
+              Phone
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, phone: event.target.value }))
+                }
+                value={form.phone}
+              />
+            </label>
           </div>
 
-          <label className="block text-sm font-semibold">
+          <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm font-semibold">
             Role
             <select
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -313,6 +343,18 @@ function CreateStaffModal({
               <option value="owner">Owner</option>
             </select>
           </label>
+            <label className="text-sm font-semibold">
+              Start date
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, startDate: event.target.value }))
+                }
+                type="date"
+                value={form.startDate}
+              />
+            </label>
+          </div>
 
           <button
             className="h-10 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
@@ -469,9 +511,12 @@ export default function StaffPage() {
         nextStaff[0]
           ? {
               displayName: nextStaff[0].display_name,
+              legalName: nextStaff[0].legal_name ?? "",
               role: nextStaff[0].role,
+              phone: nextStaff[0].phone ?? "",
               address: nextStaff[0].address ?? "",
               artistAcceptTemplate: nextStaff[0].artist_accept_template ?? "",
+              startDate: nextStaff[0].start_date ?? "",
               schedule: scheduleForStaff(nextSelectedId, nextSchedules),
               permissionKeys: permissionKeysForStaff(nextSelectedId, nextPermissions),
             }
@@ -495,9 +540,12 @@ export default function StaffPage() {
     setError("");
     setForm({
       displayName: person.display_name,
+      legalName: person.legal_name ?? "",
       role: person.role,
+      phone: person.phone ?? "",
       address: person.address ?? "",
       artistAcceptTemplate: person.artist_accept_template ?? "",
+      startDate: person.start_date ?? "",
       schedule: scheduleForStaff(person.id, schedules),
       permissionKeys: permissionKeysForStaff(person.id, staffPermissions),
     });
@@ -538,9 +586,12 @@ export default function StaffPage() {
       .from("staff")
       .update({
         display_name: form.displayName.trim(),
+        legal_name: form.legalName.trim() || null,
         role: form.role,
+        phone: form.phone.trim() || null,
         address: form.address.trim() || null,
         artist_accept_template: form.artistAcceptTemplate.trim() || null,
+        start_date: form.startDate || null,
       })
       .eq("id", selectedStaff.id);
 
@@ -590,9 +641,12 @@ export default function StaffPage() {
           ? {
               ...person,
               display_name: form.displayName.trim(),
+              legal_name: form.legalName.trim() || null,
               role: form.role,
+              phone: form.phone.trim() || null,
               address: form.address.trim() || null,
               artist_accept_template: form.artistAcceptTemplate.trim() || null,
+              start_date: form.startDate || null,
             }
           : person,
       ),
@@ -625,7 +679,10 @@ export default function StaffPage() {
 
   async function createStaffRecord(createForm: CreateStaffForm) {
     const displayName = createForm.displayName.trim();
+    const legalName = createForm.legalName.trim();
     const email = createForm.email.trim().toLowerCase();
+    const phone = createForm.phone.trim();
+    const startDate = createForm.startDate;
 
     if (!displayName) {
       setCreateError("Display name is required.");
@@ -656,7 +713,14 @@ export default function StaffPage() {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ displayName, email, role: createForm.role }),
+      body: JSON.stringify({
+        displayName,
+        legalName,
+        email,
+        phone,
+        startDate,
+        role: createForm.role,
+      }),
     });
 
     const result = (await response.json()) as {
@@ -680,9 +744,12 @@ export default function StaffPage() {
     setSelectedStaffId(result.staff.id);
     setForm({
       displayName: result.staff.display_name,
+      legalName: result.staff.legal_name ?? "",
       role: result.staff.role,
+      phone: result.staff.phone ?? "",
       address: "",
       artistAcceptTemplate: result.staff.artist_accept_template ?? "",
+      startDate: result.staff.start_date ?? "",
       schedule: scheduleForStaff(result.staff.id, newSchedules),
       permissionKeys: [],
     });
@@ -753,9 +820,12 @@ export default function StaffPage() {
         nextSelected
           ? {
               displayName: nextSelected.display_name,
+              legalName: nextSelected.legal_name ?? "",
               role: nextSelected.role,
+              phone: nextSelected.phone ?? "",
               address: nextSelected.address ?? "",
               artistAcceptTemplate: nextSelected.artist_accept_template ?? "",
+              startDate: nextSelected.start_date ?? "",
               schedule: scheduleForStaff(nextSelected.id, schedules),
               permissionKeys: permissionKeysForStaff(nextSelected.id, staffPermissions),
             }
@@ -841,9 +911,11 @@ export default function StaffPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold">{person.display_name}</p>
-                    <p className="mt-1 truncate text-sm text-[#697178]">
-                      {person.legal_name || person.email || "-"}
-                    </p>
+                    {person.legal_name ? (
+                      <p className="mt-1 truncate text-sm text-[#697178]">
+                        {person.legal_name}
+                      </p>
+                    ) : null}
                   </div>
                   <span
                     className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
@@ -890,11 +962,10 @@ export default function StaffPage() {
                     onClick={() => selectStaff(person)}
                   >
                     <td className="px-4 py-4">
-                      <p className="text-xs font-semibold text-[#8a6f4d]">
-                        {person.id.slice(0, 8)}
-                      </p>
-                      <p className="mt-1 font-semibold">{person.display_name}</p>
-                      <p className="mt-1 text-[#697178]">{person.legal_name || "-"}</p>
+                      <p className="font-semibold">{person.display_name}</p>
+                      {person.legal_name ? (
+                        <p className="mt-1 text-[#697178]">{person.legal_name}</p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-4">
                       <span
@@ -932,9 +1003,7 @@ export default function StaffPage() {
           <section className="w-full max-w-3xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-4 py-4">
               <div>
-                <p className="text-xs font-semibold text-[#8a6f4d]">
-                  {selectedStaff.id.slice(0, 8)}
-                </p>
+                <p className="text-xs font-semibold text-[#8a6f4d]">Staff detail</p>
                 <h3 className="mt-1 text-lg font-semibold">{selectedStaff.display_name}</h3>
                 <p className="mt-1 text-sm text-[#697178]">{selectedStaff.role}</p>
               </div>
@@ -974,6 +1043,18 @@ export default function StaffPage() {
                   />
                 </label>
                 <label className="text-sm font-semibold">
+                  Legal name
+                  <input
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, legalName: event.target.value } : current,
+                      )
+                    }
+                    value={form.legalName}
+                  />
+                </label>
+                <label className="text-sm font-semibold">
                   Role
                   <select
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -989,6 +1070,31 @@ export default function StaffPage() {
                     <option>Artist</option>
                     <option>Front Desk</option>
                   </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Phone
+                  <input
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, phone: event.target.value } : current,
+                      )
+                    }
+                    value={form.phone}
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Start date
+                  <input
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current ? { ...current, startDate: event.target.value } : current,
+                      )
+                    }
+                    type="date"
+                    value={form.startDate}
+                  />
                 </label>
               </div>
 

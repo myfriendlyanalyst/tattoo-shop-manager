@@ -12,7 +12,10 @@ type StaffUserPayload = {
 
 type CreateStaffPayload = {
   displayName?: string;
+  legalName?: string;
   email?: string;
+  phone?: string;
+  startDate?: string;
   role?: "owner" | "admin" | "artist" | "front_desk";
 };
 
@@ -94,7 +97,10 @@ export async function POST(request: NextRequest) {
 
   const payload = (await request.json()) as CreateStaffPayload;
   const displayName = payload.displayName?.trim() ?? "";
+  const legalName = payload.legalName?.trim() ?? "";
   const email = payload.email?.trim().toLowerCase() ?? "";
+  const phone = payload.phone?.trim() ?? "";
+  const startDate = payload.startDate?.trim() ?? "";
   const role = payload.role ?? "artist";
 
   if (!displayName) return jsonError("Display name is required.", 400);
@@ -132,13 +138,16 @@ export async function POST(request: NextRequest) {
     .insert({
       profile_id: createdUser.user.id,
       display_name: displayName,
+      legal_name: legalName || null,
       role: staffRoleLabel(role),
       email,
+      phone: phone || null,
+      start_date: startDate || null,
       active: true,
       must_change_password: true,
       sort_order: 999,
     })
-    .select("id, profile_id, display_name, legal_name, role, email, phone, address, start_date, active")
+    .select("id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, active")
     .single();
 
   if (staffError) return jsonError(staffError.message, 500);
