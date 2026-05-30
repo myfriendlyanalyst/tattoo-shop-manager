@@ -22,6 +22,19 @@ type EmailWebhookPayload = {
   snippet?: string;
   sentAt?: string;
   receivedAt?: string;
+  clientName?: string;
+  firstName?: string;
+  lastName?: string;
+  clientEmail?: string;
+  customerEmail?: string;
+  phone?: string;
+  tattooDescription?: string;
+  approximateSize?: string;
+  placement?: string;
+  requestedArtistLabel?: string;
+  tattooTimingPreference?: string;
+  ageConfirmed?: boolean;
+  externalId?: string;
   request?: {
     clientName?: string;
     firstName?: string;
@@ -50,6 +63,18 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
+function requestText(payload: EmailWebhookPayload, key: keyof NonNullable<EmailWebhookPayload["request"]>) {
+  return cleanText(payload.request?.[key]) || cleanText(payload[key as keyof EmailWebhookPayload]);
+}
+
+function requestEmail(payload: EmailWebhookPayload) {
+  return (
+    cleanEmail(payload.request?.email) ||
+    cleanEmail(payload.customerEmail) ||
+    cleanEmail(payload.clientEmail)
+  );
+}
+
 function clientNameFromSubject(value: unknown) {
   const subject = cleanText(value);
   const match = subject.match(/request\s+from\s+(.+?)\s+for\s+(.+)$/i);
@@ -57,11 +82,11 @@ function clientNameFromSubject(value: unknown) {
 }
 
 function clientNameFromPayload(payload: EmailWebhookPayload) {
-  const firstName = cleanText(payload.request?.firstName);
-  const lastName = cleanText(payload.request?.lastName);
+  const firstName = requestText(payload, "firstName");
+  const lastName = requestText(payload, "lastName");
   const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
 
-  return fullName || clientNameFromSubject(payload.subject) || cleanText(payload.request?.clientName);
+  return fullName || cleanText(payload.clientName) || cleanText(payload.request?.clientName) || clientNameFromSubject(payload.subject);
 }
 
 function asEmailArray(value: string[] | string | undefined) {
@@ -85,8 +110,8 @@ function isValidDate(value: string) {
 
 function requestSubjectFromPayload(payload: EmailWebhookPayload) {
   const clientName = clientNameFromPayload(payload);
-  const placement = cleanText(payload.request?.placement);
-  const description = cleanText(payload.request?.tattooDescription);
+  const placement = requestText(payload, "placement");
+  const description = requestText(payload, "tattooDescription");
   const subject = cleanText(payload.subject);
 
   if (clientName && placement) return `${clientName} - ${placement} tattoo`;
@@ -324,7 +349,7 @@ export async function POST(request: NextRequest) {
   const direction = payload.direction === "outbound" ? "outbound" : "inbound";
   const threadId = cleanText(payload.threadId) || null;
   const messageId = cleanText(payload.messageId) || null;
-  const fromEmail = cleanEmail(payload.fromEmail) || cleanEmail(payload.request?.email) || null;
+  const fromEmail = cleanEmail(payload.fromEmail) || requestEmail(payload) || null;
   const fromName = cleanText(payload.fromName) || clientNameFromPayload(payload) || null;
   const subject = cleanText(payload.subject) || null;
   const receivedAt = isValidDate(cleanText(payload.receivedAt))
@@ -333,7 +358,7 @@ export async function POST(request: NextRequest) {
   const sentAt = isValidDate(cleanText(payload.sentAt))
     ? new Date(cleanText(payload.sentAt)).toISOString()
     : null;
-  const externalId = cleanText(payload.request?.externalId) || reqIdFromSubject(subject);
+  const externalId = requestText(payload, "externalId") || reqIdFromSubject(subject);
   const requestNumber = reqNumberFromSubject(subject);
 
   if (!threadId && !messageId && !fromEmail) {
@@ -453,13 +478,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (!requestRow) {
-    const requestPayload = payload.request ?? {};
     const clientName = clientNameFromPayload(payload) || fromName || fromEmail || "Email client";
-    const email = cleanEmail(requestPayload.email) || fromEmail;
+    const email = requestEmail(payload) || fromEmail;
     const tattooTimingPreference = normalizeTattooTimingPreference(
-      requestPayload.tattooTimingPreference,
+      requestText(payload, "tattooTimingPreference"),
     );
-    const requestedArtistLabel = cleanText(requestPayload.requestedArtistLabel);
+    const requestedArtistLabel = requestText(payload, "requestedArtistLabel");
     const { data: matchedArtist } =
       requestedArtistLabel && !isAnyAvailableLabel(requestedArtistLabel)
         ? await adminClient
@@ -475,15 +499,15 @@ export async function POST(request: NextRequest) {
       .insert({
         client_name: clientName,
         email,
-        phone: cleanText(requestPayload.phone) || null,
+        phone: requestText(payload, "phone") || null,
         subject: requestSubjectFromPayload(payload),
-        tattoo_description: cleanText(requestPayload.tattooDescription) || cleanText(payload.bodyText) || null,
-        approximate_size: cleanText(requestPayload.approximateSize) || null,
-        placement: cleanText(requestPayload.placement) || null,
+        tattoo_description: requestText(payload, "tattooDescription") || cleanText(payload.bodyText) || null,
+        approximate_size: requestText(payload, "approximateSize") || null,
+        placement: requestText(payload, "placement") || null,
         requested_artist_label: requestedArtistLabel || null,
         tattoo_timing_preference: tattooTimingPreference,
         preferred_appointment_date: null,
-        age_confirmed: Boolean(requestPayload.ageConfirmed),
+        age_confirmed: Boolean(payload.request?.ageConfirmed ?? payload.ageConfirmed),
         artist_id: matchedArtist?.id ?? null,
         status: "new",
         priority: "normal",
@@ -536,6 +560,29 @@ export async function POST(request: NextRequest) {
     const updatePatch: Record<string, string | null> = {};
     if (threadId) updatePatch.gmail_thread_id = threadId;
     if (messageId) updatePatch.gmail_message_id = messageId;
+
+    const nextClientName = clientNameFromPayload(payload);
+    const nextEmail = requestEmail(payload);
+    const nextPhone = requestText(payload, "phone");
+    const nextDescription = requestText(payload, "tattooDescription");
+    const nextApproximateSize = requestText(payload, "approximateSize");
+    const nextPlacement = requestText(payload, "placement");
+    const nextRequestedArtistLabel = requestText(payload, "requestedArtistLabel");
+    const nextTimingPreference = normalizeTattooTimingPreference(
+      requestText(payload, "tattooTimingPreference"),
+    );
+
+    if (nextClientName) updatePatch.client_name = nextClientName;
+    if (nextEmail) updatePatch.email = nextEmail;
+    if (nextPhone) updatePatch.phone = nextPhone;
+    if (nextDescription) updatePatch.tattoo_description = nextDescription;
+    if (nextApproximateSize) updatePatch.approximate_size = nextApproximateSize;
+    if (nextPlacement) {
+      updatePatch.placement = nextPlacement;
+      updatePatch.subject = requestSubjectFromPayload(payload);
+    }
+    if (nextRequestedArtistLabel) updatePatch.requested_artist_label = nextRequestedArtistLabel;
+    if (nextTimingPreference) updatePatch.tattoo_timing_preference = nextTimingPreference;
 
     if (Object.keys(updatePatch).length > 0) {
       const { error } = await adminClient.from("requests").update(updatePatch).eq("id", requestRow.id);
