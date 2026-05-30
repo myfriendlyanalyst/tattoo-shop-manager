@@ -33,6 +33,9 @@ type EmailWebhookPayload = {
   placement?: string;
   requestedArtistLabel?: string;
   tattooTimingPreference?: string;
+  referenceImageUrl?: string;
+  referenceImageURL?: string;
+  attachment?: string;
   ageConfirmed?: boolean;
   externalId?: string;
   request?: {
@@ -46,6 +49,9 @@ type EmailWebhookPayload = {
     placement?: string;
     requestedArtistLabel?: string;
     tattooTimingPreference?: string;
+    referenceImageUrl?: string;
+    referenceImageURL?: string;
+    attachment?: string;
     ageConfirmed?: boolean;
     externalId?: string;
   };
@@ -72,6 +78,17 @@ function requestEmail(payload: EmailWebhookPayload) {
     cleanEmail(payload.request?.email) ||
     cleanEmail(payload.customerEmail) ||
     cleanEmail(payload.clientEmail)
+  );
+}
+
+function requestReferenceImageUrl(payload: EmailWebhookPayload) {
+  return (
+    cleanText(payload.request?.referenceImageUrl) ||
+    cleanText(payload.request?.referenceImageURL) ||
+    cleanText(payload.request?.attachment) ||
+    cleanText(payload.referenceImageUrl) ||
+    cleanText(payload.referenceImageURL) ||
+    cleanText(payload.attachment)
   );
 }
 
@@ -504,6 +521,7 @@ export async function POST(request: NextRequest) {
         tattoo_description: requestText(payload, "tattooDescription") || cleanText(payload.bodyText) || null,
         approximate_size: requestText(payload, "approximateSize") || null,
         placement: requestText(payload, "placement") || null,
+        reference_image_url: requestReferenceImageUrl(payload) || null,
         requested_artist_label: requestedArtistLabel || null,
         tattoo_timing_preference: tattooTimingPreference,
         preferred_appointment_date: null,
@@ -567,6 +585,7 @@ export async function POST(request: NextRequest) {
     const nextDescription = requestText(payload, "tattooDescription");
     const nextApproximateSize = requestText(payload, "approximateSize");
     const nextPlacement = requestText(payload, "placement");
+    const nextReferenceImageUrl = requestReferenceImageUrl(payload);
     const nextRequestedArtistLabel = requestText(payload, "requestedArtistLabel");
     const nextTimingPreference = normalizeTattooTimingPreference(
       requestText(payload, "tattooTimingPreference"),
@@ -581,6 +600,7 @@ export async function POST(request: NextRequest) {
       updatePatch.placement = nextPlacement;
       updatePatch.subject = requestSubjectFromPayload(payload);
     }
+    if (nextReferenceImageUrl) updatePatch.reference_image_url = nextReferenceImageUrl;
     if (nextRequestedArtistLabel) updatePatch.requested_artist_label = nextRequestedArtistLabel;
     if (nextTimingPreference) updatePatch.tattoo_timing_preference = nextTimingPreference;
 

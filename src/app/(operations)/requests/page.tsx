@@ -286,14 +286,18 @@ function displayEmailSender(message: RequestMessage) {
   return name || email || "-";
 }
 
-function emailLogEventLabel(message: RequestMessage) {
+function emailLogEventLabel(message: RequestMessage, request?: RequestRecord | null) {
   if (message.provider === "webflow") return "Request received";
-  if (message.provider === "resend" && message.to_emails?.some((email) => email.includes("@oyabuntattoo.com"))) {
-    return "Forwarded to artist";
-  }
+
   if (message.provider === "resend" && message.direction === "outbound") {
-    return "First client email sent";
+    const clientEmail = normalizeEmail(request?.email);
+    const toClient = Boolean(
+      clientEmail && message.to_emails?.some((email) => normalizeEmail(email) === clientEmail),
+    );
+
+    return toClient ? "First client email sent" : "Artist assigned";
   }
+
   if (message.provider === "artist_action") return "Artist action";
   return message.direction === "inbound" ? "Inbound email" : "Outbound email";
 }
@@ -1631,14 +1635,30 @@ export default function RequestsPage() {
                       </div>
                     ) : null}
                     {selectedFiles.length === 0 && selectedRequest.reference_image_url ? (
-                      <a
-                        className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                        href={selectedRequest.reference_image_url}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Open legacy reference link
-                      </a>
+                      <div className="mt-3 rounded-md border border-[#d9d3c7] bg-white p-3">
+                        <p className="text-sm font-semibold">Reference image</p>
+                        <a
+                          className="mt-3 block overflow-hidden rounded-md border border-[#e4dccf] bg-[#f7f2e9]"
+                          href={selectedRequest.reference_image_url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            alt="Request reference"
+                            className="max-h-72 w-full object-contain"
+                            src={selectedRequest.reference_image_url}
+                          />
+                        </a>
+                        <a
+                          className="mt-3 inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                          href={selectedRequest.reference_image_url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Open reference image
+                        </a>
+                      </div>
                     ) : null}
                   </div>
 
@@ -1747,7 +1767,7 @@ export default function RequestsPage() {
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="rounded bg-[#1f2428] px-2 py-1 text-xs font-bold text-white">
-                                    {emailLogEventLabel(email)}
+                                    {emailLogEventLabel(email, selectedRequest)}
                                   </span>
                                   <p className="min-w-0 flex-1 truncate font-semibold">
                                     {email.subject || selectedRequest.subject}
