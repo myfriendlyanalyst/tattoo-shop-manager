@@ -164,6 +164,7 @@ create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   phone text,
+  phone_normalized text,
   email text,
   notes text,
   created_by uuid references public.profiles(id) on delete set null,

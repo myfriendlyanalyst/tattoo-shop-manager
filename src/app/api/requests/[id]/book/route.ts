@@ -60,6 +60,21 @@ function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function normalizePhone(value: string | null | undefined) {
+  const digits = value?.replace(/\D/g, "") ?? "";
+  if (!digits) return "";
+  if (digits.length === 10) return `1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return digits;
+  return digits;
+}
+
+function missingColumn(errorMessage: string, columnName: string) {
+  return (
+    errorMessage.toLowerCase().includes(columnName.toLowerCase()) &&
+    errorMessage.toLowerCase().includes("column")
+  );
+}
+
 function localDateTimeFromParts(date: string, time: string) {
   return new Date(`${date}T${time}:00`);
 }
@@ -273,6 +288,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   let customerId = typedRequest.customer_id;
   let customer: { id: string; name: string; email: string | null; phone: string | null } | null = null;
+  const normalizedRequestPhone = normalizePhone(typedRequest.phone);
 
   if (!customerId && typedRequest.email) {
     const { data: matchingCustomer, error: matchingError } = await access.adminClient
@@ -286,6 +302,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (matchingError) return databaseError(matchingError.message);
     customer = matchingCustomer;
     customerId = matchingCustomer?.id ?? null;
+  }
+
+  if (!customerId && normalizedRequestPhone) {
+    const { data: matchingCustomer, error: matchingError } = await access.adminClient
+      .from("customers")
+      .select("id, name, email, phone")
+      .eq("phone_normalized", normalizedRequestPhone)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (matchingError && !missingColumn(matchingError.message, "phone_normalized")) {
+      return databaseError(matchingError.message);
+    }
+
+    if (!matchingError) {
+      customer = matchingCustomer;
+      customerId = matchingCustomer?.id ?? null;
+    }
   }
 
   if (!customerId) {
@@ -303,6 +338,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (customerError) return databaseError(customerError.message);
     customer = createdCustomer;
     customerId = createdCustomer.id;
+  } else if (customer) {
+    const customerPatch: { email?: string; phone?: string } = {};
+    if (!customer.email && typedRequest.email) customerPatch.email = typedRequest.email;
+    if (!customer.phone && typedRequest.phone) customerPatch.phone = typedRequest.phone;
+
+    if (Object.keys(customerPatch).length > 0) {
+      const { data: updatedCustomer, error: updateCustomerError } = await access.adminClient
+        .from("customers")
+        .update(customerPatch)
+        .eq("id", customerId)
+        .select("id, name, email, phone")
+        .single();
+
+      if (updateCustomerError) return databaseError(updateCustomerError.message);
+      customer = updatedCustomer;
+    }
   }
 
   const memo = requestDetailMemo(typedRequest);
