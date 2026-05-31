@@ -138,6 +138,7 @@ const statusOptions = [
   "client_waiting_for_reply",
   "no_answer",
   "denied",
+  "spam",
 ];
 
 const referenceBucket = "request-references";
@@ -230,6 +231,7 @@ function statusLabel(status: string) {
     client_waiting_for_reply: "First Email Sent",
     no_answer: "No answer from client",
     denied: "Declined by shop",
+    spam: "Spam",
     sent: "Sent",
     interested: "Interested",
     passed: "Pass",
@@ -251,6 +253,7 @@ function statusClasses(status: string) {
     client_waiting_for_reply: "bg-[#f4e7df] text-[#8a5130]",
     no_answer: "bg-[#f4e7df] text-[#8a5130]",
     denied: "bg-[#f3e1e1] text-[#8a3030]",
+    spam: "bg-[#f3e1e1] text-[#8a3030]",
     sent: "bg-[#e5edf4] text-[#315f82]",
     interested: "bg-[#e8f0ee] text-[#2f6658]",
     passed: "bg-[#f4e7df] text-[#8a5130]",
@@ -662,7 +665,10 @@ export default function RequestsPage() {
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
-      const statusMatches = statusFilter === "all" || request.status === statusFilter;
+      const statusMatches =
+        statusFilter === "all"
+          ? request.status !== "spam"
+          : request.status === statusFilter;
       const artistMatches = artistFilter === "all" || request.artist_id === artistFilter;
 
       return statusMatches && artistMatches;
@@ -690,7 +696,7 @@ export default function RequestsPage() {
       return false;
     }
 
-    return canAssignRequests && !selectedRequest.artist_id;
+    return canAssignRequests && !selectedRequest.artist_id && selectedRequest.status !== "spam";
   }, [canAssignRequests, selectedRequest]);
 
   useEffect(() => {
@@ -980,6 +986,11 @@ export default function RequestsPage() {
       return;
     }
 
+    if (selectedRequest.status === "spam") {
+      setError("Restore this request before assigning it to an artist.");
+      return;
+    }
+
     const nextArtistId = assignmentArtistId || effectiveArtistId(selectedRequest, artists);
     if (!nextArtistId) {
       return;
@@ -1058,6 +1069,11 @@ export default function RequestsPage() {
       return;
     }
 
+    if (selectedRequest.status === "spam") {
+      setError("Restore this request before creating a project.");
+      return;
+    }
+
     if (!effectiveArtistId(selectedRequest, artists)) {
       setError("Select an artist before booking this project.");
       return;
@@ -1085,6 +1101,11 @@ export default function RequestsPage() {
 
   async function bookProject() {
     if (!selectedRequest) {
+      return;
+    }
+
+    if (selectedRequest.status === "spam") {
+      setError("Restore this request before creating a project.");
       return;
     }
 
@@ -1279,7 +1300,7 @@ export default function RequestsPage() {
                     }}
                     value={statusFilter}
                   >
-                    <option value="all">All statuses</option>
+                    <option value="all">Active statuses</option>
                     {statusOptions.map((status) => (
                       <option key={status} value={status}>
                         {statusLabel(status)}
@@ -1825,7 +1846,11 @@ export default function RequestsPage() {
                   <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <button
                       className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={saving || Boolean(selectedRequest.project_id)}
+                      disabled={
+                        saving ||
+                        Boolean(selectedRequest.project_id) ||
+                        selectedRequest.status === "spam"
+                      }
                       onClick={openBookingSetup}
                       type="button"
                     >
@@ -1847,6 +1872,32 @@ export default function RequestsPage() {
                     >
                       Declined by shop
                     </button>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <p className="text-xs text-[#697178]">
+                      Spam requests are hidden from the default queue and cannot be assigned or
+                      converted into projects.
+                    </p>
+                    {selectedRequest.status === "spam" ? (
+                      <button
+                        className="h-10 rounded-md border border-[#2f6658] px-3 text-sm font-semibold text-[#2f6658] hover:bg-[#e8f0ee] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving}
+                        onClick={() => updateRequestStatus("new")}
+                        type="button"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        className="h-10 rounded-md border border-[#8a3030] px-3 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving || Boolean(selectedRequest.project_id)}
+                        onClick={() => updateRequestStatus("spam")}
+                        type="button"
+                      >
+                        Mark spam
+                      </button>
+                    )}
                   </div>
 
                   <button

@@ -53,7 +53,8 @@ do $$ begin
     'booked',
     'client_waiting_for_reply',
     'no_answer',
-    'denied'
+    'denied',
+    'spam'
   );
 exception
   when duplicate_object then null;

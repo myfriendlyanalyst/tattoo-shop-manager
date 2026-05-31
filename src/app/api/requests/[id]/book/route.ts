@@ -32,6 +32,7 @@ type RequestRow = {
   reference_image_url: string | null;
   requested_artist_label: string | null;
   tattoo_timing_preference: string | null;
+  status: string;
   notes: string | null;
   booked_at: string | null;
 };
@@ -274,7 +275,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: requestRow, error: requestError } = await access.adminClient
     .from("requests")
     .select(
-      "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, notes, booked_at",
+      "id, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, status, notes, booked_at",
     )
     .eq("id", id)
     .single();
@@ -284,6 +285,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const typedRequest = requestRow as RequestRow;
   if (typedRequest.project_id) {
     return jsonError("This request has already been booked as a project.", 400);
+  }
+
+  if (typedRequest.status === "spam") {
+    return jsonError("Restore this request before creating a project.", 400);
   }
 
   let customerId = typedRequest.customer_id;

@@ -240,6 +240,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const typedRequest = requestRow as RequestRow;
   const typedArtist = artist as ArtistRow;
 
+  if (typedRequest.status === "spam") {
+    return jsonError("Restore this request before assigning it to an artist.", 400);
+  }
+
   const publicSubject = publicThreadSubject(
     requestCode(typedRequest.request_number),
     typedRequest.client_name,
