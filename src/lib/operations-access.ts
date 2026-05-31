@@ -105,7 +105,7 @@ async function loadOperationsContext(): Promise<OperationsContext | null> {
   const staffId = staff?.id ?? null;
   const staffRole = staff?.role ?? null;
   const isOperationsAdmin = role === "owner" || role === "admin" || role === "front_desk";
-  const canUseArtistView = Boolean(staffId) && role === "owner";
+  const canUseArtistView = Boolean(staffId) && role === "owner" && staffRole === "Owner";
   const viewMode = canUseArtistView ? getOperationsViewMode() : "admin";
   const isArtist = role === "artist" || (viewMode === "artist" && canUseArtistView);
 

@@ -321,6 +321,10 @@ function defaultBookingForm(request: RequestRecord): BookingForm {
 }
 
 function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]) {
+  if (staff.role === "Owner") {
+    return true;
+  }
+
   const bookingPermission = permissionRows.find(
     (permission) =>
       permission.staff_id === staff.id && permission.permission_key === "calendarBooking",
