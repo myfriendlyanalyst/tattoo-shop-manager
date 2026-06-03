@@ -10,14 +10,18 @@ const PUBLIC_PATHS = [
   "/set-password",
   "/artist-response",
 ];
-const ARTIST_ALLOWED_PATHS = ["/requests", "/projects", "/calendar"];
+const ARTIST_ALLOWED_PREFIX_PATHS = ["/requests", "/projects", "/calendar"];
+const ARTIST_ALLOWED_EXACT_PATHS = ["/settings"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 function isArtistAllowedPath(pathname: string) {
-  return ARTIST_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  return (
+    ARTIST_ALLOWED_EXACT_PATHS.includes(pathname) ||
+    ARTIST_ALLOWED_PREFIX_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
+  );
 }
 
 export async function proxy(request: NextRequest) {
