@@ -299,12 +299,20 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="px-4 py-4">
-              <Link
-                className="inline-flex h-10 items-center rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
-                href="/settings/email-log"
-              >
-                Email log
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  className="inline-flex h-10 items-center rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
+                  href="/settings/email-log"
+                >
+                  Email log
+                </Link>
+                <Link
+                  className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
+                  href="/settings/email-templates"
+                >
+                  Email templates
+                </Link>
+              </div>
             </div>
           </section>
 

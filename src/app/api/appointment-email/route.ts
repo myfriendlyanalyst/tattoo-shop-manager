@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { renderAppointmentCancellationEmail } from "@/lib/email-templates/appointment-cancellation";
+import { displayDateTime, timeRange } from "@/lib/email-templates/custom-email-templates";
 import {
   renderAppointmentConfirmationEmail,
   type AppointmentConfirmationVariant,
 } from "@/lib/email-templates/appointment-confirmation";
 import { renderAppointmentRescheduleEmail } from "@/lib/email-templates/appointment-reschedule";
+import { renderOperationsEmailTemplate } from "@/lib/email-templates/template-store";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -172,6 +174,7 @@ export async function POST(request: NextRequest) {
   const projectName = project?.subject || "Tattoo appointment";
   const artistName = artist?.display_name || "your artist";
   let emailContent: { html: string; subject: string; text: string };
+  let confirmationVariant: AppointmentConfirmationVariant = "booking_confirmation_1";
 
   if (emailType === "appointment_confirmation") {
     const siblingAppointmentResult = appointment.project_id
@@ -186,8 +189,7 @@ export async function POST(request: NextRequest) {
       return jsonError(siblingAppointmentResult.error.message, 500);
     }
 
-    const confirmationVariant: AppointmentConfirmationVariant =
-      (siblingAppointmentResult.count ?? 0) > 0
+    confirmationVariant = (siblingAppointmentResult.count ?? 0) > 0
         ? "booking_confirmation_2"
         : "booking_confirmation_1";
     emailContent = renderAppointmentConfirmationEmail({
@@ -217,6 +219,27 @@ export async function POST(request: NextRequest) {
             newEndsAt: appointment.ends_at,
           });
   }
+  const templateKey =
+    emailType === "appointment_confirmation"
+      ? confirmationVariant === "booking_confirmation_2"
+        ? "appointment_confirmation_2"
+        : "appointment_confirmation_1"
+      : emailType === "appointment_cancellation"
+        ? "appointment_cancellation"
+        : "appointment_reschedule";
+  emailContent = await renderOperationsEmailTemplate(
+    adminClient,
+    templateKey,
+    {
+      appointmentTime: displayDateTime(appointment.starts_at),
+      artistName,
+      customerName,
+      newAppointmentTime: timeRange(appointment.starts_at, appointment.ends_at),
+      oldAppointmentTime: timeRange(payload.oldStartsAt ?? null, payload.oldEndsAt ?? null),
+      projectName,
+    },
+    emailContent,
+  );
   const subject = emailContent.subject;
 
   if (emailType === "appointment_confirmation" && appointment.confirmation_email_sent_at) {

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { renderTemplateContent } from "@/lib/email-templates/custom-email-templates";
+import { fetchOperationsEmailTemplate } from "@/lib/email-templates/template-store";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const webhookSecret = process.env.REQUEST_EMAIL_WEBHOOK_SECRET;
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM;
-const autoReplyEnabled = process.env.REQUEST_AUTO_REPLY_ENABLED === "true";
+const autoReplyGloballyEnabled = process.env.REQUEST_AUTO_REPLY_ENABLED !== "false";
 
 type EmailWebhookPayload = {
   provider?: string;
@@ -102,7 +104,7 @@ function requestReferenceImageUrl(payload: EmailWebhookPayload) {
 }
 
 function shouldSendAutoReply(payload: EmailWebhookPayload) {
-  return autoReplyEnabled && Boolean(payload.sendAutoReply ?? payload.request?.sendAutoReply);
+  return Boolean(payload.sendAutoReply ?? payload.request?.sendAutoReply);
 }
 
 function clientNameFromSubject(value: unknown) {
@@ -296,8 +298,7 @@ function renderRequestAutoReplyEmail(request: {
   subject: string;
   requested_artist_label: string | null;
 }) {
-  const code = requestCode(request.request_number);
-  const subject = `${code} | We received your tattoo request`;
+  const subject = "We received your tattoo request";
   const text = [
     `Hi ${request.client_name},`,
     "",
@@ -305,7 +306,6 @@ function renderRequestAutoReplyEmail(request: {
     "",
     "We usually reply within 2 business days. If we need more details, we will contact you by email.",
     "",
-    `Request: ${code}`,
     `Artist preference: ${request.requested_artist_label || "Any available"}`,
     "",
     "Thank you,",
@@ -324,9 +324,7 @@ function renderRequestAutoReplyEmail(request: {
             <p style="margin:0 0 14px">Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.</p>
             <p style="margin:0 0 18px"><strong>We usually reply within 2 business days.</strong> If we need more details, we will contact you by email.</p>
             <div style="background:#f7f2e9;border:1px solid #eee8dd;border-radius:6px;padding:14px;margin:0 0 18px">
-              <div style="font-size:13px;color:#697178">Request number</div>
-              <div style="font-size:18px;font-weight:700;margin-top:4px">${code}</div>
-              <div style="font-size:13px;color:#697178;margin-top:10px">Artist preference</div>
+              <div style="font-size:13px;color:#697178">Artist preference</div>
               <div style="font-weight:700;margin-top:4px">${request.requested_artist_label || "Any available"}</div>
             </div>
             <p style="margin:0;color:#697178;font-size:13px">Please keep this email for your records.</p>
@@ -351,11 +349,25 @@ async function maybeSendRequestAutoReply(
     requested_artist_label: string | null;
   },
 ) {
-  if (!shouldSendAutoReply(payload) || !request.email || !resendApiKey || !emailFrom) {
+  if (!autoReplyGloballyEnabled || !request.email || !resendApiKey || !emailFrom) {
     return;
   }
 
-  const email = renderRequestAutoReplyEmail(request);
+  const templateClient = createClient(supabaseUrl!, supabaseServiceRoleKey!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const template = await fetchOperationsEmailTemplate(templateClient, "request_auto_reply");
+  if (!template.enabled || (template.testMode && !shouldSendAutoReply(payload))) {
+    return;
+  }
+
+  const fallback = renderRequestAutoReplyEmail(request);
+  const email = renderTemplateContent(template, {
+    artistPreference: request.requested_artist_label || "Any available",
+    customerName: request.client_name,
+    projectName: request.subject,
+  });
+  const finalEmail = email.subject.trim() ? email : fallback;
   const now = new Date().toISOString();
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -366,9 +378,9 @@ async function maybeSendRequestAutoReply(
     body: JSON.stringify({
       from: emailFrom,
       to: [request.email],
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
+      subject: finalEmail.subject,
+      html: finalEmail.html,
+      text: finalEmail.text,
     }),
   });
   const resendPayload = (await resendResponse.json().catch(() => ({}))) as { id?: string };
@@ -385,10 +397,10 @@ async function maybeSendRequestAutoReply(
     from_email: emailFrom,
     to_emails: [request.email],
     cc_emails: [],
-    subject: email.subject,
-    body_text: email.text,
-    body_html: email.html,
-    snippet: email.text.replace(/\s+/g, " ").slice(0, 500),
+    subject: finalEmail.subject,
+    body_text: finalEmail.text,
+    body_html: finalEmail.html,
+    snippet: finalEmail.text.replace(/\s+/g, " ").slice(0, 500),
     sent_at: now,
     received_at: now,
     raw_payload: { providerResponse: resendPayload, purpose: "request_auto_reply" },

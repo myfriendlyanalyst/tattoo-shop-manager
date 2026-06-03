@@ -118,20 +118,20 @@ function cleanPublicSubject(value: string | null) {
   return (value ?? "")
     .replace(/\+/g, " ")
     .replace(/\[REQ:[^\]]+\]\s*/gi, "")
+    .replace(/\bREQ[-\s]?0*[0-9]{1,10}\b\s*\|?\s*/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function draftSubject(request: RequestRow, artist: ArtistRow) {
-  const code = requestCode(request.request_number);
   const sourceSubject = cleanPublicSubject(request.source_email_subject);
   const baseSubject = cleanPublicSubject(request.subject);
 
   if (sourceSubject) {
-    return sourceSubject.includes(code) ? sourceSubject : `${code} | ${sourceSubject}`;
+    return sourceSubject;
   }
 
-  return `${code} | ${baseSubject || "Tattoo request"} | ${artist.display_name}`;
+  return `${baseSubject || "Tattoo request"} | ${artist.display_name}`;
 }
 
 function draftBody(request: RequestRow, artist: ArtistRow) {
@@ -181,9 +181,6 @@ function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: stri
         <a href="${mailto}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700">
           Reply to ${escapeHtml(artist.display_name)}
         </a>
-      </p>
-      <p style="font-size:12px;color:#697178">
-        Request ${requestCode(request.request_number)}. Please keep this request code in the subject for tracking.
       </p>
     </div>
   `;

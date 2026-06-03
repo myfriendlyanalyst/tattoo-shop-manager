@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+import { timeRange } from "@/lib/email-templates/custom-email-templates";
 import { renderAppointmentReminderEmail } from "@/lib/email-templates/appointment-reminder";
+import { renderOperationsEmailTemplate } from "@/lib/email-templates/template-store";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -237,13 +239,24 @@ export async function scheduleAppointmentReminder(
   const replyToEmail = cleanEmail(emailReplyTo);
   const artistEmail = cleanEmail(artist?.email);
   const ccEmails = artistEmail && artistEmail !== toEmail ? [artistEmail] : [];
-  const emailContent = renderAppointmentReminderEmail({
+  let emailContent = renderAppointmentReminderEmail({
     customerName: customer?.name || "there",
     projectName: project?.subject || "Tattoo appointment",
     artistName: artist?.display_name || "your artist",
     startsAt: appointment.starts_at,
     endsAt: appointment.ends_at,
   });
+  emailContent = await renderOperationsEmailTemplate(
+    adminClient,
+    "appointment_reminder",
+    {
+      appointmentTime: timeRange(appointment.starts_at, appointment.ends_at),
+      artistName: artist?.display_name || "your artist",
+      customerName: customer?.name || "there",
+      projectName: project?.subject || "Tattoo appointment",
+    },
+    emailContent,
+  );
 
   if (!toEmail) {
     await adminClient

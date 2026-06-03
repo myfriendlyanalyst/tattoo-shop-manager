@@ -1,15 +1,17 @@
 # Request auto-reply setup
 
-The request received auto-reply is intentionally disabled by default.
+Request auto-reply is managed in the app at:
 
-It sends only when both conditions are true:
+`Settings > Email templates > Request auto reply`
 
-1. Vercel env `REQUEST_AUTO_REPLY_ENABLED=true`
-2. The Make.com HTTP body includes `"sendAutoReply": true`
+Run `docs/operations_email_templates_migration.sql` before using the screen.
 
-This double gate prevents live Webflow requests from emailing clients before the workflow is approved.
+Default behavior:
 
-Example Make.com test field:
+- `Enabled = false`
+- `Test mode = true`
+
+When `Test mode` is on, it sends only when the Make.com HTTP body includes:
 
 ```json
 {
@@ -17,4 +19,10 @@ Example Make.com test field:
 }
 ```
 
-The email says the shop received the request and usually replies within 2 business days.
+When `Test mode` is off, it sends for normal new requests as long as the template is enabled.
+
+Emergency kill switch:
+
+- Set Vercel env `REQUEST_AUTO_REPLY_ENABLED=false` to prevent all request auto-replies.
+
+The template supports variables such as `{{customerName}}`, `{{artistPreference}}`, and `{{projectName}}`.
