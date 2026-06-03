@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppPage } from "@/components/app-shell";
-import { RichTextEditor, textToHtml } from "@/components/rich-text-editor";
+import { EmailTemplateEditor } from "@/components/email-template-editor";
+import { textToHtml } from "@/components/rich-text-editor";
 import { getSafeSession } from "@/lib/auth-session";
 import {
   defaultOperationsEmailTemplates,
@@ -252,7 +253,12 @@ export default function EmailTemplatesPage() {
                       </code>
                     ))}
                   </div>
-                  <RichTextEditor disabled={saving} html={html} onChange={(nextHtml) => setHtml(nextHtml)} />
+                  <EmailTemplateEditor
+                    disabled={saving}
+                    html={html}
+                    onChange={(nextHtml) => setHtml(nextHtml)}
+                    subject={subject}
+                  />
                 </div>
 
                 <div className="grid gap-3 border-t border-[#e5dfd4] pt-4 sm:grid-cols-[1fr_auto_auto]">
@@ -288,4 +294,3 @@ export default function EmailTemplatesPage() {
     </AppPage>
   );
 }
-

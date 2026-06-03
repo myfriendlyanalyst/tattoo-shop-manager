@@ -2,6 +2,7 @@
 
 import Link from "@tiptap/extension-link";
 import Color from "@tiptap/extension-color";
+import Image from "@tiptap/extension-image";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -96,6 +97,10 @@ export function RichTextEditor({ disabled = false, html, onChange }: RichTextEdi
       TextStyle,
       Color,
       Underline,
+      Image.configure({
+        allowBase64: false,
+        inline: false,
+      }),
       Link.configure({
         autolink: true,
         openOnClick: false,
@@ -140,6 +145,15 @@ export function RichTextEditor({ disabled = false, html, onChange }: RichTextEdi
     }
 
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+  }
+
+  function setImage() {
+    if (!editor || disabled) return;
+
+    const url = window.prompt("Image URL", "https://");
+    if (!url?.trim()) return;
+
+    editor.chain().focus().setImage({ src: url.trim() }).run();
   }
 
   if (!editor) {
@@ -295,6 +309,15 @@ export function RichTextEditor({ disabled = false, html, onChange }: RichTextEdi
           type="button"
         >
           Link
+        </button>
+        <button
+          className={toolbarButtonClass()}
+          disabled={disabled}
+          onClick={setImage}
+          title="Image"
+          type="button"
+        >
+          Image
         </button>
         <button
           className={toolbarButtonClass()}
