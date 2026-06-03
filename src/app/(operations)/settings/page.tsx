@@ -138,16 +138,6 @@ export default function SettingsPage() {
         eyebrow="Artist setup"
         title="Settings"
         description="Manage the default message used when you accept a request and draft the first client email."
-        actions={
-          <button
-            className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={savingArtistSettings || loadingArtistSettings}
-            onClick={saveArtistSettings}
-            type="button"
-          >
-            {savingArtistSettings ? "Saving..." : "Save template"}
-          </button>
-        }
       >
         {message ? (
           <p className="mb-6 rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
@@ -171,11 +161,23 @@ export default function SettingsPage() {
             {loadingArtistSettings ? (
               <p className="text-sm font-semibold text-[#697178]">Loading artist settings...</p>
             ) : (
-              <RichTextEditor
-                disabled={savingArtistSettings}
-                html={artistTemplateHtml}
-                onChange={(html) => setArtistTemplateHtml(html)}
-              />
+              <>
+                <RichTextEditor
+                  disabled={savingArtistSettings}
+                  html={artistTemplateHtml}
+                  onChange={(html) => setArtistTemplateHtml(html)}
+                />
+                <div className="mt-4 flex justify-end">
+                  <button
+                    className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={savingArtistSettings || loadingArtistSettings}
+                    onClick={saveArtistSettings}
+                    type="button"
+                  >
+                    {savingArtistSettings ? "Saving..." : "Save template"}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </section>

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import Link from "@tiptap/extension-link";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import { useEffect, useState } from "react";
 
 type RichTextEditorProps = {
   disabled?: boolean;
@@ -8,7 +14,39 @@ type RichTextEditorProps = {
   onChange: (html: string, text: string) => void;
 };
 
-const colors = ["#1f2428", "#8a3030", "#2f6658", "#315f82", "#8a5130"];
+const colors = [
+  "#111827",
+  "#6b7280",
+  "#9ca3af",
+  "#d1d5db",
+  "#ffffff",
+  "#991b1b",
+  "#ef4444",
+  "#fca5a5",
+  "#9a3412",
+  "#f97316",
+  "#fdba74",
+  "#92400e",
+  "#f59e0b",
+  "#fcd34d",
+  "#854d0e",
+  "#eab308",
+  "#fde047",
+  "#4d7c0f",
+  "#84cc16",
+  "#bef264",
+  "#166534",
+  "#22c55e",
+  "#86efac",
+  "#0f766e",
+  "#14b8a6",
+  "#5eead4",
+  "#0369a1",
+  "#06b6d4",
+  "#67e8f9",
+  "#1d4ed8",
+  "#3b82f6",
+];
 
 function sanitizeEditorHtml(value: string) {
   return value
@@ -35,83 +73,249 @@ export function textToHtml(text: string) {
     .join("");
 }
 
+function toolbarButtonClass(active = false) {
+  return `h-8 min-w-8 rounded border px-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+    active
+      ? "border-[#1f2428] bg-[#1f2428] text-white"
+      : "border-[#cfc7b8] bg-white text-[#1f2428] hover:bg-[#fdfbf7]"
+  }`;
+}
+
 export function RichTextEditor({ disabled = false, html, onChange }: RichTextEditorProps) {
-  const editorRef = useRef<HTMLDivElement | null>(null);
+  const [colorPaletteOpen, setColorPaletteOpen] = useState(false);
+  const [customColor, setCustomColor] = useState("#1f2428");
+  const editor = useEditor({
+    immediatelyRender: false,
+    editable: !disabled,
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [2, 3],
+        },
+      }),
+      TextStyle,
+      Color,
+      Underline,
+      Link.configure({
+        autolink: true,
+        openOnClick: false,
+        protocols: ["mailto", "https"],
+      }),
+    ],
+    content: sanitizeEditorHtml(html),
+    editorProps: {
+      attributes: {
+        class:
+          "min-h-80 px-4 py-4 text-sm leading-6 outline-none [&_a]:text-[#315f82] [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-[#d9d3c7] [&_blockquote]:pl-4 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:mb-2 [&_h3]:text-base [&_h3]:font-bold [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-6",
+      },
+    },
+    onUpdate({ editor: nextEditor }) {
+      const nextHtml = sanitizeEditorHtml(nextEditor.getHTML());
+      onChange(nextHtml, nextEditor.getText().trim());
+    },
+  });
 
   useEffect(() => {
-    const editor = editorRef.current;
-    if (editor && editor.innerHTML !== html) {
-      editor.innerHTML = sanitizeEditorHtml(html);
-    }
-  }, [html]);
+    editor?.setEditable(!disabled);
+  }, [disabled, editor]);
 
-  function sync() {
-    const nextHtml = sanitizeEditorHtml(editorRef.current?.innerHTML ?? "");
-    onChange(nextHtml, htmlToPlainText(nextHtml));
+  useEffect(() => {
+    if (!editor) return;
+    const nextHtml = sanitizeEditorHtml(html);
+    if (nextHtml !== editor.getHTML()) {
+      editor.commands.setContent(nextHtml, { emitUpdate: false });
+    }
+  }, [editor, html]);
+
+  function setLink() {
+    if (!editor || disabled) return;
+
+    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    const url = window.prompt("Link URL", previousUrl ?? "https://");
+    if (url === null) return;
+
+    if (url.trim() === "") {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
   }
 
-  function command(name: string, value?: string) {
-    if (disabled) return;
-    editorRef.current?.focus();
-    document.execCommand(name, false, value);
-    sync();
+  if (!editor) {
+    return (
+      <div className="mt-2 rounded-md border border-[#cfc7b8] bg-white px-4 py-8 text-sm font-semibold text-[#697178]">
+        Loading editor...
+      </div>
+    );
   }
 
   return (
-    <div className="mt-2 rounded-md border border-[#cfc7b8] bg-white">
+    <div className="mt-2 overflow-hidden rounded-md border border-[#cfc7b8] bg-white">
       <div className="flex flex-wrap items-center gap-1 border-b border-[#e5dfd4] bg-[#f7f2e9] px-2 py-2">
-        <button
-          className="h-8 min-w-8 rounded border border-[#cfc7b8] px-2 text-sm font-black hover:bg-white disabled:opacity-50"
+        <select
+          className="h-8 rounded border border-[#cfc7b8] bg-white px-2 text-sm font-semibold"
           disabled={disabled}
-          onClick={() => command("bold")}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === "h2") editor.chain().focus().toggleHeading({ level: 2 }).run();
+            if (value === "h3") editor.chain().focus().toggleHeading({ level: 3 }).run();
+            if (value === "p") editor.chain().focus().setParagraph().run();
+          }}
+          value={
+            editor.isActive("heading", { level: 2 })
+              ? "h2"
+              : editor.isActive("heading", { level: 3 })
+                ? "h3"
+                : "p"
+          }
+        >
+          <option value="p">Paragraph</option>
+          <option value="h2">Heading</option>
+          <option value="h3">Subheading</option>
+        </select>
+        <button
+          className={toolbarButtonClass(editor.isActive("bold"))}
+          disabled={disabled}
+          onClick={() => editor.chain().focus().toggleBold().run()}
           title="Bold"
           type="button"
         >
           B
         </button>
         <button
-          className="h-8 min-w-8 rounded border border-[#cfc7b8] px-2 text-sm font-bold italic hover:bg-white disabled:opacity-50"
+          className={`${toolbarButtonClass(editor.isActive("italic"))} italic`}
           disabled={disabled}
-          onClick={() => command("italic")}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
           title="Italic"
           type="button"
         >
           I
         </button>
         <button
-          className="h-8 rounded border border-[#cfc7b8] px-2 text-sm font-semibold hover:bg-white disabled:opacity-50"
+          className={`${toolbarButtonClass(editor.isActive("underline"))} underline`}
           disabled={disabled}
-          onClick={() => command("insertUnorderedList")}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          title="Underline"
+          type="button"
+        >
+          U
+        </button>
+        <button
+          className={toolbarButtonClass(editor.isActive("bulletList"))}
+          disabled={disabled}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
           title="Bulleted list"
           type="button"
         >
           List
         </button>
-        <select
-          className="h-8 rounded border border-[#cfc7b8] bg-white px-2 text-sm"
+        <button
+          className={toolbarButtonClass(editor.isActive("orderedList"))}
           disabled={disabled}
-          onChange={(event) => command("foreColor", event.target.value)}
-          title="Text color"
-          value=""
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          title="Numbered list"
+          type="button"
         >
-          <option value="" disabled>
+          1.
+        </button>
+        <button
+          className={toolbarButtonClass(editor.isActive("blockquote"))}
+          disabled={disabled}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          title="Quote"
+          type="button"
+        >
+          Quote
+        </button>
+        <div className="relative">
+          <button
+            className={toolbarButtonClass(colorPaletteOpen)}
+            disabled={disabled}
+            onClick={() => setColorPaletteOpen((open) => !open)}
+            title="Text color"
+            type="button"
+          >
             Color
-          </option>
-          {colors.map((color) => (
-            <option key={color} value={color}>
-              {color}
-            </option>
-          ))}
-        </select>
+          </button>
+          {colorPaletteOpen ? (
+            <div className="absolute left-0 top-10 z-20 w-72 rounded-md border border-[#cfc7b8] bg-white p-3 shadow-xl">
+              <div className="grid grid-cols-10 gap-1.5">
+                {colors.map((color) => (
+                  <button
+                    aria-label={`Set text color ${color}`}
+                    className="h-6 w-6 rounded border border-[#cfc7b8] ring-offset-1 transition hover:ring-2 hover:ring-[#8a6f4d]"
+                    key={color}
+                    onClick={() => {
+                      editor.chain().focus().setColor(color).run();
+                      setColorPaletteOpen(false);
+                    }}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                    type="button"
+                  />
+                ))}
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#e5dfd4] pt-3">
+                <label className="flex items-center gap-2 text-xs font-bold text-[#697178]">
+                  Custom
+                  <input
+                    aria-label="Custom text color"
+                    className="h-7 w-9 cursor-pointer rounded border border-[#cfc7b8] bg-white p-0.5"
+                    onChange={(event) => {
+                      const nextColor = event.target.value;
+                      setCustomColor(nextColor);
+                      editor.chain().focus().setColor(nextColor).run();
+                    }}
+                    title="Custom color"
+                    type="color"
+                    value={customColor}
+                  />
+                </label>
+                <button
+                  className="h-8 rounded border border-[#cfc7b8] px-2 text-xs font-bold text-[#697178] hover:bg-[#f7f2e9]"
+                  onClick={() => {
+                    editor.chain().focus().unsetColor().run();
+                    setColorPaletteOpen(false);
+                  }}
+                  title="Clear color"
+                  type="button"
+                >
+                  Clear color
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <button
+          className={toolbarButtonClass(editor.isActive("link"))}
+          disabled={disabled}
+          onClick={setLink}
+          title="Link"
+          type="button"
+        >
+          Link
+        </button>
+        <button
+          className={toolbarButtonClass()}
+          disabled={disabled || !editor.can().undo()}
+          onClick={() => editor.chain().focus().undo().run()}
+          title="Undo"
+          type="button"
+        >
+          Undo
+        </button>
+        <button
+          className={toolbarButtonClass()}
+          disabled={disabled || !editor.can().redo()}
+          onClick={() => editor.chain().focus().redo().run()}
+          title="Redo"
+          type="button"
+        >
+          Redo
+        </button>
       </div>
-      <div
-        className="min-h-80 w-full px-3 py-3 text-sm leading-6 outline-none disabled:bg-[#eee8dd] [&_a]:text-[#315f82] [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6"
-        contentEditable={!disabled}
-        onBlur={sync}
-        onInput={sync}
-        ref={editorRef}
-        suppressContentEditableWarning
-      />
+      <EditorContent editor={editor} />
     </div>
   );
 }
