@@ -6,6 +6,7 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const webhookSecret = process.env.REQUEST_EMAIL_WEBHOOK_SECRET;
 const resendApiKey = process.env.RESEND_API_KEY;
 const emailFrom = process.env.EMAIL_FROM;
+const autoReplyEnabled = process.env.REQUEST_AUTO_REPLY_ENABLED === "true";
 
 type EmailWebhookPayload = {
   provider?: string;
@@ -36,6 +37,7 @@ type EmailWebhookPayload = {
   referenceImageUrl?: string;
   referenceImageURL?: string;
   attachment?: string;
+  sendAutoReply?: boolean;
   ageConfirmed?: boolean;
   externalId?: string;
   request?: {
@@ -52,8 +54,15 @@ type EmailWebhookPayload = {
     referenceImageUrl?: string;
     referenceImageURL?: string;
     attachment?: string;
+    sendAutoReply?: boolean;
     ageConfirmed?: boolean;
     externalId?: string;
+  };
+};
+
+type InsertOnlyClient = {
+  from: (table: string) => {
+    insert: (payload: Record<string, unknown>) => unknown;
   };
 };
 
@@ -90,6 +99,10 @@ function requestReferenceImageUrl(payload: EmailWebhookPayload) {
     cleanText(payload.referenceImageURL) ||
     cleanText(payload.attachment)
   );
+}
+
+function shouldSendAutoReply(payload: EmailWebhookPayload) {
+  return autoReplyEnabled && Boolean(payload.sendAutoReply ?? payload.request?.sendAutoReply);
 }
 
 function clientNameFromSubject(value: unknown) {
@@ -242,7 +255,7 @@ function renderArtistForwardEmail(
     `Requested artist: ${request.requested_artist_label || "-"}`,
     `Size: ${request.approximate_size ? `${request.approximate_size} inch` : "-"}`,
     `Placement: ${request.placement || "-"}`,
-    `Timing: ${timingLabel(request.tattoo_timing_preference)}`,
+    `When customer wants tattoo: ${timingLabel(request.tattoo_timing_preference)}`,
     "",
     "Description:",
     request.tattoo_description || request.subject,
@@ -258,7 +271,8 @@ function renderArtistForwardEmail(
       <strong>Email:</strong> ${request.email || "-"}<br>
       <strong>Phone:</strong> ${request.phone || "-"}<br>
       <strong>Placement:</strong> ${request.placement || "-"}<br>
-      <strong>Size:</strong> ${request.approximate_size ? `${request.approximate_size} inch` : "-"}</p>
+      <strong>Size:</strong> ${request.approximate_size ? `${request.approximate_size} inch` : "-"}<br>
+      <strong>When customer wants tattoo:</strong> ${timingLabel(request.tattoo_timing_preference)}</p>
       <h3 style="margin:18px 0 8px">Description</h3>
       <p style="white-space:pre-wrap;margin:0 0 18px">${request.tattoo_description || request.subject}</p>
       <p>
@@ -274,6 +288,111 @@ function renderArtistForwardEmail(
   `;
 
   return { subject, text, html };
+}
+
+function renderRequestAutoReplyEmail(request: {
+  request_number: number | null;
+  client_name: string;
+  subject: string;
+  requested_artist_label: string | null;
+}) {
+  const code = requestCode(request.request_number);
+  const subject = `${code} | We received your tattoo request`;
+  const text = [
+    `Hi ${request.client_name},`,
+    "",
+    "Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.",
+    "",
+    "We usually reply within 2 business days. If we need more details, we will contact you by email.",
+    "",
+    `Request: ${code}`,
+    `Artist preference: ${request.requested_artist_label || "Any available"}`,
+    "",
+    "Thank you,",
+    "Oyabun Tattoo",
+  ].join("\n");
+  const html = `
+    <div style="margin:0;padding:0;background:#f7f2e9;font-family:Arial,sans-serif;color:#1f2428">
+      <div style="max-width:620px;margin:0 auto;padding:28px 16px">
+        <div style="background:#ffffff;border:1px solid #d9d3c7;border-radius:8px;overflow:hidden">
+          <div style="background:#1f2428;color:#ffffff;padding:22px 24px">
+            <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#d9d3c7">Oyabun Tattoo</div>
+            <h1 style="margin:8px 0 0;font-size:24px;line-height:1.2">We received your request</h1>
+          </div>
+          <div style="padding:24px">
+            <p style="margin:0 0 14px">Hi ${request.client_name},</p>
+            <p style="margin:0 0 14px">Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.</p>
+            <p style="margin:0 0 18px"><strong>We usually reply within 2 business days.</strong> If we need more details, we will contact you by email.</p>
+            <div style="background:#f7f2e9;border:1px solid #eee8dd;border-radius:6px;padding:14px;margin:0 0 18px">
+              <div style="font-size:13px;color:#697178">Request number</div>
+              <div style="font-size:18px;font-weight:700;margin-top:4px">${code}</div>
+              <div style="font-size:13px;color:#697178;margin-top:10px">Artist preference</div>
+              <div style="font-weight:700;margin-top:4px">${request.requested_artist_label || "Any available"}</div>
+            </div>
+            <p style="margin:0;color:#697178;font-size:13px">Please keep this email for your records.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return { subject, text, html };
+}
+
+async function maybeSendRequestAutoReply(
+  client: InsertOnlyClient,
+  payload: EmailWebhookPayload,
+  request: {
+    id: string;
+    request_number: number | null;
+    email: string | null;
+    client_name: string;
+    subject: string;
+    requested_artist_label: string | null;
+  },
+) {
+  if (!shouldSendAutoReply(payload) || !request.email || !resendApiKey || !emailFrom) {
+    return;
+  }
+
+  const email = renderRequestAutoReplyEmail(request);
+  const now = new Date().toISOString();
+  const resendResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: emailFrom,
+      to: [request.email],
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    }),
+  });
+  const resendPayload = (await resendResponse.json().catch(() => ({}))) as { id?: string };
+
+  if (!resendResponse.ok) {
+    return;
+  }
+
+  await client.from("request_messages").insert({
+    request_id: request.id,
+    provider: "resend",
+    provider_message_id: resendPayload.id ?? null,
+    direction: "outbound",
+    from_email: emailFrom,
+    to_emails: [request.email],
+    cc_emails: [],
+    subject: email.subject,
+    body_text: email.text,
+    body_html: email.html,
+    snippet: email.text.replace(/\s+/g, " ").slice(0, 500),
+    sent_at: now,
+    received_at: now,
+    raw_payload: { providerResponse: resendPayload, purpose: "request_auto_reply" },
+  });
 }
 
 async function maybeForwardMatchedArtist(
@@ -558,6 +677,15 @@ export async function POST(request: NextRequest) {
     if (normalizedError) return jsonError(normalizedError.message, 500);
     requestRow = normalizedRequest;
     createdRequest = true;
+
+    await maybeSendRequestAutoReply(adminClient, payload, {
+      id: normalizedRequest.id,
+      request_number: normalizedRequest.request_number,
+      email: normalizedRequest.email,
+      client_name: normalizedRequest.client_name,
+      subject: normalizedRequest.subject,
+      requested_artist_label: normalizedRequest.requested_artist_label ?? null,
+    });
 
     if (matchedArtist) {
       await maybeForwardMatchedArtist(request.url, {

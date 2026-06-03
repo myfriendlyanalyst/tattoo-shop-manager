@@ -42,6 +42,7 @@ type SendPayload = {
   action?: "send" | "pass";
   subject?: string;
   bodyText?: string;
+  bodyHtml?: string;
 };
 
 function jsonError(message: string, status: number) {
@@ -77,6 +78,24 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+function plainTextToHtml(value: string) {
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function displayFrom(artist: ArtistRow) {
   const match = emailFrom?.match(/<([^>]+)>/);
   const address = match?.[1] ?? emailFrom;
@@ -88,6 +107,11 @@ function defaultTemplate(artist: ArtistRow) {
     artist.artist_accept_template?.trim() ||
     `${artist.display_name} reviewed your request and would be happy to move forward. Pricing and scheduling depend on final size, placement, detail, and availability. Please reply directly to ${artist.display_name} so you can discuss the next steps together.`
   );
+}
+
+function templateHtml(artist: ArtistRow) {
+  const template = defaultTemplate(artist);
+  return template.includes("<") ? template : plainTextToHtml(template);
 }
 
 function cleanPublicSubject(value: string | null) {
@@ -130,14 +154,25 @@ function draftBody(request: RequestRow, artist: ArtistRow) {
   ].join("\n");
 }
 
+function draftBodyHtml(request: RequestRow, artist: ArtistRow) {
+  return [
+    `<p>Hi ${escapeHtml(request.client_name)},</p>`,
+    `<p>Thanks for reaching out to Oyabun Tattoo. ${escapeHtml(artist.display_name)} reviewed your request and would be happy to work with you.</p>`,
+    templateHtml(artist),
+    `<p><strong>Request summary:</strong><br>- Placement: ${escapeHtml(request.placement || "-")}<br>- Approximate size: ${escapeHtml(request.approximate_size ? `${request.approximate_size} inch` : "-")}<br>- Timing: ${escapeHtml(timingLabel(request.tattoo_timing_preference))}</p>`,
+    `<p>You can reply directly to ${escapeHtml(artist.display_name)} to discuss details, availability, and next steps.</p>`,
+    "<p>Thank you,<br>Oyabun Tattoo</p>",
+  ].join("");
+}
+
 function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
   const params = [`subject=${encodeURIComponent(`Re: ${subject}`)}`];
   return `mailto:${artist.email ?? ""}?${params.join("&")}`;
 }
 
-function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: string, bodyText: string) {
+function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: string, bodyHtml: string) {
   const mailto = replyMailto(request, artist, subject);
-  const htmlBody = escapeHtml(bodyText).replace(/\n/g, "<br>");
+  const htmlBody = bodyHtml || plainTextToHtml(stripHtml(bodyHtml));
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.55;color:#1f2428">
@@ -223,6 +258,7 @@ export async function GET(request: NextRequest) {
     draft: {
       subject: draftSubject(bundle.request, bundle.artist),
       bodyText: draftBody(bundle.request, bundle.artist),
+      bodyHtml: draftBodyHtml(bundle.request, bundle.artist),
     },
   });
 }
@@ -272,6 +308,7 @@ export async function POST(request: NextRequest) {
 
   const subject = payload.subject?.trim() || draftSubject(bundle.request, bundle.artist);
   const bodyText = payload.bodyText?.trim() || draftBody(bundle.request, bundle.artist);
+  const bodyHtml = payload.bodyHtml?.trim() || plainTextToHtml(bodyText);
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -283,7 +320,7 @@ export async function POST(request: NextRequest) {
       from: displayFrom(bundle.artist),
       to: [bundle.request.email],
       subject,
-      html: renderClientEmail(bundle.request, bundle.artist, subject, bodyText),
+      html: renderClientEmail(bundle.request, bundle.artist, subject, bodyHtml),
       text: bodyText,
       reply_to: bundle.artist.email,
     }),

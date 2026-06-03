@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { RichTextEditor } from "@/components/rich-text-editor";
 
 type DraftData = {
   request: {
@@ -22,6 +23,7 @@ type DraftData = {
   draft: {
     subject: string;
     bodyText: string;
+    bodyHtml: string;
   };
 };
 
@@ -33,6 +35,8 @@ function ArtistResponseContent() {
   const [data, setData] = useState<DraftData | null>(null);
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +63,7 @@ function ArtistResponseContent() {
       setData(payload);
       setSubject(payload.draft.subject);
       setBodyText(payload.draft.bodyText);
+      setBodyHtml(payload.draft.bodyHtml);
       setLoading(false);
     }
 
@@ -75,7 +80,7 @@ function ArtistResponseContent() {
     const response = await fetch("/api/requests/artist-response", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, action, subject, bodyText }),
+      body: JSON.stringify({ token, action, subject, bodyText, bodyHtml }),
     });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
@@ -85,7 +90,8 @@ function ArtistResponseContent() {
       return;
     }
 
-    setMessage(action === "send" ? "Email sent to the client." : "Request passed back to the shop.");
+    setSent(action === "send");
+    setMessage(action === "send" ? "Sent to client." : "Request passed back to the shop.");
     setSaving(false);
   }
 
@@ -162,11 +168,13 @@ function ArtistResponseContent() {
 
               <label className="block text-sm font-semibold">
                 Email body
-                <textarea
-                  className="mt-2 min-h-80 w-full rounded-md border border-[#cfc7b8] px-3 py-3 text-sm leading-6"
+                <RichTextEditor
                   disabled={saving || Boolean(message)}
-                  onChange={(event) => setBodyText(event.target.value)}
-                  value={bodyText}
+                  html={bodyHtml}
+                  onChange={(html, text) => {
+                    setBodyHtml(html);
+                    setBodyText(text);
+                  }}
                 />
               </label>
 
@@ -194,12 +202,16 @@ function ArtistResponseContent() {
                 </button>
                 {!isPassIntent ? (
                   <button
-                    className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                    className={`h-10 rounded-md px-4 text-sm font-bold text-white disabled:cursor-not-allowed ${
+                      sent
+                        ? "bg-[#2f6658]"
+                        : "bg-[#1f2428] hover:bg-[#30373d] disabled:opacity-60"
+                    }`}
                     disabled={saving || Boolean(message)}
                     onClick={() => submit("send")}
                     type="button"
                   >
-                    {saving ? "Sending..." : "Send to client"}
+                    {sent ? "Sent" : saving ? "Sending..." : "Send to client"}
                   </button>
                 ) : null}
               </div>

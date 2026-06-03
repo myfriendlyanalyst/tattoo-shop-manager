@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppPage } from "@/components/app-shell";
+import { RichTextEditor, textToHtml } from "@/components/rich-text-editor";
+import { getSafeSession } from "@/lib/auth-session";
+import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import {
   readTimeInterval,
   saveTimeInterval,
@@ -34,11 +37,150 @@ function statusClasses(tone: string) {
 
 export default function SettingsPage() {
   const [timeInterval, setTimeInterval] = useState<TimeInterval>(readTimeInterval);
+  const [context, setContext] = useState<OperationsContext | null>(null);
+  const [artistTemplateHtml, setArtistTemplateHtml] = useState("");
+  const [loadingArtistSettings, setLoadingArtistSettings] = useState(true);
+  const [savingArtistSettings, setSavingArtistSettings] = useState(false);
+  const [artistSettingsError, setArtistSettingsError] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadArtistSettings() {
+      const nextContext = await getOperationsContext();
+      setContext(nextContext);
+
+      if (!nextContext?.staffId || (!nextContext.isArtist && nextContext.staffRole !== "Owner")) {
+        setLoadingArtistSettings(false);
+        return;
+      }
+
+      const session = await getSafeSession();
+      if (!session) {
+        setArtistSettingsError("Please log in to edit artist settings.");
+        setLoadingArtistSettings(false);
+        return;
+      }
+
+      const response = await fetch("/api/artist/settings", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        staff?: { artistAcceptTemplate?: string };
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setArtistSettingsError(payload.error ?? "Artist settings could not be loaded.");
+        setLoadingArtistSettings(false);
+        return;
+      }
+
+      const template = payload.staff?.artistAcceptTemplate ?? "";
+      setArtistTemplateHtml(template.includes("<") ? template : textToHtml(template));
+      setLoadingArtistSettings(false);
+    }
+
+    loadArtistSettings();
+  }, []);
 
   function saveSettings() {
     saveTimeInterval(timeInterval);
     setMessage("Settings saved.");
+  }
+
+  async function saveArtistSettings() {
+    setSavingArtistSettings(true);
+    setArtistSettingsError("");
+    setMessage("");
+
+    const session = await getSafeSession();
+    if (!session) {
+      setArtistSettingsError("Please log in to save artist settings.");
+      setSavingArtistSettings(false);
+      return;
+    }
+
+    const response = await fetch("/api/artist/settings", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ artistAcceptTemplate: artistTemplateHtml }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      setArtistSettingsError(payload.error ?? "Artist settings could not be saved.");
+      setSavingArtistSettings(false);
+      return;
+    }
+
+    setMessage("Artist email template saved.");
+    setSavingArtistSettings(false);
+  }
+
+  const artistOnlySettings = context?.isArtist && context.role !== "owner";
+
+  if (loadingArtistSettings && context === null) {
+    return (
+      <AppPage eyebrow="System setup" title="Settings">
+        <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
+          Loading settings...
+        </div>
+      </AppPage>
+    );
+  }
+
+  if (artistOnlySettings) {
+    return (
+      <AppPage
+        eyebrow="Artist setup"
+        title="Settings"
+        description="Manage the default message used when you accept a request and draft the first client email."
+        actions={
+          <button
+            className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={savingArtistSettings || loadingArtistSettings}
+            onClick={saveArtistSettings}
+            type="button"
+          >
+            {savingArtistSettings ? "Saving..." : "Save template"}
+          </button>
+        }
+      >
+        {message ? (
+          <p className="mb-6 rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
+            {message}
+          </p>
+        ) : null}
+        {artistSettingsError ? (
+          <p className="mb-6 rounded-md bg-[#f3e1e1] px-4 py-3 text-sm font-semibold text-[#8a3030]">
+            {artistSettingsError}
+          </p>
+        ) : null}
+
+        <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+          <div className="border-b border-[#e5dfd4] px-4 py-4">
+            <h3 className="text-base font-semibold">Client email default</h3>
+            <p className="mt-1 text-sm text-[#697178]">
+              This content is inserted into the editable email draft after you accept a request.
+            </p>
+          </div>
+          <div className="px-4 py-4">
+            {loadingArtistSettings ? (
+              <p className="text-sm font-semibold text-[#697178]">Loading artist settings...</p>
+            ) : (
+              <RichTextEditor
+                disabled={savingArtistSettings}
+                html={artistTemplateHtml}
+                onChange={(html) => setArtistTemplateHtml(html)}
+              />
+            )}
+          </div>
+        </section>
+      </AppPage>
+    );
   }
 
   return (

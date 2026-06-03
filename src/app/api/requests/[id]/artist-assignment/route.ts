@@ -73,7 +73,7 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, accept
     textLine("Requested artist", request.requested_artist_label),
     textLine("Size", request.approximate_size ? `${request.approximate_size} inch` : null),
     textLine("Placement", request.placement),
-    textLine("Timing", timingLabel(request.tattoo_timing_preference)),
+    textLine("When customer wants tattoo", timingLabel(request.tattoo_timing_preference)),
     "",
     "Description:",
     request.tattoo_description || request.subject,
@@ -94,7 +94,7 @@ function renderArtistForwardEmail(request: RequestRow, artist: ArtistRow, accept
           ["Requested artist", request.requested_artist_label || "-"],
           ["Size", request.approximate_size ? `${request.approximate_size} inch` : "-"],
           ["Placement", request.placement || "-"],
-          ["Timing", timingLabel(request.tattoo_timing_preference)],
+          ["When customer wants tattoo", timingLabel(request.tattoo_timing_preference)],
         ]
           .map(
             ([label, value]) => `

@@ -22,7 +22,7 @@ const navItems = [
   { label: "Settings", href: "/settings" },
 ];
 
-const basicNavLabels = new Set(["Requests", "Projects", "Calendar"]);
+const basicNavLabels = new Set(["Requests", "Projects", "Calendar", "Settings"]);
 
 type AppShellProps = {
   children: React.ReactNode;

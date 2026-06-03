@@ -1112,28 +1112,6 @@ export default function StaffPage() {
                 />
               </label>
 
-              {form.role === "Artist" ? (
-                <label className="block text-sm font-semibold">
-                  Artist accept email template
-                  <textarea
-                    className="mt-2 min-h-36 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm leading-6"
-                    onChange={(event) =>
-                      setForm((current) =>
-                        current
-                          ? { ...current, artistAcceptTemplate: event.target.value }
-                          : current,
-                      )
-                    }
-                    placeholder="Pricing and scheduling depend on final size, placement, detail, and availability. Please reply directly so we can discuss next steps."
-                    value={form.artistAcceptTemplate}
-                  />
-                  <span className="mt-2 block text-xs font-normal text-[#697178]">
-                    Used as the default body text when this artist accepts a request and drafts
-                    the first client email.
-                  </span>
-                </label>
-              ) : null}
-
               <div>
                 <h4 className="text-sm font-semibold">Permissions</h4>
                 <div className="mt-3 space-y-2">
