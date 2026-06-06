@@ -136,6 +136,7 @@ const statusOptions = [
   "client_replied",
   "booked",
   "client_waiting_for_reply",
+  "client_declined",
   "no_answer",
   "denied",
   "spam",
@@ -229,6 +230,7 @@ function statusLabel(status: string) {
     consultation: "Booked",
     booked: "Booked",
     client_waiting_for_reply: "First Email Sent",
+    client_declined: "Closed by client",
     no_answer: "No answer from client",
     denied: "Declined by shop",
     spam: "Spam",
@@ -251,6 +253,7 @@ function statusClasses(status: string) {
     consultation: "bg-[#e4f1df] text-[#476b33]",
     booked: "bg-[#e4f1df] text-[#476b33]",
     client_waiting_for_reply: "bg-[#f4e7df] text-[#8a5130]",
+    client_declined: "bg-[#f3e1e1] text-[#8a3030]",
     no_answer: "bg-[#f4e7df] text-[#8a5130]",
     denied: "bg-[#f3e1e1] text-[#8a3030]",
     spam: "bg-[#f3e1e1] text-[#8a3030]",
@@ -302,6 +305,7 @@ function emailLogEventLabel(message: RequestMessage, request?: RequestRecord | n
   }
 
   if (message.provider === "artist_action") return "Artist action";
+  if (message.provider === "client_action") return "Client action";
   return message.direction === "inbound" ? "Inbound email" : "Outbound email";
 }
 

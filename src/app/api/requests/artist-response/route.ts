@@ -170,18 +170,37 @@ function replyMailto(request: RequestRow, artist: ArtistRow, subject: string) {
   return `mailto:${artist.email ?? ""}?${params.join("&")}`;
 }
 
-function renderClientEmail(request: RequestRow, artist: ArtistRow, subject: string, bodyHtml: string) {
+function renderClientEmail(
+  request: RequestRow,
+  artist: ArtistRow,
+  subject: string,
+  bodyHtml: string,
+  actionToken: string,
+  origin: string,
+) {
   const mailto = replyMailto(request, artist, subject);
+  const encodedToken = encodeURIComponent(actionToken);
+  const reassignUrl = `${origin}/request-action?token=${encodedToken}&action=request_reassignment`;
+  const closeUrl = `${origin}/request-action?token=${encodedToken}&action=close_request`;
   const htmlBody = bodyHtml || plainTextToHtml(stripHtml(bodyHtml));
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.55;color:#1f2428">
       <div style="margin-bottom:16px">${htmlBody}</div>
-      <p>
-        <a href="${mailto}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700">
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid #e5dfd4">
+        <p style="margin:0 0 10px;color:#697178;font-size:13px">Choose the next step that works best for you.</p>
+        <p style="margin:0">
+          <a href="${mailto}" style="display:inline-block;background:#1f2428;color:#fff;text-decoration:none;border-radius:6px;padding:12px 18px;font-weight:700;margin:0 8px 8px 0">
           Reply to ${escapeHtml(artist.display_name)}
-        </a>
-      </p>
+          </a>
+          <a href="${reassignUrl}" style="display:inline-block;background:#fff;color:#8a5130;text-decoration:none;border:1px solid #8a5130;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 8px 8px 0">
+            Request another artist
+          </a>
+          <a href="${closeUrl}" style="display:inline-block;background:#fff;color:#8a3030;text-decoration:none;border:1px solid #8a3030;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 0 8px 0">
+            Close this request
+          </a>
+        </p>
+      </div>
     </div>
   `;
 }
@@ -306,6 +325,19 @@ export async function POST(request: NextRequest) {
   const subject = payload.subject?.trim() || draftSubject(bundle.request, bundle.artist);
   const bodyText = payload.bodyText?.trim() || draftBody(bundle.request, bundle.artist);
   const bodyHtml = payload.bodyHtml?.trim() || plainTextToHtml(bodyText);
+  const clientActionToken = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
+  const { error: clientTokenError } = await bundle.client.from("request_client_action_tokens").insert({
+    request_id: bundle.request.id,
+    artist_id: bundle.artist.id,
+    token: clientActionToken,
+  });
+
+  if (clientTokenError) {
+    return jsonError(
+      `${clientTokenError.message}. Run docs/request_client_actions.sql in Supabase SQL Editor.`,
+      500,
+    );
+  }
 
   const resendResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -317,7 +349,14 @@ export async function POST(request: NextRequest) {
       from: displayFrom(bundle.artist),
       to: [bundle.request.email],
       subject,
-      html: renderClientEmail(bundle.request, bundle.artist, subject, bodyHtml),
+      html: renderClientEmail(
+        bundle.request,
+        bundle.artist,
+        subject,
+        bodyHtml,
+        clientActionToken,
+        request.nextUrl.origin,
+      ),
       text: bodyText,
       reply_to: bundle.artist.email,
     }),
