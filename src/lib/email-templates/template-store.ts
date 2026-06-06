@@ -33,12 +33,17 @@ function normalizeStoredTemplate(row: StoredTemplateRow): OperationsEmailTemplat
 
 export async function fetchOperationsEmailTemplates(
   adminClient: SupabaseClient,
+  options: { fallbackOnError?: boolean } = {},
 ): Promise<OperationsEmailTemplate[]> {
   const { data, error } = await adminClient
     .from("operations_email_templates")
     .select("template_key, subject, body_html, enabled, test_mode");
 
   if (error) {
+    if (options.fallbackOnError === false) {
+      throw new Error(error.message);
+    }
+
     return defaultOperationsEmailTemplates;
   }
 
@@ -87,4 +92,3 @@ export async function renderOperationsEmailTemplate(
 
   return renderTemplateContent(template, variables);
 }
-

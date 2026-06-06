@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { timeRange } from "@/lib/email-templates/custom-email-templates";
 import { renderAppointmentReminderEmail } from "@/lib/email-templates/appointment-reminder";
+import { buildCalendarLinks } from "@/lib/email-templates/calendar-links";
 import { renderOperationsEmailTemplate } from "@/lib/email-templates/template-store";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -239,10 +240,21 @@ export async function scheduleAppointmentReminder(
   const replyToEmail = cleanEmail(emailReplyTo);
   const artistEmail = cleanEmail(artist?.email);
   const ccEmails = artistEmail && artistEmail !== toEmail ? [artistEmail] : [];
+  const customerName = customer?.name || "there";
+  const projectName = project?.subject || "Tattoo appointment";
+  const artistName = artist?.display_name || "your artist";
+  const calendarLinks = buildCalendarLinks({
+    appointmentId: appointment.id,
+    artistName,
+    customerName,
+    endsAt: appointment.ends_at,
+    projectName,
+    startsAt: appointment.starts_at,
+  });
   let emailContent = renderAppointmentReminderEmail({
-    customerName: customer?.name || "there",
-    projectName: project?.subject || "Tattoo appointment",
-    artistName: artist?.display_name || "your artist",
+    customerName,
+    projectName,
+    artistName,
     startsAt: appointment.starts_at,
     endsAt: appointment.ends_at,
   });
@@ -251,9 +263,11 @@ export async function scheduleAppointmentReminder(
     "appointment_reminder",
     {
       appointmentTime: timeRange(appointment.starts_at, appointment.ends_at),
-      artistName: artist?.display_name || "your artist",
-      customerName: customer?.name || "there",
-      projectName: project?.subject || "Tattoo appointment",
+      artistName,
+      customerName,
+      googleCalendarLink: calendarLinks.googleCalendarLink,
+      icalLink: calendarLinks.icalLink,
+      projectName,
     },
     emailContent,
   );

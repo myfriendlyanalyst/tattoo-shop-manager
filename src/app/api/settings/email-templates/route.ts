@@ -79,7 +79,18 @@ export async function GET(request: NextRequest) {
   const access = await requireTemplateAdmin(token);
   if ("error" in access) return jsonError(access.error ?? "Email templates failed.", access.status ?? 500);
 
-  const templates = await fetchOperationsEmailTemplates(access.adminClient);
+  let templates;
+  try {
+    templates = await fetchOperationsEmailTemplates(access.adminClient, { fallbackOnError: false });
+  } catch (error) {
+    return jsonError(
+      error instanceof Error
+        ? `${error.message}. Run docs/operations_email_templates_migration.sql in Supabase SQL Editor.`
+        : "Email templates could not be loaded.",
+      500,
+    );
+  }
+
   return NextResponse.json({ templates });
 }
 
@@ -182,4 +193,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ providerMessageId: resendPayload.id ?? null, sent: true });
 }
-

@@ -49,6 +49,7 @@ export default function EmailTemplatesPage() {
       }
 
       const response = await fetch("/api/settings/email-templates", {
+        cache: "no-store",
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       const payload = (await response.json().catch(() => ({}))) as TemplatePayload;
@@ -61,7 +62,8 @@ export default function EmailTemplatesPage() {
 
       const nextTemplates = payload.templates ?? defaultOperationsEmailTemplates;
       setTemplates(nextTemplates);
-      const first = nextTemplates.find((template) => template.key === selectedKey) ?? nextTemplates[0];
+      const first =
+        nextTemplates.find((template) => template.key === "request_auto_reply") ?? nextTemplates[0];
       setSubject(first.subject);
       setHtml(first.html.includes("<") ? first.html : textToHtml(first.html));
       setEnabled(first.enabled);
@@ -70,7 +72,7 @@ export default function EmailTemplatesPage() {
     }
 
     loadTemplates();
-  }, [selectedKey]);
+  }, []);
 
   function selectTemplate(key: OperationsEmailTemplateKey) {
     const template = templates.find((item) => item.key === key);
@@ -118,6 +120,10 @@ export default function EmailTemplatesPage() {
         template.key === payload.template!.key ? payload.template! : template,
       ),
     );
+    setSubject(payload.template.subject);
+    setHtml(payload.template.html.includes("<") ? payload.template.html : textToHtml(payload.template.html));
+    setEnabled(payload.template.enabled);
+    setTestMode(payload.template.testMode);
     setMessage("Email template saved.");
     setSaving(false);
   }

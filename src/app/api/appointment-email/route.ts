@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { renderAppointmentCancellationEmail } from "@/lib/email-templates/appointment-cancellation";
+import { buildCalendarLinks } from "@/lib/email-templates/calendar-links";
 import { displayDateTime, timeRange } from "@/lib/email-templates/custom-email-templates";
 import {
   renderAppointmentConfirmationEmail,
@@ -173,6 +174,15 @@ export async function POST(request: NextRequest) {
   const customerName = customer?.name || "there";
   const projectName = project?.subject || "Tattoo appointment";
   const artistName = artist?.display_name || "your artist";
+  const calendarLinks = buildCalendarLinks({
+    appointmentId: appointment.id,
+    artistName,
+    baseUrl: request.nextUrl.origin,
+    customerName,
+    endsAt: appointment.ends_at,
+    projectName,
+    startsAt: appointment.starts_at,
+  });
   let emailContent: { html: string; subject: string; text: string };
   let confirmationVariant: AppointmentConfirmationVariant = "booking_confirmation_1";
 
@@ -234,6 +244,8 @@ export async function POST(request: NextRequest) {
       appointmentTime: displayDateTime(appointment.starts_at),
       artistName,
       customerName,
+      googleCalendarLink: calendarLinks.googleCalendarLink,
+      icalLink: calendarLinks.icalLink,
       newAppointmentTime: timeRange(appointment.starts_at, appointment.ends_at),
       oldAppointmentTime: timeRange(payload.oldStartsAt ?? null, payload.oldEndsAt ?? null),
       projectName,
