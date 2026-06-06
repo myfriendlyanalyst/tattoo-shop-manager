@@ -159,11 +159,19 @@ export async function POST(request: NextRequest) {
     {
       artistName: "YUSHI",
       artistPreference: "YUSHI",
+      artistPreferenceMessage:
+        "You selected YUSHI as your preferred artist, and we will review availability with that artist when possible.",
       appointmentTime: "Friday, June 5, 2:00 PM PDT",
       customerName: "Test Client",
+      googleCalendarLink: "https://calendar.google.com/calendar/render?action=TEMPLATE",
+      icalLink: "https://example.com/appointment.ics",
       newAppointmentTime: "Saturday, June 6, 3:00 PM PDT",
       oldAppointmentTime: "Friday, June 5, 2:00 PM PDT",
       projectName: "Backpiece tattoo",
+      requestSummaryHtml:
+        '<div style="background:#fbf8ef;border:1px solid #d8d1bf;padding:16px 18px;margin-top:10px"><strong>Request summary</strong><br>Placement: Backpiece<br>Approximate size: 6 inch<br>Timing preference: Within 1-2 weeks<br><br><strong>Idea</strong><br>A large black and grey backpiece with floral details.</div>',
+      requestSummaryText:
+        "Request summary\nPlacement: Backpiece\nApproximate size: 6 inch\nTiming preference: Within 1-2 weeks\n\nIdea\nA large black and grey backpiece with floral details.",
     },
   );
 

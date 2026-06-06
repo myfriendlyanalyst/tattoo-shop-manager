@@ -14,6 +14,10 @@ create table if not exists public.operations_email_templates (
 
 alter table public.operations_email_templates enable row level security;
 
+grant usage on schema public to authenticated, service_role;
+grant select on public.operations_email_templates to authenticated;
+grant select, insert, update, delete on public.operations_email_templates to service_role;
+
 drop policy if exists "Operations email templates are read by operations admins" on public.operations_email_templates;
 create policy "Operations email templates are read by operations admins"
   on public.operations_email_templates
@@ -54,7 +58,7 @@ values
   (
     'request_auto_reply',
     'We received your tattoo request',
-    '<p>Hi {{customerName}},</p><p>Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.</p><p><strong>We usually reply within 2 business days.</strong> If we need more details, we will contact you by email.</p><p><strong>Artist preference:</strong> {{artistPreference}}</p><p>Thank you,<br>Oyabun Tattoo</p>',
+    '<p>Hi {{customerName}},</p><p>Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.</p><p>{{artistPreferenceMessage}}</p>{{requestSummaryHtml}}<p><strong>We usually reply within 1-2 business days.</strong></p><p>No artist, price, or appointment time has been confirmed yet. We will review your idea first and contact you with the next step.</p><p>If we need more details before assigning an artist or sending next steps, we will contact you by email.</p><p>Thank you,<br>Oyabun Tattoo</p>',
     false,
     true
   ),
@@ -94,4 +98,3 @@ values
     false
   )
 on conflict (template_key) do nothing;
-

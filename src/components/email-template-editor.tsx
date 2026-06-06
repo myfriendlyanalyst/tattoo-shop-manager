@@ -16,12 +16,24 @@ type EmailTemplateEditorProps = {
 const sampleVariables = {
   artistName: "YUSHI",
   artistPreference: "YUSHI",
+  artistPreferenceMessage:
+    "You selected YUSHI as your preferred artist, and we will review availability with that artist when possible.",
   appointmentTime: "Friday, June 5, 2:00 PM PDT",
   customerName: "Test Client",
+  googleCalendarLink: "https://calendar.google.com/calendar/render?action=TEMPLATE",
+  icalLink: "https://example.com/appointment.ics",
   newAppointmentTime: "Saturday, June 6, 3:00 PM PDT",
   oldAppointmentTime: "Friday, June 5, 2:00 PM PDT",
   projectName: "Backpiece tattoo",
+  requestSummaryHtml:
+    '<div style="background:#fbf8ef;border:1px solid #d8d1bf;padding:16px 18px;margin-top:10px"><strong>Request summary</strong><br>Placement: Backpiece<br>Approximate size: 6 inch<br>Timing preference: Within 1-2 weeks<br><br><strong>Idea</strong><br>A large black and grey backpiece with floral details.</div>',
+  requestSummaryText:
+    "Request summary\nPlacement: Backpiece\nApproximate size: 6 inch\nTiming preference: Within 1-2 weeks\n\nIdea\nA large black and grey backpiece with floral details.",
 };
+
+function isFullHtmlDocument(value: string) {
+  return /<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>]|<table[\s>]/i.test(value);
+}
 
 function modeButtonClass(active: boolean) {
   return `h-9 rounded-md px-3 text-sm font-semibold transition ${
@@ -40,6 +52,7 @@ export function EmailTemplateEditor({
     () => renderTemplateContent({ html, subject }, sampleVariables),
     [html, subject],
   );
+  const fullHtmlDocument = isFullHtmlDocument(html);
 
   function insertImageHtml() {
     if (disabled) return;
@@ -89,7 +102,27 @@ export function EmailTemplateEditor({
       </div>
 
       <div className="p-3">
-        {mode === "visual" ? (
+        {mode === "visual" && fullHtmlDocument ? (
+          <div className="overflow-hidden rounded-md border border-[#d9d3c7] bg-[#f6f4ef]">
+            <div className="border-b border-[#e5dfd4] bg-white px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8a6f4d]">
+                Visual
+              </p>
+              <p className="mt-1 text-sm text-[#697178]">
+                Full email layouts are edited in HTML mode so the table structure and styles stay intact.
+              </p>
+            </div>
+            <iframe
+              className="h-[36rem] w-full bg-white"
+              key={`visual-${preview.subject}-${preview.html}`}
+              sandbox=""
+              srcDoc={preview.html}
+              title="Email template visual"
+            />
+          </div>
+        ) : null}
+
+        {mode === "visual" && !fullHtmlDocument ? (
           <RichTextEditor disabled={disabled} html={html} onChange={(nextHtml) => onChange(nextHtml)} />
         ) : null}
 
@@ -113,6 +146,7 @@ export function EmailTemplateEditor({
             </div>
             <iframe
               className="h-[36rem] w-full bg-white"
+              key={`preview-${preview.subject}-${preview.html}`}
               sandbox=""
               srcDoc={preview.html}
               title="Email template preview"
@@ -123,4 +157,3 @@ export function EmailTemplateEditor({
     </div>
   );
 }
-

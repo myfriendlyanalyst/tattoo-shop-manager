@@ -80,6 +80,14 @@ function cleanEmail(value: unknown) {
   return cleanText(value).toLowerCase();
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function requestText(payload: EmailWebhookPayload, key: keyof NonNullable<EmailWebhookPayload["request"]>) {
   return cleanText(payload.request?.[key]) || cleanText(payload[key as keyof EmailWebhookPayload]);
 }
@@ -215,6 +223,79 @@ function isAnyAvailableLabel(value: string) {
   return value.trim().toLowerCase() === "any available";
 }
 
+function artistPreferenceMessage(value: string | null) {
+  const label = cleanText(value).replace(/[<>]/g, "");
+
+  if (!label || isAnyAvailableLabel(label)) {
+    return "You selected Any available, so we will match your idea with the best available artist.";
+  }
+
+  return `You selected ${label} as your preferred artist, and we will review availability with that artist when possible.`;
+}
+
+function shortDescription(value: string | null) {
+  const text = cleanText(value);
+  if (!text) return "-";
+
+  return text.length > 700 ? `${text.slice(0, 700).trim()}...` : text;
+}
+
+function requestSummaryLines(request: {
+  approximate_size: string | null;
+  placement: string | null;
+  tattoo_description: string | null;
+  tattoo_timing_preference: string | null;
+}) {
+  return [
+    ["Placement", request.placement || "-"],
+    ["Approximate size", request.approximate_size ? `${request.approximate_size} inch` : "-"],
+    ["Timing preference", timingLabel(request.tattoo_timing_preference)],
+    ["Idea", shortDescription(request.tattoo_description)],
+  ] as const;
+}
+
+function requestSummaryText(request: {
+  approximate_size: string | null;
+  placement: string | null;
+  tattoo_description: string | null;
+  tattoo_timing_preference: string | null;
+}) {
+  return [
+    "Here is a quick summary of what we received:",
+    "",
+    ...requestSummaryLines(request).map(([label, value]) => `${label}: ${value}`),
+  ].join("\n");
+}
+
+function requestSummaryHtml(request: {
+  approximate_size: string | null;
+  placement: string | null;
+  tattoo_description: string | null;
+  tattoo_timing_preference: string | null;
+}) {
+  const rows = requestSummaryLines(request)
+    .map(
+      ([label, value]) => `
+        <tr>
+          <td style="padding:7px 0;color:#8a8474;font-size:13px;vertical-align:top;width:140px">${escapeHtml(label)}</td>
+          <td style="padding:7px 0;color:#1a1813;font-size:14px;line-height:21px">${escapeHtml(value).replace(/\n/g, "<br>")}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fbf8ef;border:1px solid #d8d1bf;margin:4px 0 0 0">
+      <tr>
+        <td style="padding:16px 18px;font-family:'Helvetica Neue',Arial,sans-serif">
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#b3841a;font-weight:700;padding-bottom:8px">Request summary</div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+        </td>
+      </tr>
+    </table>
+  `;
+}
+
 function requestCode(requestNumber: number | null) {
   return `REQ-${String(requestNumber ?? 0).padStart(5, "0")}`;
 }
@@ -293,10 +374,14 @@ function renderArtistForwardEmail(
 }
 
 function renderRequestAutoReplyEmail(request: {
+  approximate_size: string | null;
   request_number: number | null;
   client_name: string;
+  placement: string | null;
   subject: string;
   requested_artist_label: string | null;
+  tattoo_description: string | null;
+  tattoo_timing_preference: string | null;
 }) {
   const subject = "We received your tattoo request";
   const text = [
@@ -304,9 +389,11 @@ function renderRequestAutoReplyEmail(request: {
     "",
     "Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.",
     "",
-    "We usually reply within 2 business days. If we need more details, we will contact you by email.",
+    "We usually reply within 1-2 business days. If we need more details, we will contact you by email.",
     "",
-    `Artist preference: ${request.requested_artist_label || "Any available"}`,
+    artistPreferenceMessage(request.requested_artist_label),
+    "",
+    requestSummaryText(request),
     "",
     "Thank you,",
     "Oyabun Tattoo",
@@ -322,11 +409,12 @@ function renderRequestAutoReplyEmail(request: {
           <div style="padding:24px">
             <p style="margin:0 0 14px">Hi ${request.client_name},</p>
             <p style="margin:0 0 14px">Thanks for reaching out to Oyabun Tattoo. We received your tattoo request and our team will review it shortly.</p>
-            <p style="margin:0 0 18px"><strong>We usually reply within 2 business days.</strong> If we need more details, we will contact you by email.</p>
+            <p style="margin:0 0 18px"><strong>We usually reply within 1-2 business days.</strong> If we need more details, we will contact you by email.</p>
             <div style="background:#f7f2e9;border:1px solid #eee8dd;border-radius:6px;padding:14px;margin:0 0 18px">
-              <div style="font-size:13px;color:#697178">Artist preference</div>
-              <div style="font-weight:700;margin-top:4px">${request.requested_artist_label || "Any available"}</div>
+              <div style="font-size:13px;color:#697178">Artist matching</div>
+              <div style="font-weight:700;margin-top:4px">${artistPreferenceMessage(request.requested_artist_label)}</div>
             </div>
+            ${requestSummaryHtml(request)}
             <p style="margin:0;color:#697178;font-size:13px">Please keep this email for your records.</p>
           </div>
         </div>
@@ -341,12 +429,16 @@ async function maybeSendRequestAutoReply(
   client: InsertOnlyClient,
   payload: EmailWebhookPayload,
   request: {
+    approximate_size: string | null;
     id: string;
     request_number: number | null;
     email: string | null;
     client_name: string;
+    placement: string | null;
     subject: string;
     requested_artist_label: string | null;
+    tattoo_description: string | null;
+    tattoo_timing_preference: string | null;
   },
 ) {
   if (!autoReplyGloballyEnabled || !request.email || !resendApiKey || !emailFrom) {
@@ -364,8 +456,11 @@ async function maybeSendRequestAutoReply(
   const fallback = renderRequestAutoReplyEmail(request);
   const email = renderTemplateContent(template, {
     artistPreference: request.requested_artist_label || "Any available",
+    artistPreferenceMessage: artistPreferenceMessage(request.requested_artist_label),
     customerName: request.client_name,
     projectName: request.subject,
+    requestSummaryHtml: requestSummaryHtml(request),
+    requestSummaryText: requestSummaryText(request),
   });
   const finalEmail = email.subject.trim() ? email : fallback;
   const now = new Date().toISOString();
@@ -692,11 +787,15 @@ export async function POST(request: NextRequest) {
 
     await maybeSendRequestAutoReply(adminClient, payload, {
       id: normalizedRequest.id,
+      approximate_size: normalizedRequest.approximate_size ?? null,
       request_number: normalizedRequest.request_number,
       email: normalizedRequest.email,
       client_name: normalizedRequest.client_name,
+      placement: normalizedRequest.placement ?? null,
       subject: normalizedRequest.subject,
       requested_artist_label: normalizedRequest.requested_artist_label ?? null,
+      tattoo_description: normalizedRequest.tattoo_description ?? null,
+      tattoo_timing_preference: normalizedRequest.tattoo_timing_preference ?? null,
     });
 
     if (matchedArtist) {

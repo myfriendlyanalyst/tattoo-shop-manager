@@ -58,7 +58,7 @@ with zipped_templates(template_key, subject, body_html, enabled, test_mode) as (
         <tr>
           <td style="padding:26px 50px 0 50px;" class="px">
             <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; line-height:26px; color:#54503f;">
-              We have successfully received your request and are currently reviewing the details to connect you with the artist best suited for your project.<br /><br /><b style="color:#1a1813;">Artist preference:</b> {{artistPreference}}
+              We have successfully received your request and our team will review the details shortly.<br /><br />{{artistPreferenceMessage}}<br /><br />{{requestSummaryHtml}}
             </div>
           </td>
         </tr>
@@ -69,21 +69,21 @@ with zipped_templates(template_key, subject, body_html, enabled, test_mode) as (
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ece6d6; border-left:3px solid #d9a534;">
               <tr>
                 <td style="padding:20px 24px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:16px; line-height:25px; color:#1a1813;">
-                  Our team typically responds within the <b style="color:#b3841a;">same day</b> or the <b style="color:#b3841a;">next business day</b>.
+                  Our team typically responds within <b style="color:#b3841a;">1-2 business days</b>.
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        <!-- reply YES -->
+        <!-- review note -->
         <tr>
           <td style="padding:28px 50px 0 50px;" class="px">
             <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; line-height:26px; color:#54503f;">
-              If the artist we recommend doesn't align with your preferred budget, availability, or vision, simply <b style="color:#b3841a;">reply &ldquo;YES&rdquo;</b> to this email, and we'll gladly connect you with another artist.
+              At this stage, no artist, price, or appointment time has been confirmed yet. We will review your idea first and contact you with the next step.
             </div>
             <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:15px; line-height:26px; color:#54503f; padding-top:18px;">
-              We also greatly appreciate any additional feedback or details you may wish to share. Our goal is to make the process as smooth, comfortable, and personalized as possible for every client.
+              If we need more details before assigning an artist or sending next steps, we will contact you by email.
             </div>
           </td>
         </tr>
