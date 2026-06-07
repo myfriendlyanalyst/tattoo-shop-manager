@@ -273,6 +273,14 @@ function statusLabel(status: string) {
   return labels[status] ?? status;
 }
 
+function projectStatusLabel(status: string) {
+  if (status === "on_hold") {
+    return "Unscheduled";
+  }
+
+  return statusLabel(status);
+}
+
 function statusClasses(status: string) {
   const variants: Record<string, string> = {
     scheduled: "bg-[#e5edf4] text-[#315f82]",
@@ -778,7 +786,7 @@ function NewAppointmentModal({
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
               onChange={(event) => {
                 const mode = event.target.value as NewAppointmentForm["mode"];
-                const project = projects[0];
+                const project = preferredProject ?? projects[0];
                 const projectCustomer = relatedOne(project?.customer ?? null);
                 const nextCustomerId =
                   mode === "project"
@@ -827,7 +835,7 @@ function NewAppointmentModal({
                 >
                   {projects.map((project) => (
                     <option key={project.id} value={project.id}>
-                      {project.subject}
+                      {project.subject} / {projectStatusLabel(project.status)}
                     </option>
                   ))}
                 </select>
@@ -1009,6 +1017,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [modalError, setModalError] = useState("");
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
   const isArtistUser = operationsContext?.isArtist === true;
@@ -1081,6 +1090,7 @@ export default function CalendarPage() {
     async function loadCalendar() {
       setLoading(true);
       setError("");
+      setMessage("");
 
       const user = await getSafeUser();
       const context = await getOperationsContext();
@@ -1209,6 +1219,7 @@ export default function CalendarPage() {
 
       if (prefillProject && prefillArtist) {
         setArtistFilter(prefillArtist.id);
+        setMessage("Project created. Choose a date and time to book the appointment.");
         setDraftAppointment({
           artistId: prefillArtist.id,
           artist: prefillArtist.display_name,
@@ -1241,6 +1252,8 @@ export default function CalendarPage() {
 
     setSaving(true);
     setModalError("");
+    setError("");
+    setMessage("");
 
     let project: ProjectRecord | null =
       projects.find(
@@ -1382,10 +1395,12 @@ export default function CalendarPage() {
       ...current,
       mapAppointment(appointmentResult.data as unknown as AppointmentRow),
     ]);
+    let hasDeliveryWarning = false;
     const emailResult = await sendAppointmentConfirmation(
       (appointmentResult.data as unknown as AppointmentRow).id,
     );
     if (!emailResult.sent) {
+      hasDeliveryWarning = true;
       setError(
         `Appointment saved. Confirmation email was not sent${
           emailResult.error || emailResult.reason
@@ -1398,12 +1413,20 @@ export default function CalendarPage() {
       (appointmentResult.data as unknown as AppointmentRow).id,
     );
     if (reminderResult.status === "failed") {
+      hasDeliveryWarning = true;
       setError(
         `Appointment saved. Reminder email was not scheduled${
           reminderResult.error || reminderResult.reason
             ? `: ${reminderResult.error || reminderResult.reason}`
             : "."
         }`,
+      );
+    }
+    if (!hasDeliveryWarning) {
+      setMessage(
+        `Appointment saved. Confirmation email sent${
+          reminderResult.status === "scheduled" ? " and reminder scheduled" : ""
+        }.`,
       );
     }
     setDraftAppointment(null);
@@ -1418,6 +1441,8 @@ export default function CalendarPage() {
 
     setSaving(true);
     setModalError("");
+    setError("");
+    setMessage("");
     const oldStartsAt = appointment.startsAt;
     const oldEndsAt = appointment.endsAt;
     const nextStartsAt = timestampFor(selectedDate, form.start);
@@ -1488,6 +1513,11 @@ export default function CalendarPage() {
       }
     }
     setSelectedAppointment(updatedAppointment);
+    setMessage(
+      updatedAppointment.status === "cancelled"
+        ? "Appointment marked cancelled and reminder cancelled."
+        : `Appointment updated${timeChanged ? ". Reschedule email sent" : ""}.`,
+    );
     setSaving(false);
   }
 
@@ -1500,6 +1530,8 @@ export default function CalendarPage() {
 
     setSaving(true);
     setModalError("");
+    setError("");
+    setMessage("");
 
     const result = await supabase
       .from("appointments")
@@ -1537,6 +1569,7 @@ export default function CalendarPage() {
     }
 
     setSelectedAppointment(null);
+    setMessage("Appointment cancelled. Cancellation email sent.");
     setSaving(false);
   }
 
@@ -1555,6 +1588,7 @@ export default function CalendarPage() {
             const artist = visibleArtists[0] ?? artists[0];
 
             if (artist) {
+              setMessage("");
               setDraftAppointment({
                 artistId: artist.id,
                 artist: artist.display_name,
@@ -1583,6 +1617,12 @@ export default function CalendarPage() {
         </div>
       ) : null}
 
+      {!loading && message ? (
+        <div className="rounded-md border border-[#c8d8c1] bg-[#f1f7ee] px-4 py-3 text-sm font-semibold text-[#356237] shadow-sm">
+          {message}
+        </div>
+      ) : null}
+
       {!loading && !error ? (
         <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="space-y-6 xl:min-w-80">
@@ -1598,13 +1638,20 @@ export default function CalendarPage() {
                         setSelectedAppointment(null);
                         setDraftAppointment(null);
                         setModalError("");
+                        setMessage("");
                       }}
                       selectedDate={selectedDate}
                     />
                   </div>
                   <input
                     className="sr-only"
-                    onChange={(event) => setSelectedDate(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedDate(event.target.value);
+                      setSelectedAppointment(null);
+                      setDraftAppointment(null);
+                      setModalError("");
+                      setMessage("");
+                    }}
                     type="date"
                     value={selectedDate}
                   />
@@ -1752,6 +1799,7 @@ export default function CalendarPage() {
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
                             setModalError("");
+                            setMessage("");
                             setDraftAppointment(draft);
                           }
                         }}
@@ -1791,6 +1839,7 @@ export default function CalendarPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setModalError("");
+                                setMessage("");
                                 setSelectedAppointment(appointment);
                               }}
                               style={appointmentStyle(appointment.start, appointment.end)}
@@ -1912,6 +1961,7 @@ export default function CalendarPage() {
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
                             setModalError("");
+                            setMessage("");
                             setDraftAppointment(draft);
                           }
                         }}
@@ -1951,6 +2001,7 @@ export default function CalendarPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setModalError("");
+                                setMessage("");
                                 setSelectedAppointment(appointment);
                               }}
                               style={appointmentStyle(appointment.start, appointment.end)}
