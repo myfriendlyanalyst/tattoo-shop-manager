@@ -129,6 +129,15 @@ type SchedulePrompt = {
   artistId: string;
 };
 
+type QueueFilter =
+  | "active"
+  | "needs_action"
+  | "needs_assignment"
+  | "waiting_artist"
+  | "waiting_client"
+  | "reassignment"
+  | "closed";
+
 const statusOptions = [
   "new",
   "forwarded",
@@ -315,6 +324,58 @@ function emailLogBody(message: RequestMessage) {
 
 function tattooTimingLabel(value: string | null) {
   return tattooTimingOptions.find((option) => option.value === (value ?? ""))?.label ?? value ?? "-";
+}
+
+function hasClientReassignmentRequest(request: RequestRecord, messages: RequestMessage[]) {
+  return (
+    request.status === "new" &&
+    !request.artist_id &&
+    messages.some(
+      (message) =>
+        message.provider === "client_action" &&
+        (message.subject?.toLowerCase().includes("request another artist") ||
+          message.body_text?.toLowerCase().includes("different artist") ||
+          message.snippet?.toLowerCase().includes("different artist")),
+    )
+  );
+}
+
+function isNeedsAssignment(request: RequestRecord) {
+  return request.status === "new" && !request.artist_id;
+}
+
+function isWaitingForArtist(request: RequestRecord) {
+  return request.status === "forwarded";
+}
+
+function isWaitingForClient(request: RequestRecord) {
+  return request.status === "client_waiting_for_reply";
+}
+
+function isClosedRequest(request: RequestRecord) {
+  return ["booked", "client_declined", "denied", "spam"].includes(request.status);
+}
+
+function matchesQueueFilter(
+  request: RequestRecord,
+  messages: RequestMessage[],
+  filter: QueueFilter,
+) {
+  const reassignment = hasClientReassignmentRequest(request, messages);
+
+  if (filter === "active") return request.status !== "spam";
+  if (filter === "needs_assignment") return isNeedsAssignment(request);
+  if (filter === "waiting_artist") return isWaitingForArtist(request);
+  if (filter === "waiting_client") return isWaitingForClient(request);
+  if (filter === "reassignment") return reassignment;
+  if (filter === "closed") return isClosedRequest(request);
+
+  return (
+    reassignment ||
+    isNeedsAssignment(request) ||
+    isWaitingForArtist(request) ||
+    request.status === "client_replied"
+  );
 }
 
 function defaultBookingForm(request: RequestRecord): BookingForm {
@@ -647,6 +708,7 @@ export default function RequestsPage() {
   const [selectedRequestId, setSelectedRequestId] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [artistFilter, setArtistFilter] = useState("all");
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>("active");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -667,17 +729,50 @@ export default function RequestsPage() {
     [requests, selectedRequestId],
   );
 
+  const messagesByRequestId = useMemo(() => {
+    const map = new Map<string, RequestMessage[]>();
+    for (const email of requestMessages) {
+      const current = map.get(email.request_id) ?? [];
+      current.push(email);
+      map.set(email.request_id, current);
+    }
+    return map;
+  }, [requestMessages]);
+
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
+      const requestMessageList = messagesByRequestId.get(request.id) ?? [];
       const statusMatches =
         statusFilter === "all"
-          ? request.status !== "spam"
+          ? queueFilter === "closed" || request.status !== "spam"
           : request.status === statusFilter;
       const artistMatches = artistFilter === "all" || request.artist_id === artistFilter;
+      const queueMatches = matchesQueueFilter(request, requestMessageList, queueFilter);
 
-      return statusMatches && artistMatches;
+      return statusMatches && artistMatches && queueMatches;
     });
-  }, [artistFilter, requests, statusFilter]);
+  }, [artistFilter, messagesByRequestId, queueFilter, requests, statusFilter]);
+
+  const queueSummary = useMemo(() => {
+    const summary = {
+      bookedOrClosed: 0,
+      needsAssignment: 0,
+      reassignment: 0,
+      waitingArtist: 0,
+      waitingClient: 0,
+    };
+
+    for (const request of requests) {
+      const requestMessageList = messagesByRequestId.get(request.id) ?? [];
+      if (isNeedsAssignment(request)) summary.needsAssignment += 1;
+      if (hasClientReassignmentRequest(request, requestMessageList)) summary.reassignment += 1;
+      if (isWaitingForArtist(request)) summary.waitingArtist += 1;
+      if (isWaitingForClient(request)) summary.waitingClient += 1;
+      if (isClosedRequest(request)) summary.bookedOrClosed += 1;
+    }
+
+    return summary;
+  }, [messagesByRequestId, requests]);
 
   const selectedFiles = useMemo(() => {
     if (!selectedRequest) {
@@ -692,8 +787,8 @@ export default function RequestsPage() {
       return [];
     }
 
-    return requestMessages.filter((email) => email.request_id === selectedRequest.id);
-  }, [requestMessages, selectedRequest]);
+    return messagesByRequestId.get(selectedRequest.id) ?? [];
+  }, [messagesByRequestId, selectedRequest]);
 
   const needsArtistAssignment = useMemo(() => {
     if (!selectedRequest) {
@@ -1284,6 +1379,59 @@ export default function RequestsPage() {
 
       {!loading && requests.length > 0 ? (
         <>
+          <section className="mb-5 grid gap-3 md:grid-cols-5">
+            {[
+              {
+                count: queueSummary.needsAssignment,
+                filter: "needs_assignment" as QueueFilter,
+                label: "Needs assignment",
+                tone: "border-[#d9d3c7] bg-white",
+              },
+              {
+                count: queueSummary.reassignment,
+                filter: "reassignment" as QueueFilter,
+                label: "Reassignment",
+                tone: "border-[#d6b887] bg-[#fffaf1]",
+              },
+              {
+                count: queueSummary.waitingArtist,
+                filter: "waiting_artist" as QueueFilter,
+                label: "Waiting artist",
+                tone: "border-[#c9d8e4] bg-[#f4f8fb]",
+              },
+              {
+                count: queueSummary.waitingClient,
+                filter: "waiting_client" as QueueFilter,
+                label: "Waiting client",
+                tone: "border-[#ead2c3] bg-[#fdf7f2]",
+              },
+              {
+                count: queueSummary.bookedOrClosed,
+                filter: "closed" as QueueFilter,
+                label: "Booked / closed",
+                tone: "border-[#d9d3c7] bg-white",
+              },
+            ].map((card) => (
+              <button
+                className={`rounded-md border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow ${card.tone} ${
+                  queueFilter === card.filter ? "ring-2 ring-[#1f2428]" : ""
+                }`}
+                key={card.filter}
+                onClick={() => {
+                  setQueueFilter(card.filter);
+                  setStatusFilter("all");
+                  setMobileDetailOpen(false);
+                }}
+                type="button"
+              >
+                <span className="block text-2xl font-black">{card.count}</span>
+                <span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-[#697178]">
+                  {card.label}
+                </span>
+              </button>
+            ))}
+          </section>
+
           <section>
             <div
               className="rounded-md border border-[#d9d3c7] bg-white shadow-sm"
@@ -1295,11 +1443,40 @@ export default function RequestsPage() {
                     Webflow/Make.com requests should land here from Supabase.
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      ["active", "Active"],
+                      ["needs_action", "Needs action"],
+                      ["needs_assignment", "New"],
+                      ["waiting_artist", "Waiting artist"],
+                      ["waiting_client", "Waiting client"],
+                      ["reassignment", "Reassignment"],
+                      ["closed", "Closed"],
+                    ].map(([value, label]) => (
+                      <button
+                        className={`h-10 rounded-md border px-3 text-sm font-semibold transition ${
+                          queueFilter === value
+                            ? "border-[#1f2428] bg-[#1f2428] text-white"
+                            : "border-[#cfc7b8] bg-white text-[#30373d] hover:bg-[#f7f2e9]"
+                        }`}
+                        key={value}
+                        onClick={() => {
+                          setQueueFilter(value as QueueFilter);
+                          setStatusFilter("all");
+                          setMobileDetailOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <select
                     className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                     onChange={(event) => {
                       setStatusFilter(event.target.value);
+                      setQueueFilter("active");
                       setMobileDetailOpen(false);
                     }}
                     value={statusFilter}
@@ -1334,6 +1511,10 @@ export default function RequestsPage() {
               <div className="divide-y divide-[#eee8dd] md:hidden">
                 {filteredRequests.map((request) => {
                   const artist = relatedOne(request.artist);
+                  const isReassignment = hasClientReassignmentRequest(
+                    request,
+                    messagesByRequestId.get(request.id) ?? [],
+                  );
 
                   return (
                     <button
@@ -1355,6 +1536,11 @@ export default function RequestsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="line-clamp-2 font-semibold">{request.subject}</p>
+                          {isReassignment ? (
+                            <span className="mt-2 inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
+                              Client requested another artist
+                            </span>
+                          ) : null}
                         </div>
                         <span
                           className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${statusClasses(
@@ -1396,6 +1582,10 @@ export default function RequestsPage() {
                   <tbody className="divide-y divide-[#eee8dd]">
                     {filteredRequests.map((request) => {
                       const artist = relatedOne(request.artist);
+                      const isReassignment = hasClientReassignmentRequest(
+                        request,
+                        messagesByRequestId.get(request.id) ?? [],
+                      );
 
                       return (
                         <tr
@@ -1416,6 +1606,11 @@ export default function RequestsPage() {
                           <td className="px-4 py-4">
                             <p className="text-xs font-bold text-[#8a6f4d]">{requestCode(request)}</p>
                             <p className="mt-1 font-semibold">{request.subject}</p>
+                            {isReassignment ? (
+                              <span className="mt-2 inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
+                                Client requested another artist
+                              </span>
+                            ) : null}
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
                             <p className="font-semibold text-[#1f2428]">{request.client_name}</p>
@@ -1459,6 +1654,14 @@ export default function RequestsPage() {
                           ? "Create a project and optional deposit."
                           : statusLabel(selectedRequest.status)}
                       </p>
+                      {hasClientReassignmentRequest(
+                        selectedRequest,
+                        messagesByRequestId.get(selectedRequest.id) ?? [],
+                      ) ? (
+                        <span className="mt-2 inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
+                          Client requested another artist
+                        </span>
+                      ) : null}
                     </div>
                     <button
                       aria-label="Close request detail"
