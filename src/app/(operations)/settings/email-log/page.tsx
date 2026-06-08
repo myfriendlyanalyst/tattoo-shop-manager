@@ -317,7 +317,6 @@ export default function EmailLogPage() {
     <AppPage
       eyebrow="Settings"
       title="Email log"
-      description="Review request emails, appointment emails, scheduled reminders, and delivery failures."
       actions={
         <Link
           className="h-10 rounded-md border border-[#cfc7b8] px-4 py-2 text-sm font-semibold hover:bg-[#eee8dd]"

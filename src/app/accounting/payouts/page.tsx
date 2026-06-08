@@ -668,7 +668,6 @@ export default function PayoutsPage() {
       active="Payouts"
       eyebrow="Artist payouts"
       title="Payouts"
-      description="Track payout periods per artist from draft through payment."
       actions={
         <button
           className="inline-flex h-9 items-center rounded-md bg-[#191b1f] px-4 text-sm font-semibold text-white hover:bg-[#2e3238] disabled:opacity-50"

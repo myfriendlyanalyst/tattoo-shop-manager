@@ -138,7 +138,6 @@ export default function ArtistEntryPage() {
     <AppPage
       eyebrow="Artist workflow"
       title="Session and deposit entry"
-      description="Artists enter individual customer amounts here. Shop-wide revenue and payout reporting stays in the separate accounting app."
       actions={
         <button
           className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"

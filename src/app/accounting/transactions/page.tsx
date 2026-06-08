@@ -172,7 +172,6 @@ export default function TransactionsPage() {
       active="Transactions"
       eyebrow="Revenue records"
       title="Transactions"
-      description="Session, deposit, and merch entries recorded by artists."
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">

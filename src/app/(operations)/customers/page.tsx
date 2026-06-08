@@ -496,7 +496,6 @@ export default function CustomersPage() {
     <AppPage
       eyebrow="Customer records"
       title="Customer directory"
-      description="Customer records can originate from Requests. Use this page for contact details and a quick project overview; project work is managed in Projects."
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"

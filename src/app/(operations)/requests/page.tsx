@@ -1321,7 +1321,6 @@ export default function RequestsPage() {
     <AppPage
       eyebrow="Request intake"
       title="Website and email requests"
-      description="Manage Webflow/Gmail requests, artist candidates, and conversion into customer/project records."
       actions={
         isArtistUser ? null : (
         <>

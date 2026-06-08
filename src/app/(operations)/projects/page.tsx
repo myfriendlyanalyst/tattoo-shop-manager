@@ -1726,7 +1726,6 @@ export default function ProjectsPage() {
     <AppPage
       eyebrow="Project queue"
       title="Projects by artist"
-      description="Track each tattoo project separately from the customer profile, including artist ownership, appointments, deposits, waiver state, and session entries."
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">

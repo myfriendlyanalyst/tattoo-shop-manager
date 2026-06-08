@@ -115,7 +115,6 @@ export default function SettingsPage() {
       <AppPage
         eyebrow="Artist setup"
         title="Settings"
-        description="Manage the default message used when you accept a request and draft the first client email."
       >
         {message ? (
           <p className="mb-6 rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
@@ -131,9 +130,6 @@ export default function SettingsPage() {
         <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
           <div className="border-b border-[#e5dfd4] px-4 py-4">
             <h3 className="text-base font-semibold">Client email default</h3>
-            <p className="mt-1 text-sm text-[#697178]">
-              This content is inserted into the editable email draft after you accept a request.
-            </p>
           </div>
           <div className="px-4 py-4">
             {loadingArtistSettings ? (
@@ -167,7 +163,6 @@ export default function SettingsPage() {
     <AppPage
       eyebrow="System setup"
       title="Settings"
-      description="Manage operational settings that are connected to the app."
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
@@ -189,9 +184,6 @@ export default function SettingsPage() {
           <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="border-b border-[#e5dfd4] px-4 py-4">
               <h3 className="text-base font-semibold">Email operations</h3>
-              <p className="mt-1 text-sm text-[#697178]">
-                Review automated appointment emails and scheduled reminders.
-              </p>
             </div>
             <div className="px-4 py-4">
               <div className="flex flex-wrap gap-2">

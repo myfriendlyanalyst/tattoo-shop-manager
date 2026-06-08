@@ -259,9 +259,6 @@ function CreateStaffModal({
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">New staff</p>
             <h3 className="mt-1 text-xl font-semibold">Create staff login</h3>
-            <p className="mt-1 text-sm text-[#697178]">
-              A temporary password will be shown once after creation.
-            </p>
           </div>
           <button
             aria-label="Close new staff"
@@ -843,7 +840,6 @@ export default function StaffPage() {
     <AppPage
       eyebrow="Operations"
       title="Staff and permissions"
-      description="Manage artists, front desk users, and owner/admin access. Accounting app users are managed separately at /accounting/users."
       actions={
         <button
           className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"

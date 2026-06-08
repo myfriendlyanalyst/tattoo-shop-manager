@@ -1577,7 +1577,6 @@ export default function CalendarPage() {
     <AppPage
       eyebrow="Appointments"
       title="Calendar and booking"
-      description="Book tattoo sessions by artist. Staff schedules now come from Supabase."
       wide
       actions={
         isArtistUser ? null : (

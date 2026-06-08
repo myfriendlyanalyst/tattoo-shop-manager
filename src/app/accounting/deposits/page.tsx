@@ -229,7 +229,6 @@ export default function DepositsPage() {
       active="Deposits"
       eyebrow="Deposit management"
       title="Deposits"
-      description="Customer deposits received and held against future sessions."
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">

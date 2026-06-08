@@ -164,7 +164,6 @@ export default function EmailTemplatesPage() {
     <AppPage
       eyebrow="Settings"
       title="Email templates"
-      description="Manage customer-facing email templates for requests, bookings, changes, cancellations, and reminders."
       wide
     >
       <div className="mb-6">

@@ -60,7 +60,6 @@ export default function AccountingSettingsPage() {
       active="Settings"
       eyebrow="Accounting settings"
       title="Settings"
-      description="Reference values and configuration for the accounting module."
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">

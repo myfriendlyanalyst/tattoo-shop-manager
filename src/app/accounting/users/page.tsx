@@ -185,10 +185,6 @@ function TempPasswordModal({
             </button>
           </div>
 
-          <p className="text-sm text-[#697178]">
-            The user will be asked to set a new password on first login.
-          </p>
-
           <button
             className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
             onClick={onClose}
@@ -372,7 +368,6 @@ export default function AccountingUsersPage() {
       active="Users"
       eyebrow="Access control"
       title="Accounting users"
-      description="Manage who can access the accounting app. Accounts are separate from Tattoo Manager staff."
       actions={
         <button
           className="h-10 rounded-md bg-[#236c8f] px-4 text-sm font-semibold text-white hover:bg-[#1a5470]"

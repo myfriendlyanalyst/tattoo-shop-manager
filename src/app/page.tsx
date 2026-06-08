@@ -84,11 +84,6 @@ export default function HomePage() {
           <h1 className="mt-2 text-2xl font-semibold">
             {isAccountingLogin ? "Accounting Login" : "Tattoo Manager"}
           </h1>
-          <p className="mt-1 text-sm text-[#697178]">
-            {isAccountingLogin
-              ? "Use your accounting account to access accounting."
-              : "Use your staff account to access the operations app."}
-          </p>
         </div>
 
         <form className="space-y-4 px-6 py-6" onSubmit={handleLogin}>
