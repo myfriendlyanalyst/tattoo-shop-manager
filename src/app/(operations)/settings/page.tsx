@@ -120,7 +120,7 @@ export default function SettingsPage() {
     setSavingArtistSettings(false);
   }
 
-  const artistOnlySettings = context?.isArtist && context.role !== "owner";
+  const artistOnlySettings = context?.isArtist === true;
 
   if (loadingArtistSettings && context === null) {
     return (
