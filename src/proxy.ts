@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
 ];
 const ARTIST_ALLOWED_PREFIX_PATHS = ["/requests", "/projects", "/calendar"];
 const ARTIST_ALLOWED_EXACT_PATHS = ["/settings"];
+const MANAGER_HOST = "manager.oyabuntattoo.com";
+const ACCOUNTING_HOST = "accounting.oyabuntattoo.com";
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -26,6 +28,7 @@ function isArtistAllowedPath(pathname: string) {
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const host = request.nextUrl.hostname.toLowerCase();
 
   // Pass through Next.js internals, static assets, and API routes.
   if (
@@ -34,6 +37,28 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/favicon")
   ) {
     return NextResponse.next({ request });
+  }
+
+  if (host === MANAGER_HOST && pathname === "/") {
+    return NextResponse.redirect(new URL("/requests", request.url));
+  }
+
+  if (host === MANAGER_HOST && pathname.startsWith("/accounting")) {
+    const accountingUrl = new URL(request.url);
+    accountingUrl.hostname = ACCOUNTING_HOST;
+    return NextResponse.redirect(accountingUrl);
+  }
+
+  if (host === ACCOUNTING_HOST && pathname === "/") {
+    return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
+  }
+
+  if (
+    host === ACCOUNTING_HOST &&
+    !pathname.startsWith("/accounting") &&
+    !isPublicPath(pathname)
+  ) {
+    return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
   }
 
   let response = NextResponse.next({ request });
