@@ -17,13 +17,36 @@ function nextPath() {
   return "/requests";
 }
 
+function isAccountingHost() {
+  return typeof window !== "undefined" && window.location.hostname === "accounting.oyabuntattoo.com";
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const destination = nextPath();
-  const isAccountingLogin = destination.startsWith("/accounting");
+  const isAccountingLogin = destination.startsWith("/accounting") || isAccountingHost();
+  const theme = isAccountingLogin
+    ? {
+        page: "bg-[#eef5fb] text-[#142433]",
+        card: "border-[#bfd4e8]",
+        header: "border-[#cbdceb] bg-[#f8fbfe]",
+        eyebrow: "text-[#316997]",
+        input: "border-[#b9cfe2] focus:border-[#316997] focus:outline-none focus:ring-2 focus:ring-[#d6e7f6]",
+        button: "bg-[#23648f] hover:bg-[#1b5276]",
+        link: "text-[#316997] hover:text-[#1b5276]",
+      }
+    : {
+        page: "bg-[#f6f4ef] text-[#1f2428]",
+        card: "border-[#d9d3c7]",
+        header: "border-[#e5dfd4]",
+        eyebrow: "text-[#8a6f4d]",
+        input: "border-[#cfc7b8]",
+        button: "bg-[#9f5c3c] hover:bg-[#884a2f]",
+        link: "text-[#7d684d] hover:text-[#9f5c3c]",
+      };
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,10 +74,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f6f4ef] px-4 py-10 text-[#1f2428]">
-      <section className="w-full max-w-md rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-        <div className="border-b border-[#e5dfd4] px-6 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
+    <main className={`flex min-h-screen items-center justify-center px-4 py-10 ${theme.page}`}>
+      <section className={`w-full max-w-md rounded-md border bg-white shadow-sm ${theme.card}`}>
+        <div className={`border-b px-6 py-5 ${theme.header}`}>
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${theme.eyebrow}`}>
             {isAccountingLogin ? "Oyabun Accounting" : "Oyabun"}
           </p>
           <h1 className="mt-2 text-2xl font-semibold">
@@ -72,7 +95,7 @@ export default function LoginPage() {
             Email
             <input
               autoComplete="email"
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              className={`mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm ${theme.input}`}
               onChange={(event) => setEmail(event.target.value)}
               required
               type="email"
@@ -84,7 +107,7 @@ export default function LoginPage() {
             Password
             <input
               autoComplete="current-password"
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              className={`mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm ${theme.input}`}
               onChange={(event) => setPassword(event.target.value)}
               required
               type="password"
@@ -99,7 +122,7 @@ export default function LoginPage() {
           ) : null}
 
           <button
-            className="h-11 w-full rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+            className={`h-11 w-full rounded-md px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${theme.button}`}
             disabled={loading}
             type="submit"
           >
@@ -107,7 +130,7 @@ export default function LoginPage() {
           </button>
 
           <Link
-            className="block text-center text-sm font-semibold text-[#7d684d] hover:text-[#9f5c3c]"
+            className={`block text-center text-sm font-semibold ${theme.link}`}
             href="/"
           >
             Back
