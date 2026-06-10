@@ -119,6 +119,15 @@ function RequestActionContent() {
     setSaving(false);
   }
 
+  function cancelAction() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    window.location.href = "https://www.oyabuntattoo.com";
+  }
+
   const disabled = loading || saving || done || Boolean(data?.expired) || !action;
 
   return (
@@ -168,12 +177,13 @@ function RequestActionContent() {
           ) : null}
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5dfd4] pt-4">
-            <a
+            <button
               className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-bold text-[#30373d] hover:bg-[#eee8dd]"
-              href="https://www.oyabuntattoo.com"
+              onClick={cancelAction}
+              type="button"
             >
-              Back to Oyabun
-            </a>
+              Cancel
+            </button>
             {!done ? (
               <button
                 className={`h-10 rounded-md px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
