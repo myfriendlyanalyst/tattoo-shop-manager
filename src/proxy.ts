@@ -19,6 +19,16 @@ function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+// Operations paths must leave the accounting host, otherwise the
+// accounting-host catch-all bounces them back and a redirect loop forms.
+function operationsUrl(pathname: string, request: NextRequest) {
+  const url = new URL(pathname, request.url);
+  if (url.hostname.toLowerCase() === ACCOUNTING_HOST) {
+    url.hostname = MANAGER_HOST;
+  }
+  return url;
+}
+
 function isArtistAllowedPath(pathname: string) {
   return (
     ARTIST_ALLOWED_EXACT_PATHS.includes(pathname) ||
@@ -172,7 +182,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (profile?.role === "artist" && !isArtistAllowedPath(pathname)) {
-    return NextResponse.redirect(new URL("/requests", request.url));
+    return NextResponse.redirect(operationsUrl("/requests", request));
   }
 
   // Accounting access check.
@@ -184,7 +194,7 @@ export async function proxy(request: NextRequest) {
 
     // All others must have an active accounting_users record.
     if (acctUser?.active !== true) {
-      return NextResponse.redirect(new URL("/requests", request.url));
+      return NextResponse.redirect(operationsUrl("/requests", request));
     }
   }
 
