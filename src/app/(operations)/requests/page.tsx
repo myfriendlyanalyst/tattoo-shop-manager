@@ -255,15 +255,15 @@ function statusLabel(status: string) {
 
 function statusClasses(status: string) {
   const variants: Record<string, string> = {
-    new: "bg-[#f1eadc] text-[#775f36]",
-    forwarded: "bg-[#e5edf4] text-[#315f82]",
-    artist_replied: "bg-[#e8f0ee] text-[#2f6658]",
-    client_replied: "bg-[#e8f0ee] text-[#2f6658]",
-    consultation: "bg-[#e4f1df] text-[#476b33]",
-    booked: "bg-[#e4f1df] text-[#476b33]",
-    client_waiting_for_reply: "bg-[#f4e7df] text-[#8a5130]",
+    new: "bg-[#fff4d8] text-[#7a5a00]",
+    forwarded: "bg-[#e5edf4] text-[#245c86]",
+    artist_replied: "bg-[#e7f7ec] text-[#24703d]",
+    client_replied: "bg-[#def7ee] text-[#17634a]",
+    consultation: "bg-[#dff4df] text-[#2f6b2f]",
+    booked: "bg-[#dff4df] text-[#2f6b2f]",
+    client_waiting_for_reply: "bg-[#e3f6df] text-[#2f6b2f]",
     client_declined: "bg-[#f3e1e1] text-[#8a3030]",
-    no_answer: "bg-[#f4e7df] text-[#8a5130]",
+    no_answer: "bg-[#f9dddd] text-[#9a1f1f]",
     denied: "bg-[#f3e1e1] text-[#8a3030]",
     spam: "bg-[#f3e1e1] text-[#8a3030]",
     sent: "bg-[#e5edf4] text-[#315f82]",
@@ -274,6 +274,34 @@ function statusClasses(status: string) {
   };
 
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
+}
+
+function replyStateFor(request: RequestRecord) {
+  if (request.status === "no_answer") {
+    return {
+      label: "No answer",
+      className: "bg-[#f9dddd] text-[#9a1f1f]",
+    };
+  }
+
+  if (request.client_reply_at || request.status === "client_replied") {
+    return {
+      label: "Client replied",
+      className: "bg-[#def7ee] text-[#17634a]",
+    };
+  }
+
+  if (request.artist_reply_at || request.status === "client_waiting_for_reply") {
+    return {
+      label: "Reply sent",
+      className: "bg-[#e3f6df] text-[#2f6b2f]",
+    };
+  }
+
+  return {
+    label: "No reply sent",
+    className: "bg-[#fff4d8] text-[#7a5a00]",
+  };
 }
 
 function displayDateTime(value: string | null) {
@@ -423,23 +451,65 @@ function hasStaffPermission(
 
 function timelineFor(request: RequestRecord) {
   return [
-    { label: "Request received", value: displayDateTime(request.received_at), done: true },
+    {
+      label: "Request received",
+      value: displayDateTime(request.received_at),
+      done: true,
+      tone: "received",
+    },
     {
       label: "Forwarded to artist",
       value: displayDateTime(request.forwarded_at),
       done: Boolean(request.forwarded_at),
+      tone: "forwarded",
     },
     {
       label: "First client email sent",
       value: displayDateTime(request.artist_reply_at),
       done: Boolean(request.artist_reply_at),
+      tone: "clientSent",
     },
     {
       label: "Project booked",
       value: displayDateTime(request.booked_at),
       done: Boolean(request.booked_at),
+      tone: "booked",
     },
   ];
+}
+
+function timelineDotClasses(item: ReturnType<typeof timelineFor>[number], request: RequestRecord) {
+  if (!item.done) {
+    if (item.tone === "clientSent" && request.status === "no_answer") {
+      return "bg-[#9a1f1f] text-white";
+    }
+
+    return "border border-[#bdb3a3] bg-white text-[#8a8174]";
+  }
+
+  const tones: Record<string, string> = {
+    booked: "bg-[#2f6b2f] text-white",
+    clientSent: "bg-[#2f6b2f] text-white",
+    forwarded: "bg-[#245c86] text-white",
+    received: "bg-[#7a5a00] text-white",
+  };
+
+  return tones[item.tone] ?? "bg-[#2f6658] text-white";
+}
+
+function timelineMarker(item: ReturnType<typeof timelineFor>[number], request: RequestRecord) {
+  if (!item.done) {
+    return item.tone === "clientSent" && request.status === "no_answer" ? "!" : "";
+  }
+
+  const markers: Record<string, string> = {
+    booked: "B",
+    clientSent: "S",
+    forwarded: "A",
+    received: "R",
+  };
+
+  return markers[item.tone] ?? "Y";
 }
 
 function projectSubjectFromRequest(request: RequestRecord) {
@@ -1532,14 +1602,25 @@ export default function RequestsPage() {
                       }}
                       type="button"
                     >
+                      {(() => {
+                        const replyState = replyStateFor(request);
+
+                        return (
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="line-clamp-2 font-semibold">{request.subject}</p>
-                          {isReassignment ? (
-                            <span className="mt-2 inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
-                              Client requested another artist
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span
+                              className={`inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
+                            >
+                              {replyState.label}
                             </span>
-                          ) : null}
+                            {isReassignment ? (
+                              <span className="inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
+                                Client requested another artist
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <span
                           className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${statusClasses(
@@ -1549,6 +1630,8 @@ export default function RequestsPage() {
                           {statusLabel(request.status)}
                         </span>
                       </div>
+                        );
+                      })()}
                       <div className="mt-3 grid gap-2 text-sm text-[#697178]">
                         <p>{request.email || "-"}</p>
                         <p>{request.phone || "-"}</p>
@@ -1585,6 +1668,7 @@ export default function RequestsPage() {
                         request,
                         messagesByRequestId.get(request.id) ?? [],
                       );
+                      const replyState = replyStateFor(request);
 
                       return (
                         <tr
@@ -1627,6 +1711,11 @@ export default function RequestsPage() {
                             >
                               {statusLabel(request.status)}
                             </span>
+                            <span
+                              className={`mt-2 inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
+                            >
+                              {replyState.label}
+                            </span>
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
                             {displayDateTime(request.artist_reply_at ?? request.forwarded_at ?? request.received_at)}
@@ -1661,6 +1750,17 @@ export default function RequestsPage() {
                           Client requested another artist
                         </span>
                       ) : null}
+                      {(() => {
+                        const replyState = replyStateFor(selectedRequest);
+
+                        return (
+                          <span
+                            className={`mt-2 inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
+                          >
+                            {replyState.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <button
                       aria-label="Close request detail"
@@ -1958,12 +2058,10 @@ export default function RequestsPage() {
                           <div className="mb-2 flex items-center gap-2">
                             <span
                               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                                item.done
-                                  ? "bg-[#2f6658] text-white"
-                                  : "border border-[#bdb3a3] bg-white text-[#8a8174]"
+                                timelineDotClasses(item, selectedRequest)
                               }`}
                             >
-                              {item.done ? "Y" : ""}
+                              {timelineMarker(item, selectedRequest)}
                             </span>
                             <span className="hidden h-px flex-1 bg-[#d9d3c7] sm:block" />
                             <span className="hidden text-[#bdb3a3] sm:block">&gt;</span>
