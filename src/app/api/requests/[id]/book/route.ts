@@ -49,6 +49,16 @@ function databaseError(message: string) {
   return jsonError(`${message}.${grantHint}`.replace("..", "."), 500);
 }
 
+function appointmentTypeForProjectType(projectType: string) {
+  const normalized = projectType.trim().toLowerCase();
+
+  if (normalized === "walk-in" || normalized === "walk in") return "Walk-in";
+  if (normalized === "one done" || normalized === "one-done") return "One Done";
+  if (normalized === "multiple session" || normalized === "multiple sessions") return "First Session";
+
+  return "Walk-in";
+}
+
 function roleKey(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
 }
@@ -391,7 +401,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         artist_id: artistId,
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
-        appointment_type: projectType,
+        appointment_type: appointmentTypeForProjectType(projectType),
         status: "scheduled",
         notes: payload.appointmentNotes?.trim() || null,
       })

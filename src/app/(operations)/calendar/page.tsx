@@ -62,6 +62,7 @@ type ProjectRecord = {
   customer_id: string;
   artist_id: string | null;
   subject: string;
+  session_type: string | null;
   status: string;
   customer: { name: string; email: string | null } | { name: string; email: string | null }[] | null;
 };
@@ -125,15 +126,16 @@ const timelineHeight = (dayEndHour - dayStartHour) * pixelsPerHour;
 
 const appointmentTypes = [
   "Walk-in",
-  "One-Done",
+  "One Done",
+  "First Session",
   "On-Going",
+  "Final Session",
 ];
 
 const appointmentStatusOptions = [
   "scheduled",
   "checked_in",
   "completed",
-  "cancelled",
   "no_show",
 ];
 
@@ -162,6 +164,31 @@ const hourMarkers = Array.from({ length: dayEndHour - dayStartHour + 1 }, (_, in
 
 function normalizeTime(value: string | null) {
   return value ? value.slice(0, 5) : "";
+}
+
+function appointmentTypeForProject(project?: Pick<ProjectRecord, "session_type"> | null) {
+  const sessionType = project?.session_type?.trim().toLowerCase() ?? "";
+
+  if (sessionType === "walk-in" || sessionType === "walk in") return "Walk-in";
+  if (sessionType === "one done" || sessionType === "one-done") return "One Done";
+  if (sessionType === "multiple session" || sessionType === "multiple sessions") {
+    return "First Session";
+  }
+
+  return "Walk-in";
+}
+
+function normalizeAppointmentType(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() ?? "";
+
+  if (normalized === "walk-in" || normalized === "walk in") return "Walk-in";
+  if (normalized === "one done" || normalized === "one-done") return "One Done";
+  if (normalized === "multiple session" || normalized === "multiple sessions") return "First Session";
+  if (normalized === "first session") return "First Session";
+  if (normalized === "on-going" || normalized === "ongoing" || normalized === "on going") return "On-Going";
+  if (normalized === "final session") return "Final Session";
+
+  return value || "Walk-in";
 }
 
 function minutesFromStart(time: string) {
@@ -423,7 +450,7 @@ function mapAppointment(row: AppointmentRow): Appointment {
     project: project?.subject ?? "Untitled project",
     artistId: row.artist_id ?? "",
     artist: artist?.display_name ?? "Unassigned",
-    type: row.appointment_type,
+    type: normalizeAppointmentType(row.appointment_type),
     status: row.status,
     waiver: project?.waiver_signed ? "Signed" : "Missing",
     notes: row.notes ?? "",
@@ -527,6 +554,7 @@ function AppointmentDetailModal({
   saving,
   error,
   onClose,
+  onCancel,
   onDelete,
   onSave,
 }: {
@@ -534,6 +562,7 @@ function AppointmentDetailModal({
   saving: boolean;
   error: string;
   onClose: () => void;
+  onCancel: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
   onSave: (appointment: Appointment, form: AppointmentEditForm) => void;
 }) {
@@ -638,7 +667,7 @@ function AppointmentDetailModal({
             />
           </label>
 
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
             <button
               className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={saving}
@@ -650,10 +679,18 @@ function AppointmentDetailModal({
             <button
               className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={saving || appointment.status === "cancelled"}
-              onClick={() => onDelete(appointment)}
+              onClick={() => onCancel(appointment)}
               type="button"
             >
               {appointment.status === "cancelled" ? "Cancelled" : "Cancel appointment"}
+            </button>
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
+              onClick={() => onDelete(appointment)}
+              type="button"
+            >
+              Delete
             </button>
           </div>
         </div>
@@ -695,7 +732,7 @@ function NewAppointmentModal({
     newCustomerEmail: "",
     newCustomerPhone: "",
     projectSubject: "",
-    type: "Walk-in",
+    type: firstProject ? appointmentTypeForProject(firstProject) : "Walk-in",
     notes: "",
     start: draft.start,
     end: draft.end,
@@ -804,6 +841,7 @@ function NewAppointmentModal({
                   mode,
                   projectId: mode === "project" ? project?.id ?? "" : "",
                   customerId: nextCustomerId,
+                  type: mode === "project" ? appointmentTypeForProject(project) : "Walk-in",
                 }));
               }}
               value={form.mode}
@@ -829,6 +867,7 @@ function NewAppointmentModal({
                       ...current,
                       projectId: event.target.value,
                       customerId: project?.customer_id ?? "",
+                      type: appointmentTypeForProject(project),
                     }));
                   }}
                   value={form.projectId}
@@ -1011,6 +1050,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState(() => localDateValue());
   const [artistFilter, setArtistFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [showCancelled, setShowCancelled] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointment | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -1045,12 +1085,14 @@ export default function CalendarPage() {
   );
 
   const visibleAppointments = useMemo(() => {
-    if (typeFilter === "all") {
-      return appointments;
-    }
+    return appointments.filter((appointment) => {
+      if (!showCancelled && appointment.status === "cancelled") {
+        return false;
+      }
 
-    return appointments.filter((appointment) => appointment.type === typeFilter);
-  }, [appointments, typeFilter]);
+      return typeFilter === "all" || appointment.type === typeFilter;
+    });
+  }, [appointments, showCancelled, typeFilter]);
 
   const dailySchedules = useMemo(
     () => scheduleMapForDate(selectedDate, schedules),
@@ -1129,7 +1171,7 @@ export default function CalendarPage() {
           .order("name", { ascending: true }),
         supabase
           .from("projects")
-          .select("id, customer_id, artist_id, subject, status, customer:customers(name, email)")
+          .select("id, customer_id, artist_id, subject, session_type, status, customer:customers(name, email)")
           .neq("status", "cancelled")
           .order("created_at", { ascending: false }),
         supabase
@@ -1330,7 +1372,7 @@ export default function CalendarPage() {
           waiver_status: "missing",
           memo: `Auto-created from calendar walk-in for ${formatDateLabel(draftAppointment.date)}.`,
         })
-        .select("id, customer_id, artist_id, subject, status, customer:customers(name, email)")
+        .select("id, customer_id, artist_id, subject, session_type, status, customer:customers(name, email)")
         .single();
 
       if (projectResult.error) {
@@ -1473,7 +1515,11 @@ export default function CalendarPage() {
     const updatedAppointment = mapAppointment(appointmentResult.data as unknown as AppointmentRow);
 
     setAppointments((current) =>
-      current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
+      updatedAppointment.status === "cancelled"
+        ? showCancelled
+          ? current.map((item) => (item.id === appointment.id ? updatedAppointment : item))
+          : current.filter((item) => item.id !== appointment.id)
+        : current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
     );
     if (timeChanged && updatedAppointment.status !== "cancelled") {
       const emailResult = await sendAppointmentReschedule(appointment.id, {
@@ -1512,7 +1558,7 @@ export default function CalendarPage() {
         return;
       }
     }
-    setSelectedAppointment(updatedAppointment);
+    setSelectedAppointment(updatedAppointment.status === "cancelled" ? null : updatedAppointment);
     setMessage(
       updatedAppointment.status === "cancelled"
         ? "Appointment marked cancelled and reminder cancelled."
@@ -1521,7 +1567,7 @@ export default function CalendarPage() {
     setSaving(false);
   }
 
-  async function deleteAppointment(appointment: Appointment) {
+  async function cancelAppointment(appointment: Appointment) {
     const confirmed = window.confirm(`Cancel appointment for ${appointment.client}?`);
 
     if (!confirmed) {
@@ -1550,7 +1596,9 @@ export default function CalendarPage() {
 
     const cancelledAppointment = mapAppointment(result.data as unknown as AppointmentRow);
     setAppointments((current) =>
-      current.map((item) => (item.id === appointment.id ? cancelledAppointment : item)),
+      showCancelled
+        ? current.map((item) => (item.id === appointment.id ? cancelledAppointment : item))
+        : current.filter((item) => item.id !== appointment.id),
     );
     await cancelAppointmentReminder(appointment.id);
     const emailResult = await sendAppointmentCancellation(appointment.id);
@@ -1563,13 +1611,42 @@ export default function CalendarPage() {
             : "."
         }`,
       );
-      setSelectedAppointment(cancelledAppointment);
+      setSelectedAppointment(null);
       setSaving(false);
       return;
     }
 
     setSelectedAppointment(null);
     setMessage("Appointment cancelled. Cancellation email sent.");
+    setSaving(false);
+  }
+
+  async function deleteAppointment(appointment: Appointment) {
+    const confirmed = window.confirm(
+      `Delete appointment for ${appointment.client}? No cancellation email will be sent.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setModalError("");
+    setError("");
+    setMessage("");
+
+    await cancelAppointmentReminder(appointment.id);
+    const result = await supabase.from("appointments").delete().eq("id", appointment.id);
+
+    if (result.error) {
+      setModalError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setAppointments((current) => current.filter((item) => item.id !== appointment.id));
+    setSelectedAppointment(null);
+    setMessage("Appointment deleted. No email sent.");
     setSaving(false);
   }
 
@@ -1686,6 +1763,14 @@ export default function CalendarPage() {
                       <option key={type}>{type}</option>
                     ))}
                   </select>
+                </label>
+                <label className="flex items-center justify-between gap-3 rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-3 py-3 text-sm font-semibold">
+                  <span>Show cancelled</span>
+                  <input
+                    checked={showCancelled}
+                    onChange={(event) => setShowCancelled(event.target.checked)}
+                    type="checkbox"
+                  />
                 </label>
               </div>
             </div>
@@ -1826,14 +1911,17 @@ export default function CalendarPage() {
                             appointment.start,
                             appointment.end,
                           );
+                          const isCancelled = appointment.status === "cancelled";
 
                           return (
                             <button
                               key={appointment.id}
                               className={`absolute left-2 right-2 overflow-hidden rounded-md border px-2 py-2 text-left text-xs shadow-sm transition hover:border-[#9f5c3c] hover:bg-[#fffaf1] ${
-                                inSchedule
-                                  ? "border-[#e4dccf] bg-[#fdfbf7]"
-                                  : "border-[#c66f5a] bg-[#fff2ed]"
+                                isCancelled
+                                  ? "border-[#d9c7c7] bg-[#f8eeee] opacity-80"
+                                  : inSchedule
+                                    ? "border-[#e4dccf] bg-[#fdfbf7]"
+                                    : "border-[#c66f5a] bg-[#fff2ed]"
                               }`}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -1860,7 +1948,7 @@ export default function CalendarPage() {
                               <p className="mt-1 font-semibold text-[#7d684d]">
                                 {formatTime(appointment.start)} - {formatTime(appointment.end)}
                               </p>
-                              {!inSchedule ? (
+                              {!isCancelled && !inSchedule ? (
                                 <p className="mt-1 text-[10px] font-bold uppercase text-[#9f5c3c]">
                                   Outside schedule
                                 </p>
@@ -1988,14 +2076,17 @@ export default function CalendarPage() {
                             appointment.start,
                             appointment.end,
                           );
+                          const isCancelled = appointment.status === "cancelled";
 
                           return (
                             <button
                               key={appointment.id}
                               className={`absolute left-2 right-2 overflow-hidden rounded-md border px-2 py-2 text-left text-xs shadow-sm transition hover:border-[#9f5c3c] hover:bg-[#fffaf1] ${
-                                inSchedule
-                                  ? "border-[#e4dccf] bg-[#fdfbf7]"
-                                  : "border-[#c66f5a] bg-[#fff2ed]"
+                                isCancelled
+                                  ? "border-[#d9c7c7] bg-[#f8eeee] opacity-80"
+                                  : inSchedule
+                                    ? "border-[#e4dccf] bg-[#fdfbf7]"
+                                    : "border-[#c66f5a] bg-[#fff2ed]"
                               }`}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -2022,7 +2113,7 @@ export default function CalendarPage() {
                               <p className="mt-1 font-semibold text-[#7d684d]">
                                 {formatTime(appointment.start)} - {formatTime(appointment.end)}
                               </p>
-                              {!inSchedule ? (
+                              {!isCancelled && !inSchedule ? (
                                 <p className="mt-1 text-[10px] font-bold uppercase text-[#9f5c3c]">
                                   Outside schedule
                                 </p>
@@ -2044,6 +2135,7 @@ export default function CalendarPage() {
         <AppointmentDetailModal
           appointment={selectedAppointment}
           error={modalError}
+          onCancel={cancelAppointment}
           onClose={() => {
             setSelectedAppointment(null);
             setModalError("");
