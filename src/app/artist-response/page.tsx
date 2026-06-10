@@ -166,8 +166,8 @@ function ArtistResponseContent() {
                 />
               </label>
 
-              <label className="block text-sm font-semibold">
-                Email body
+              <div className="text-sm font-semibold">
+                <p>Email body</p>
                 <RichTextEditor
                   disabled={saving || Boolean(message)}
                   html={bodyHtml}
@@ -176,7 +176,7 @@ function ArtistResponseContent() {
                     setBodyText(text);
                   }}
                 />
-              </label>
+              </div>
 
               {isPassIntent ? (
                 <p className="rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold text-[#8a3030]">
