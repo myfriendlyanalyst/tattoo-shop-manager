@@ -252,7 +252,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: assignedRequest, error: assignError } = await access.adminClient
     .from("requests")
-    .update({ artist_id: artistId, source_email_subject: publicSubject })
+    .update({
+      artist_id: artistId,
+      source_email_subject: publicSubject,
+      artist_reply_at: null,
+      client_reply_at: null,
+    })
     .eq("id", typedRequest.id)
     .select("id, request_number, artist_id, status, forwarded_at, artist:staff(display_name)")
     .single();
@@ -327,11 +332,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .update({
       artist_id: artistId,
       status: typedRequest.status === "new" ? "forwarded" : typedRequest.status,
-      forwarded_at: typedRequest.forwarded_at ?? forwardedAt,
+      forwarded_at: forwardedAt,
+      artist_reply_at: null,
+      client_reply_at: null,
     })
     .eq("id", typedRequest.id)
     .select(
-      "id, request_number, artist_id, status, forwarded_at, artist:staff(display_name)",
+      "id, request_number, artist_id, status, forwarded_at, artist_reply_at, client_reply_at, artist:staff(display_name)",
     )
     .single();
 

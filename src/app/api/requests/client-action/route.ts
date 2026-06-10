@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const resendApiKey = process.env.RESEND_API_KEY;
+const emailFrom = process.env.EMAIL_FROM;
 
 type ClientAction = "request_reassignment" | "close_request";
 
@@ -45,6 +47,14 @@ function requestCode(requestNumber: number | null) {
   return `REQ-${String(requestNumber ?? 0).padStart(5, "0")}`;
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function actionLabel(action: ClientAction) {
   return action === "request_reassignment"
     ? "Client requested a different artist"
@@ -57,6 +67,78 @@ function actionMessage(action: ClientAction, artistName: string | null) {
   }
 
   return "The client closed this request and is no longer moving forward.";
+}
+
+async function notifyArtistOfReassignment({
+  artist,
+  now,
+  request,
+}: {
+  artist: ArtistRow | null;
+  now: string;
+  request: RequestRow;
+}) {
+  if (!resendApiKey || !emailFrom || !artist?.email) {
+    return { sent: false, reason: "missing_email_config_or_artist_email" };
+  }
+
+  const code = requestCode(request.request_number);
+  const subject = `${code} | Client requested a different artist`;
+  const text = [
+    `Hi ${artist.display_name},`,
+    "",
+    `${request.client_name} requested to work with a different artist for this request.`,
+    "The request has been returned to the shop team for reassignment, so it may no longer appear in your active request list.",
+    "",
+    `Request: ${request.subject}`,
+    `Client: ${request.client_name}`,
+    "",
+    "Thank you,",
+    "Oyabun Tattoo",
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.55;color:#1f2428">
+      <p>Hi ${escapeHtml(artist.display_name)},</p>
+      <p>${escapeHtml(request.client_name)} requested to work with a different artist for this request.</p>
+      <p>The request has been returned to the shop team for reassignment, so it may no longer appear in your active request list.</p>
+      <div style="margin:16px 0;padding:14px 16px;border:1px solid #e5dfd4;background:#f7f2e9;border-radius:6px">
+        <p style="margin:0 0 6px"><strong>Request:</strong> ${escapeHtml(request.subject)}</p>
+        <p style="margin:0"><strong>Client:</strong> ${escapeHtml(request.client_name)}</p>
+      </div>
+      <p>Thank you,<br>Oyabun Tattoo</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: emailFrom,
+      html,
+      subject,
+      text,
+      to: [artist.email],
+    }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    id?: string;
+    message?: string;
+    error?: string;
+  };
+
+  return {
+    error: response.ok ? null : payload.message || payload.error || "Artist notification failed.",
+    providerMessageId: payload.id ?? null,
+    sent: response.ok,
+    subject,
+    text,
+    to: artist.email,
+    providerResponse: payload,
+    sentAt: now,
+  };
 }
 
 async function loadBundle(token: string) {
@@ -178,6 +260,15 @@ export async function POST(request: NextRequest) {
 
   if (tokenError) return jsonError(tokenError.message, 500);
 
+  const artistNotification =
+    payload.action === "request_reassignment"
+      ? await notifyArtistOfReassignment({
+          artist: bundle.artist,
+          now,
+          request: bundle.request,
+        })
+      : null;
+
   await bundle.client.from("request_messages").insert({
     request_id: bundle.request.id,
     provider: "client_action",
@@ -192,8 +283,30 @@ export async function POST(request: NextRequest) {
       action: payload.action,
       artistId: bundle.artist?.id ?? null,
       artistName: bundle.artist?.display_name ?? null,
+      artistNotification,
     },
   });
+
+  if (artistNotification?.sent && artistNotification.to) {
+    await bundle.client.from("request_messages").insert({
+      request_id: bundle.request.id,
+      provider: "resend",
+      provider_message_id: artistNotification.providerMessageId,
+      direction: "outbound",
+      from_email: emailFrom,
+      to_emails: [artistNotification.to],
+      cc_emails: [],
+      subject: artistNotification.subject,
+      body_text: artistNotification.text,
+      snippet: artistNotification.text.replace(/\s+/g, " ").slice(0, 500),
+      sent_at: artistNotification.sentAt,
+      received_at: artistNotification.sentAt,
+      raw_payload: {
+        providerResponse: artistNotification.providerResponse,
+        purpose: "artist_reassignment_notice",
+      },
+    });
+  }
 
   return NextResponse.json({
     action: payload.action,

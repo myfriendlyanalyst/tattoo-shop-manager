@@ -277,7 +277,10 @@ function statusClasses(status: string) {
 }
 
 function hasArtistReplied(request: RequestRecord) {
-  return Boolean(request.artist_reply_at);
+  if (!request.artist_reply_at) return false;
+  if (!request.forwarded_at) return true;
+
+  return new Date(request.artist_reply_at).getTime() >= new Date(request.forwarded_at).getTime();
 }
 
 function hasCurrentArtistReplied(request: RequestRecord, messages: RequestMessage[]) {
@@ -446,7 +449,7 @@ function timelineFor(request: RequestRecord) {
     {
       label: "Artist replied",
       value: displayDateTime(request.artist_reply_at),
-      done: Boolean(request.artist_reply_at),
+      done: hasArtistReplied(request),
       tone: "clientSent",
     },
     {
@@ -1174,6 +1177,8 @@ export default function RequestsPage() {
         artist_id?: string | null;
         status?: string;
         forwarded_at?: string | null;
+        artist_reply_at?: string | null;
+        client_reply_at?: string | null;
       };
     };
 
@@ -1187,6 +1192,8 @@ export default function RequestsPage() {
       artist_id: payload.request?.artist_id ?? nextArtistId,
       status: payload.request?.status ?? selectedRequest.status,
       forwarded_at: payload.request?.forwarded_at ?? selectedRequest.forwarded_at,
+      artist_reply_at: payload.request?.artist_reply_at ?? null,
+      client_reply_at: payload.request?.client_reply_at ?? null,
     };
 
     setRequests((current) =>
