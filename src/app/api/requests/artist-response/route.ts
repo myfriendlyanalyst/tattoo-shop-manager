@@ -114,24 +114,8 @@ function templateHtml(artist: ArtistRow) {
   return template.includes("<") ? template : plainTextToHtml(template);
 }
 
-function cleanPublicSubject(value: string | null) {
-  return (value ?? "")
-    .replace(/\+/g, " ")
-    .replace(/\[REQ:[^\]]+\]\s*/gi, "")
-    .replace(/\bREQ[-\s]?0*[0-9]{1,10}\b\s*\|?\s*/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function draftSubject(request: RequestRow, artist: ArtistRow) {
-  const sourceSubject = cleanPublicSubject(request.source_email_subject);
-  const baseSubject = cleanPublicSubject(request.subject);
-
-  if (sourceSubject) {
-    return sourceSubject;
-  }
-
-  return `${baseSubject || "Tattoo request"} | ${artist.display_name}`;
+  return `Oyabun Tattoo: ${artist.display_name} reviewed your tattoo request`;
 }
 
 function draftBody(request: RequestRow, artist: ArtistRow) {
@@ -194,10 +178,10 @@ function renderClientEmail(
           Reply to ${escapeHtml(artist.display_name)}
           </a>
           <a href="${reassignUrl}" style="display:inline-block;background:#fff;color:#8a5130;text-decoration:none;border:1px solid #8a5130;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 8px 8px 0">
-            Request another artist
+            I'd like a different artist
           </a>
           <a href="${closeUrl}" style="display:inline-block;background:#fff;color:#8a3030;text-decoration:none;border:1px solid #8a3030;border-radius:6px;padding:11px 18px;font-weight:700;margin:0 0 8px 0">
-            Close this request
+            I'm no longer interested
           </a>
         </p>
       </div>

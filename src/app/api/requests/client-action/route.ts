@@ -46,7 +46,9 @@ function requestCode(requestNumber: number | null) {
 }
 
 function actionLabel(action: ClientAction) {
-  return action === "request_reassignment" ? "Request another artist" : "Close this request";
+  return action === "request_reassignment"
+    ? "Client requested a different artist"
+    : "Client is no longer interested";
 }
 
 function actionMessage(action: ClientAction, artistName: string | null) {

@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/force-password-change",
   "/set-password",
   "/artist-response",
+  "/request-action",
 ];
 const ARTIST_ALLOWED_PREFIX_PATHS = ["/requests", "/projects", "/calendar"];
 const ARTIST_ALLOWED_EXACT_PATHS = ["/settings"];

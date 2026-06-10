@@ -25,10 +25,10 @@ type ActionData = {
 function actionCopy(action: ClientAction | null, artistName?: string | null) {
   if (action === "request_reassignment") {
     return {
-      button: "Request another artist",
+      button: "Confirm artist change",
       eyebrow: "Artist preference",
       success: "Thanks. We will review your request and follow up with another artist option.",
-      title: "Request another artist?",
+      title: "Would you like a different artist?",
       warning:
         `This will return your request to the shop team${artistName ? ` instead of continuing with ${artistName}` : ""}.`,
     };
@@ -36,10 +36,10 @@ function actionCopy(action: ClientAction | null, artistName?: string | null) {
 
   if (action === "close_request") {
     return {
-      button: "Close this request",
-      eyebrow: "Close request",
+      button: "Confirm I am no longer interested",
+      eyebrow: "Request update",
       success: "Thanks. Your request has been closed and we will not follow up further.",
-      title: "Close this request?",
+      title: "Are you no longer interested?",
       warning: "This tells Oyabun Tattoo that you are no longer moving forward with this request.",
     };
   }
