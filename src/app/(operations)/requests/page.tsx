@@ -238,7 +238,7 @@ function statusLabel(status: string) {
     client_replied: "Client Replied",
     consultation: "Booked",
     booked: "Booked",
-    client_waiting_for_reply: "First Email Sent",
+    client_waiting_for_reply: "Artist Replied",
     client_declined: "Closed by client",
     no_answer: "No answer from client",
     denied: "Declined by shop",
@@ -276,32 +276,12 @@ function statusClasses(status: string) {
   return variants[status] ?? "bg-[#eee8dd] text-[#4d555c]";
 }
 
-function replyStateFor(request: RequestRecord) {
-  if (request.status === "no_answer") {
-    return {
-      label: "No answer",
-      className: "bg-[#f9dddd] text-[#9a1f1f]",
-    };
-  }
+function hasArtistReplied(request: RequestRecord) {
+  return Boolean(request.artist_reply_at);
+}
 
-  if (request.client_reply_at || request.status === "client_replied") {
-    return {
-      label: "Client replied",
-      className: "bg-[#def7ee] text-[#17634a]",
-    };
-  }
-
-  if (request.artist_reply_at || request.status === "client_waiting_for_reply") {
-    return {
-      label: "Reply sent",
-      className: "bg-[#e3f6df] text-[#2f6b2f]",
-    };
-  }
-
-  return {
-    label: "No reply sent",
-    className: "bg-[#fff4d8] text-[#7a5a00]",
-  };
+function hasCurrentArtistReplied(request: RequestRecord, messages: RequestMessage[]) {
+  return hasArtistReplied(request) && !hasClientReassignmentRequest(request, messages);
 }
 
 function displayDateTime(value: string | null) {
@@ -338,7 +318,7 @@ function emailLogEventLabel(message: RequestMessage, request?: RequestRecord | n
       clientEmail && message.to_emails?.some((email) => normalizeEmail(email) === clientEmail),
     );
 
-    return toClient ? "First client email sent" : "Artist assigned";
+    return toClient ? "Artist replied" : "Artist assigned";
   }
 
   if (message.provider === "artist_action") return "Artist action";
@@ -464,7 +444,7 @@ function timelineFor(request: RequestRecord) {
       tone: "forwarded",
     },
     {
-      label: "First client email sent",
+      label: "Artist replied",
       value: displayDateTime(request.artist_reply_at),
       done: Boolean(request.artist_reply_at),
       tone: "clientSent",
@@ -1584,6 +1564,10 @@ export default function RequestsPage() {
                     request,
                     messagesByRequestId.get(request.id) ?? [],
                   );
+                  const currentArtistReplied = hasCurrentArtistReplied(
+                    request,
+                    messagesByRequestId.get(request.id) ?? [],
+                  );
 
                   return (
                     <button
@@ -1602,19 +1586,15 @@ export default function RequestsPage() {
                       }}
                       type="button"
                     >
-                      {(() => {
-                        const replyState = replyStateFor(request);
-
-                        return (
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="line-clamp-2 font-semibold">{request.subject}</p>
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <span
-                              className={`inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
-                            >
-                              {replyState.label}
-                            </span>
+                            {currentArtistReplied ? (
+                              <span className="inline-flex rounded bg-[#e3f6df] px-2 py-1 text-xs font-bold text-[#2f6b2f]">
+                                Artist replied
+                              </span>
+                            ) : null}
                             {isReassignment ? (
                               <span className="inline-flex rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
                                 Client requested another artist
@@ -1630,8 +1610,6 @@ export default function RequestsPage() {
                           {statusLabel(request.status)}
                         </span>
                       </div>
-                        );
-                      })()}
                       <div className="mt-3 grid gap-2 text-sm text-[#697178]">
                         <p>{request.email || "-"}</p>
                         <p>{request.phone || "-"}</p>
@@ -1651,13 +1629,14 @@ export default function RequestsPage() {
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[760px] text-left text-sm">
+                <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Request</th>
                       <th className="px-4 py-3 font-semibold">Contact</th>
                       <th className="px-4 py-3 font-semibold">Artist</th>
                       <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 font-semibold">Artist replied</th>
                       <th className="px-4 py-3 font-semibold">Last touch</th>
                     </tr>
                   </thead>
@@ -1668,8 +1647,10 @@ export default function RequestsPage() {
                         request,
                         messagesByRequestId.get(request.id) ?? [],
                       );
-                      const replyState = replyStateFor(request);
-
+                      const currentArtistReplied = hasCurrentArtistReplied(
+                        request,
+                        messagesByRequestId.get(request.id) ?? [],
+                      );
                       return (
                         <tr
                           key={request.id}
@@ -1711,11 +1692,17 @@ export default function RequestsPage() {
                             >
                               {statusLabel(request.status)}
                             </span>
-                            <span
-                              className={`mt-2 inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
-                            >
-                              {replyState.label}
-                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {currentArtistReplied ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-[#e3f6df] px-2 py-1 text-xs font-bold text-[#2f6b2f]"
+                                title={displayDateTime(request.artist_reply_at)}
+                              >
+                                <span aria-hidden="true">&#10003;</span>
+                                Sent
+                              </span>
+                            ) : null}
                           </td>
                           <td className="px-4 py-4 text-[#4d555c]">
                             {displayDateTime(request.artist_reply_at ?? request.forwarded_at ?? request.received_at)}
@@ -1750,17 +1737,15 @@ export default function RequestsPage() {
                           Client requested another artist
                         </span>
                       ) : null}
-                      {(() => {
-                        const replyState = replyStateFor(selectedRequest);
-
-                        return (
-                          <span
-                            className={`mt-2 inline-flex rounded px-2 py-1 text-xs font-bold ${replyState.className}`}
-                          >
-                            {replyState.label}
-                          </span>
-                        );
-                      })()}
+                      {hasCurrentArtistReplied(
+                        selectedRequest,
+                        messagesByRequestId.get(selectedRequest.id) ?? [],
+                      ) ? (
+                        <span className="mt-2 inline-flex items-center gap-1 rounded bg-[#e3f6df] px-2 py-1 text-xs font-bold text-[#2f6b2f]">
+                          <span aria-hidden="true">&#10003;</span>
+                          Artist replied
+                        </span>
+                      ) : null}
                     </div>
                     <button
                       aria-label="Close request detail"
