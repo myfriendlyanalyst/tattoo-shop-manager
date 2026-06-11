@@ -15,7 +15,14 @@ import {
 
 const navItems = [
   { label: "Requests", href: "/requests", note: "Start" },
-  { label: "Projects", href: "/projects" },
+  {
+    label: "Projects",
+    href: "/projects",
+    children: [
+      { label: "New project", href: "/projects/new" },
+      { label: "Project list", href: "/projects" },
+    ],
+  },
   { label: "Calendar", href: "/calendar" },
   { label: "Customers", href: "/customers" },
   { label: "Staff", href: "/staff" },
@@ -113,25 +120,48 @@ export function AppShell({ children }: AppShellProps) {
             pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
 
           return (
-            <Link
-              key={item.label}
-              className={`flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium transition ${
-                isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
-              }`}
-              href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <span className="flex-1">{item.label}</span>
-              {item.note ? (
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                    isActive ? "bg-white/15 text-white" : "bg-[#e7ded0] text-[#7d684d]"
-                  }`}
-                >
-                  {item.note}
-                </span>
+            <div key={item.label}>
+              <Link
+                className={`flex h-10 w-full items-center rounded-md px-3 text-left text-sm font-medium transition ${
+                  isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
+                }`}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span className="flex-1">{item.label}</span>
+                {item.note ? (
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                      isActive ? "bg-white/15 text-white" : "bg-[#e7ded0] text-[#7d684d]"
+                    }`}
+                  >
+                    {item.note}
+                  </span>
+                ) : null}
+              </Link>
+              {item.children ? (
+                <div className="mt-1 space-y-1 pl-4">
+                  {item.children.map((child) => {
+                    const childActive = pathname === child.href;
+
+                    return (
+                      <Link
+                        className={`flex h-8 items-center rounded-md px-3 text-sm font-medium transition ${
+                          childActive
+                            ? "bg-[#e7ded0] text-[#1f2428]"
+                            : "text-[#697178] hover:bg-[#eee8dd]"
+                        }`}
+                        href={child.href}
+                        key={child.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               ) : null}
-            </Link>
+            </div>
           );
         })}
       </nav>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
 import {
   scheduleAppointmentReminder,
@@ -214,10 +215,6 @@ function effectiveArtistId(request: RequestRecord, artists: StaffRecord[]) {
   );
 }
 
-function selectedArtistName(request: RequestRecord) {
-  return relatedOne(request.artist)?.display_name ?? "-";
-}
-
 function requestNameFromParts(clientName: string, placement: string) {
   const cleanClient = clientName.trim();
   const cleanPlacement = placement.trim();
@@ -389,16 +386,6 @@ function matchesQueueFilter(
   );
 }
 
-function defaultBookingForm(request: RequestRecord): BookingForm {
-  return {
-    projectSubject: projectSubjectFromRequest(request),
-    projectType: "Multiple Session",
-    depositAmount: "",
-    depositPaymentMethod: "cash",
-    depositMemo: "",
-  };
-}
-
 function canShowInCalendar(staff: StaffRecord, permissionRows: StaffPermission[]) {
   if (staff.role === "Owner") {
     return true;
@@ -493,10 +480,6 @@ function timelineMarker(item: ReturnType<typeof timelineFor>[number], request: R
   };
 
   return markers[item.tone] ?? "Y";
-}
-
-function projectSubjectFromRequest(request: RequestRecord) {
-  return request.subject?.trim() || requestNameFromParts(request.client_name, request.placement ?? "");
 }
 
 function safeFileName(fileName: string) {
@@ -753,6 +736,7 @@ function NewRequestModal({
 }
 
 export default function RequestsPage() {
+  const router = useRouter();
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [requestFiles, setRequestFiles] = useState<RequestFile[]>([]);
   const [requestMessages, setRequestMessages] = useState<RequestMessage[]>([]);
@@ -1242,8 +1226,7 @@ export default function RequestsPage() {
 
     setError("");
     setMessage("");
-    setBookingForm(defaultBookingForm(selectedRequest));
-    setBookingMode(true);
+    router.push(`/projects/new?requestId=${selectedRequest.id}`);
   }
 
   function closeRequestDetail() {
@@ -1987,22 +1970,16 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-3">
+                    <div className={`mt-3 grid gap-3 text-sm ${needsArtistAssignment ? "lg:grid-cols-2" : ""}`}>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                         <p className="text-[#697178]">Requested artist</p>
                         <p className="mt-1 font-semibold">
                           {selectedRequest.requested_artist_label || "Any available"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Selected artist</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedArtistName(selectedRequest)}
-                        </p>
-                      </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Artist assignment</p>
-                        {needsArtistAssignment ? (
+                      {needsArtistAssignment ? (
+                        <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                          <p className="text-[#697178]">Assign artist</p>
                           <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
                             <select
                               className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -2026,16 +2003,8 @@ export default function RequestsPage() {
                               Confirm
                             </button>
                           </div>
-                        ) : (
-                          <p className="mt-1 font-semibold text-[#697178]">
-                            {selectedRequest.artist_id
-                              ? "Assigned"
-                              : canAssignRequests
-                                ? "Unassigned"
-                                : "Request assignment permission required"}
-                          </p>
-                        )}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 

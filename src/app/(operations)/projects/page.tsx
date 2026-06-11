@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppPage } from "@/components/app-shell";
 import { DateTimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
@@ -204,6 +205,46 @@ function depositAppliedTotal(depositId: string, applications: DepositApplication
 
 function depositRemaining(deposit: DepositRecord, applications: DepositApplicationRecord[]) {
   return Math.max(Number(deposit.amount) - depositAppliedTotal(deposit.id, applications), 0);
+}
+
+function memoField(memo: string | null, label: string) {
+  if (!memo) {
+    return "";
+  }
+
+  const prefix = `${label}:`.toLowerCase();
+  const line = memo
+    .split(/\r?\n/)
+    .find((item) => item.trim().toLowerCase().startsWith(prefix));
+
+  return line ? line.slice(line.indexOf(":") + 1).trim() : "";
+}
+
+function plainProjectNotes(memo: string | null) {
+  if (!memo) {
+    return "";
+  }
+
+  const structuredLabels = [
+    "Tattoo description",
+    "Approximate size",
+    "Placement",
+    "Customer address",
+    "Address",
+    "Timing preference",
+    "Reference image",
+    "Requested artist",
+  ];
+  const structuredPrefixes = structuredLabels.map((label) => `${label}:`.toLowerCase());
+
+  return memo
+    .split(/\r?\n/)
+    .filter((line) => {
+      const normalized = line.trim().toLowerCase();
+      return normalized && !structuredPrefixes.some((prefix) => normalized.startsWith(prefix));
+    })
+    .join("\n")
+    .trim();
 }
 
 function newPaymentLine(method = "cash", amount = ""): PaymentLineForm {
@@ -876,6 +917,37 @@ export default function ProjectsPage() {
       ];
     }, []);
   }, [selectedDepositApplications, selectedDeposits, selectedSessions]);
+
+  const selectedProjectDetail = useMemo(() => {
+    if (!selectedProject) {
+      return null;
+    }
+
+    const customer = relatedOne(selectedProject.customer);
+    const depositTotal = selectedDeposits.reduce(
+      (sum, deposit) => sum + Number(deposit.amount),
+      0,
+    );
+
+    return {
+      customer,
+      tattooDescription:
+        memoField(selectedProject.memo, "Tattoo description") ||
+        plainProjectNotes(selectedProject.memo),
+      placement: memoField(selectedProject.memo, "Placement"),
+      customerAddress:
+        memoField(selectedProject.memo, "Customer address") ||
+        memoField(selectedProject.memo, "Address"),
+      timingPreference: memoField(selectedProject.memo, "Timing preference"),
+      referenceImage: memoField(selectedProject.memo, "Reference image"),
+      requestedArtist: memoField(selectedProject.memo, "Requested artist"),
+      notes: plainProjectNotes(selectedProject.memo),
+      depositTotal,
+      latestDeposit: [...selectedDeposits].sort(
+        (a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime(),
+      )[0],
+    };
+  }, [selectedDeposits, selectedProject]);
 
   const unenteredSelectedAppointments = useMemo(() => {
     const enteredAppointmentIds = new Set(
@@ -1724,6 +1796,14 @@ export default function ProjectsPage() {
 
   return (
     <AppPage
+      actions={
+        <Link
+          className="inline-flex h-10 items-center rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f]"
+          href="/projects/new"
+        >
+          New project
+        </Link>
+      }
       eyebrow="Project queue"
       title="Projects by artist"
     >
@@ -1934,7 +2014,7 @@ export default function ProjectsPage() {
                         </div>
                       )}
                       <p className="mt-1 text-sm text-[#697178]">
-                        {selectedProject.memo || "Project details"}
+                        Created {displayDate(selectedProject.created_at)}
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
@@ -2061,7 +2141,151 @@ export default function ProjectsPage() {
                 </section>
 
                 <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto p-4">
-                  <section className="order-2 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                    <div className="border-b border-[#e5dfd4] px-4 py-4">
+                      <h3 className="text-base font-semibold">Project details</h3>
+                    </div>
+                    <div className="grid gap-4 p-4 lg:grid-cols-2">
+                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
+                        <p className="text-xs font-bold uppercase text-[#8a8174]">Project info</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-sm text-[#697178]">Project name</p>
+                            <p className="mt-1 font-semibold">{selectedProject.subject}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Artist</p>
+                            <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Project type</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProject.session_type || "Multiple Session"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Status</p>
+                            <p className="mt-1 font-semibold">
+                              {projectStatusLabel(selectedProject.status)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
+                        <p className="text-xs font-bold uppercase text-[#8a8174]">Customer info</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-sm text-[#697178]">Name</p>
+                            <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Email</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.customer?.email || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Phone</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.customer?.phone || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Address</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.customerAddress || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
+                        <p className="text-xs font-bold uppercase text-[#8a8174]">Tattoo description</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-sm text-[#697178]">Size</p>
+                            <p className="mt-1 font-semibold">{selectedProject.size || "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Placement</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.placement || "-"}
+                            </p>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-sm text-[#697178]">Description</p>
+                            <p className="mt-1 whitespace-pre-wrap font-semibold">
+                              {selectedProjectDetail?.tattooDescription || "-"}
+                            </p>
+                          </div>
+                          {selectedProjectDetail?.timingPreference ? (
+                            <div>
+                              <p className="text-sm text-[#697178]">Timing preference</p>
+                              <p className="mt-1 font-semibold">
+                                {selectedProjectDetail.timingPreference}
+                              </p>
+                            </div>
+                          ) : null}
+                          {selectedProjectDetail?.referenceImage ? (
+                            <div>
+                              <p className="text-sm text-[#697178]">Reference image</p>
+                              <a
+                                className="mt-1 inline-flex font-semibold text-[#315f82] underline"
+                                href={selectedProjectDetail.referenceImage}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Open image
+                              </a>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
+                        <p className="text-xs font-bold uppercase text-[#8a8174]">Deposit summary</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-sm text-[#697178]">Total received</p>
+                            <p className="mt-1 font-semibold">
+                              {money(selectedProjectDetail?.depositTotal ?? 0)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Available balance</p>
+                            <p className="mt-1 font-semibold">{money(selectedDepositBalance)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Latest payment</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.latestDeposit
+                                ? displayDate(selectedProjectDetail.latestDeposit.received_at)
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-[#697178]">Payment method</p>
+                            <p className="mt-1 font-semibold">
+                              {selectedProjectDetail?.latestDeposit
+                                ? paymentLabel(selectedProjectDetail.latestDeposit.payment_method)
+                                : "-"}
+                            </p>
+                          </div>
+                          {selectedProjectDetail?.latestDeposit?.memo ? (
+                            <div className="sm:col-span-2">
+                              <p className="text-sm text-[#697178]">Deposit memo</p>
+                              <p className="mt-1 whitespace-pre-wrap font-semibold">
+                                {selectedProjectDetail.latestDeposit.memo}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="order-3 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
                     <button
@@ -2161,7 +2385,7 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                  <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <section className="order-2 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Deposits</h3>
                     <button
@@ -2360,7 +2584,7 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                <div className="order-3 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+                <div className="order-4 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
                   <p className="text-sm font-semibold">Project status actions</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     <button
@@ -2391,7 +2615,7 @@ export default function ProjectsPage() {
                 </div>
 
                 <button
-                  className="order-4 h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                  className="order-5 h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
                   onClick={closeProjectDetail}
                   type="button"
                 >
