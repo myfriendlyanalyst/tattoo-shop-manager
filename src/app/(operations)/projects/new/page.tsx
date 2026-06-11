@@ -95,6 +95,7 @@ function NewProjectContent() {
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [createdProjectId, setCreatedProjectId] = useState("");
@@ -183,7 +184,7 @@ function NewProjectContent() {
         tattooPlacement: request?.placement ?? "",
         tattooSize: request?.approximate_size ?? "",
       }));
-      setCustomerSearch(request?.client_name ?? "");
+      setCustomerSearch("");
       setLoading(false);
     }
 
@@ -197,6 +198,7 @@ function NewProjectContent() {
   function selectCustomer(customer: CustomerRecord) {
     setSelectedCustomerId(customer.id);
     setCustomerSearch(customerLabel(customer));
+    setCustomerSearchOpen(false);
     updateForm({
       customerEmail: customer.email ?? "",
       customerName: customer.name,
@@ -325,33 +327,36 @@ function NewProjectContent() {
             </div>
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="block text-sm font-semibold">
-              Project name
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => updateForm({ projectName: event.target.value })}
-                value={form.projectName}
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              Artist
-              <select
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => updateForm({ artistId: event.target.value })}
-                value={form.artistId}
-              >
-                <option value="">Select artist</option>
-                {artists.map((artist) => (
-                  <option key={artist.id} value={artist.id}>
-                    {artist.display_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
+            <h4 className="text-sm font-semibold">Project info</h4>
+            <div className="mt-3 grid gap-4 lg:grid-cols-2">
+              <label className="block text-sm font-semibold">
+                Project name
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) => updateForm({ projectName: event.target.value })}
+                  value={form.projectName}
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Artist
+                <select
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) => updateForm({ artistId: event.target.value })}
+                  value={form.artistId}
+                >
+                  <option value="">Select artist</option>
+                  {artists.map((artist) => (
+                    <option key={artist.id} value={artist.id}>
+                      {artist.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
 
-          <div>
+          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold">Customer info</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
               <div className="relative block text-sm font-semibold lg:col-span-2">
@@ -362,11 +367,16 @@ function NewProjectContent() {
                   onChange={(event) => {
                     setSelectedCustomerId("");
                     setCustomerSearch(event.target.value);
+                    setCustomerSearchOpen(true);
                   }}
+                  onBlur={() => {
+                    window.setTimeout(() => setCustomerSearchOpen(false), 120);
+                  }}
+                  onFocus={() => setCustomerSearchOpen(true)}
                   placeholder="Type name, email, or phone"
                   value={customerSearch}
                 />
-                {customerSearch ? (
+                {customerSearchOpen && customerSearch.trim() && !selectedCustomerId ? (
                   <div className="absolute left-0 right-0 top-[72px] z-20 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white shadow-lg">
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.map((customer) => (
@@ -424,9 +434,9 @@ function NewProjectContent() {
                 />
               </label>
             </div>
-          </div>
+          </section>
 
-          <div>
+          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold">Tattoo description</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
@@ -466,9 +476,9 @@ function NewProjectContent() {
                 />
               </label>
             </div>
-          </div>
+          </section>
 
-          <div>
+          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold">Deposit</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
@@ -504,7 +514,7 @@ function NewProjectContent() {
                 />
               </label>
             </div>
-          </div>
+          </section>
 
           <button
             className="h-11 w-full rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"

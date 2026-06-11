@@ -1907,7 +1907,49 @@ export default function RequestsPage() {
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1 font-semibold">{selectedRequest.placement || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                        <p className="text-[#697178]">Artist</p>
+                        {needsArtistAssignment ? (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                            <select
+                              className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                              disabled={saving}
+                              onChange={(event) => setAssignmentArtistId(event.target.value)}
+                              value={assignmentArtistId || effectiveArtistId(selectedRequest, artists)}
+                            >
+                              <option value="">Select artist</option>
+                              {artists.map((artist) => (
+                                <option key={artist.id} value={artist.id}>
+                                  {artist.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={saving || !(assignmentArtistId || effectiveArtistId(selectedRequest, artists))}
+                              onClick={assignRequestArtist}
+                              type="button"
+                            >
+                              Confirm
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="mt-1 font-semibold">
+                              {isAnyAvailableLabel(selectedRequest.requested_artist_label)
+                                ? relatedOne(selectedRequest.artist)?.display_name || "Any available"
+                                : selectedRequest.requested_artist_label || "-"}
+                            </p>
+                            {isAnyAvailableLabel(selectedRequest.requested_artist_label) &&
+                            relatedOne(selectedRequest.artist)?.display_name ? (
+                              <p className="mt-1 text-xs font-medium text-[#697178]">
+                                Requested: Any available
+                              </p>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
                         <p className="text-[#697178]">Timing preference</p>
                         <p className="mt-1 font-semibold">
                           {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
@@ -1966,46 +2008,6 @@ export default function RequestsPage() {
                         </a>
                       </div>
                     ) : null}
-                  </div>
-
-                  <div>
-                    <h4 className="text-sm font-semibold">Assignment</h4>
-                    <div className={`mt-3 grid gap-3 text-sm ${needsArtistAssignment ? "lg:grid-cols-2" : ""}`}>
-                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                        <p className="text-[#697178]">Requested artist</p>
-                        <p className="mt-1 font-semibold">
-                          {selectedRequest.requested_artist_label || "Any available"}
-                        </p>
-                      </div>
-                      {needsArtistAssignment ? (
-                        <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                          <p className="text-[#697178]">Assign artist</p>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1 xl:grid-cols-[1fr_auto]">
-                            <select
-                              className="h-10 min-w-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                              disabled={saving}
-                              onChange={(event) => setAssignmentArtistId(event.target.value)}
-                              value={assignmentArtistId || effectiveArtistId(selectedRequest, artists)}
-                            >
-                              <option value="">Select artist</option>
-                              {artists.map((artist) => (
-                                <option key={artist.id} value={artist.id}>
-                                  {artist.display_name}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={saving || !(assignmentArtistId || effectiveArtistId(selectedRequest, artists))}
-                              onClick={assignRequestArtist}
-                              type="button"
-                            >
-                              Confirm
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
                   </div>
 
                   <div>
