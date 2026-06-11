@@ -2045,14 +2045,7 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 px-4 py-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <p className="text-sm text-[#697178]">Customer</p>
-                      <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
-                      <p className="mt-1 text-sm text-[#697178]">
-                        {relatedOne(selectedProject.customer)?.email || "-"}
-                      </p>
-                    </div>
+                  <div className="grid gap-3 px-4 py-4 md:grid-cols-3">
                     <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                       <p className="text-sm text-[#697178]">Artist</p>
                       <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
@@ -2145,53 +2138,27 @@ export default function ProjectsPage() {
                     <div className="border-b border-[#e5dfd4] px-4 py-4">
                       <h3 className="text-base font-semibold">Project details</h3>
                     </div>
-                    <div className="grid gap-4 p-4 lg:grid-cols-2">
+                    <div className="space-y-4 p-4">
                       <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
-                        <p className="text-xs font-bold uppercase text-[#8a8174]">Project info</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <p className="text-sm text-[#697178]">Project name</p>
-                            <p className="mt-1 font-semibold">{selectedProject.subject}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Artist</p>
-                            <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Project type</p>
-                            <p className="mt-1 font-semibold">
-                              {selectedProject.session_type || "Multiple Session"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Status</p>
-                            <p className="mt-1 font-semibold">
-                              {projectStatusLabel(selectedProject.status)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
-                        <p className="text-xs font-bold uppercase text-[#8a8174]">Customer info</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <div>
+                        <p className="text-xs font-bold uppercase text-[#8a8174]">Client info</p>
+                        <div className="mt-3 divide-y divide-[#eee8dd] text-sm">
+                          <div className="py-2 first:pt-0">
                             <p className="text-sm text-[#697178]">Name</p>
                             <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
                           </div>
-                          <div>
+                          <div className="py-2">
                             <p className="text-sm text-[#697178]">Email</p>
                             <p className="mt-1 font-semibold">
                               {selectedProjectDetail?.customer?.email || "-"}
                             </p>
                           </div>
-                          <div>
+                          <div className="py-2">
                             <p className="text-sm text-[#697178]">Phone</p>
                             <p className="mt-1 font-semibold">
                               {selectedProjectDetail?.customer?.phone || "-"}
                             </p>
                           </div>
-                          <div>
+                          <div className="py-2 last:pb-0">
                             <p className="text-sm text-[#697178]">Address</p>
                             <p className="mt-1 font-semibold">
                               {selectedProjectDetail?.customerAddress || "-"}
@@ -2202,25 +2169,25 @@ export default function ProjectsPage() {
 
                       <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
                         <p className="text-xs font-bold uppercase text-[#8a8174]">Tattoo description</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <div>
+                        <div className="mt-3 divide-y divide-[#eee8dd] text-sm">
+                          <div className="py-2 first:pt-0">
                             <p className="text-sm text-[#697178]">Size</p>
                             <p className="mt-1 font-semibold">{selectedProject.size || "-"}</p>
                           </div>
-                          <div>
+                          <div className="py-2">
                             <p className="text-sm text-[#697178]">Placement</p>
                             <p className="mt-1 font-semibold">
                               {selectedProjectDetail?.placement || "-"}
                             </p>
                           </div>
-                          <div className="sm:col-span-2">
+                          <div className="py-2">
                             <p className="text-sm text-[#697178]">Description</p>
                             <p className="mt-1 whitespace-pre-wrap font-semibold">
                               {selectedProjectDetail?.tattooDescription || "-"}
                             </p>
                           </div>
                           {selectedProjectDetail?.timingPreference ? (
-                            <div>
+                            <div className="py-2">
                               <p className="text-sm text-[#697178]">Timing preference</p>
                               <p className="mt-1 font-semibold">
                                 {selectedProjectDetail.timingPreference}
@@ -2228,7 +2195,7 @@ export default function ProjectsPage() {
                             </div>
                           ) : null}
                           {selectedProjectDetail?.referenceImage ? (
-                            <div>
+                            <div className="py-2 last:pb-0">
                               <p className="text-sm text-[#697178]">Reference image</p>
                               <a
                                 className="mt-1 inline-flex font-semibold text-[#315f82] underline"
@@ -2238,46 +2205,6 @@ export default function ProjectsPage() {
                               >
                                 Open image
                               </a>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
-                        <p className="text-xs font-bold uppercase text-[#8a8174]">Deposit summary</p>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <p className="text-sm text-[#697178]">Total received</p>
-                            <p className="mt-1 font-semibold">
-                              {money(selectedProjectDetail?.depositTotal ?? 0)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Available balance</p>
-                            <p className="mt-1 font-semibold">{money(selectedDepositBalance)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Latest payment</p>
-                            <p className="mt-1 font-semibold">
-                              {selectedProjectDetail?.latestDeposit
-                                ? displayDate(selectedProjectDetail.latestDeposit.received_at)
-                                : "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#697178]">Payment method</p>
-                            <p className="mt-1 font-semibold">
-                              {selectedProjectDetail?.latestDeposit
-                                ? paymentLabel(selectedProjectDetail.latestDeposit.payment_method)
-                                : "-"}
-                            </p>
-                          </div>
-                          {selectedProjectDetail?.latestDeposit?.memo ? (
-                            <div className="sm:col-span-2">
-                              <p className="text-sm text-[#697178]">Deposit memo</p>
-                              <p className="mt-1 whitespace-pre-wrap font-semibold">
-                                {selectedProjectDetail.latestDeposit.memo}
-                              </p>
                             </div>
                           ) : null}
                         </div>
