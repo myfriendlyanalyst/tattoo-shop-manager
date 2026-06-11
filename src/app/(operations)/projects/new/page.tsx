@@ -329,7 +329,7 @@ function NewProjectContent() {
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold">Project info</h4>
-            <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div className="mt-3 grid gap-4 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
                 Project name
                 <input
@@ -350,6 +350,18 @@ function NewProjectContent() {
                     <option key={artist.id} value={artist.id}>
                       {artist.display_name}
                     </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Project type
+                <select
+                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  onChange={(event) => updateForm({ projectType: event.target.value })}
+                  value={form.projectType}
+                >
+                  {projectTypeOptions.map((type) => (
+                    <option key={type}>{type}</option>
                   ))}
                 </select>
               </label>
@@ -439,18 +451,6 @@ function NewProjectContent() {
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold">Tattoo description</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              <label className="block text-sm font-semibold">
-                Project type
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => updateForm({ projectType: event.target.value })}
-                  value={form.projectType}
-                >
-                  {projectTypeOptions.map((type) => (
-                    <option key={type}>{type}</option>
-                  ))}
-                </select>
-              </label>
               <label className="block text-sm font-semibold">
                 Size
                 <input
