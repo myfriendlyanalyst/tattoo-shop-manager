@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppPage } from "@/components/app-shell";
+import { SessionEntryForm, type SessionForm } from "@/components/session-entry-form";
 import { DateTimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
@@ -105,25 +106,6 @@ type DepositForm = {
   paymentMethod: string;
   receivedAt: string;
   memo: string;
-};
-
-type SessionForm = {
-  appointmentId: string;
-  startsAt: string;
-  endsAt: string;
-  depositAppliedAmount: string;
-  tattooAmount: string;
-  tattooPaymentMethod: string;
-  paymentLines: PaymentLineForm[];
-  tipAmount: string;
-  tipPaymentMethod: string;
-  memo: string;
-};
-
-type PaymentLineForm = {
-  id: string;
-  paymentMethod: string;
-  amount: string;
 };
 
 const projectSelect =
@@ -245,14 +227,6 @@ function plainProjectNotes(memo: string | null) {
     })
     .join("\n")
     .trim();
-}
-
-function newPaymentLine(method = "cash", amount = ""): PaymentLineForm {
-  return {
-    id: crypto.randomUUID(),
-    paymentMethod: method,
-    amount,
-  };
 }
 
 function projectStatusLabel(status: string) {
@@ -465,47 +439,6 @@ function SessionEntryModal({
   onClose: () => void;
   onSave: (form: SessionForm) => void;
 }) {
-  const sessionDepositApplication = session
-    ? depositApplications.filter((application) => application.session_entry_id === session.id)
-    : [];
-  const sessionAppliedDepositTotal = sessionDepositApplication.reduce(
-    (sum, application) => sum + Number(application.amount),
-    0,
-  );
-  const availableDepositForSession = availableDepositBalance + sessionAppliedDepositTotal;
-  const sessionPaymentLines = session
-    ? sessionPayments
-        .filter((payment) => payment.session_entry_id === session.id)
-        .map((payment) => newPaymentLine(payment.payment_method, numberInputValue(payment.amount)))
-    : [];
-  const [form, setForm] = useState<SessionForm>(() => {
-    const startsAt = new Date();
-    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
-
-    return {
-      appointmentId: session?.appointment_id ?? appointments[0]?.id ?? "",
-      startsAt: localDateTimeInput(startsAt),
-      endsAt: localDateTimeInput(endsAt),
-      depositAppliedAmount: numberInputValue(sessionAppliedDepositTotal),
-      tattooAmount: numberInputValue(session?.tattoo_amount),
-      tattooPaymentMethod: session?.tattoo_payment_method ?? "cash",
-      paymentLines:
-        sessionPaymentLines.length > 0
-          ? sessionPaymentLines
-          : [newPaymentLine(session?.tattoo_payment_method ?? "cash")],
-      tipAmount: numberInputValue(session?.tip_amount),
-      tipPaymentMethod: session?.tip_payment_method ?? "cash",
-      memo: session?.memo ?? "",
-    };
-  });
-  const tattooAmount = Number(form.tattooAmount || 0);
-  const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
-  const nonDepositPaidAmount = form.paymentLines.reduce(
-    (sum, line) => sum + Number(line.amount || 0),
-    0,
-  );
-  const remainingTattooBalance = tattooAmount - appliedDepositAmount - nonDepositPaidAmount;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
       <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
@@ -525,242 +458,22 @@ function SessionEntryModal({
             x
           </button>
         </div>
-
-        <div className="space-y-4 px-5 py-5">
-          {error ? (
-            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
-              {error}
-            </p>
-          ) : null}
-
-          <label className="block text-sm font-semibold">
-            Appointment
-            <select
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              disabled={Boolean(session)}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, appointmentId: event.target.value }))
-              }
-              value={form.appointmentId}
-            >
-              <option value="">Manual / walk-in session</option>
-              {appointments.map((appointment) => (
-                <option key={appointment.id} value={appointment.id}>
-                  {appointmentLabel(appointment)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {!form.appointmentId ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm font-semibold">
-                Starts at
-                <div className="mt-2">
-                  <DateTimeSelect
-                    onChange={(value) =>
-                      setForm((current) => ({ ...current, startsAt: value }))
-                    }
-                    startHour={12}
-                    value={form.startsAt}
-                  />
-                </div>
-              </label>
-              <label className="text-sm font-semibold">
-                Ends at
-                <div className="mt-2">
-                  <DateTimeSelect
-                    onChange={(value) =>
-                      setForm((current) => ({ ...current, endsAt: value }))
-                    }
-                    startHour={12}
-                    value={form.endsAt}
-                  />
-                </div>
-              </label>
-            </div>
-          ) : null}
-
-          <label className="block text-sm font-semibold">
-            Tattoo amount
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-              min="0"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, tattooAmount: event.target.value }))
-              }
-              placeholder="0.00"
-              step="0.01"
-              type="number"
-              value={form.tattooAmount}
-            />
-          </label>
-
-          <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold">Payment breakdown</p>
-              <button
-                className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    paymentLines: [...current.paymentLines, newPaymentLine()],
-                  }))
-                }
-                type="button"
-              >
-              Add payment
-              </button>
-            </div>
-            <div className="mt-3 space-y-2">
-              <label className="grid gap-2 text-sm font-semibold sm:grid-cols-[1fr_1fr_auto]">
-                <span className="flex h-10 items-center rounded-md bg-[#f1eadc] px-3 text-[#775f36]">
-                  Deposit
-                </span>
-                <input
-                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  max={availableDepositForSession}
-                  min="0"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      depositAppliedAmount: event.target.value,
-                    }))
-                  }
-                  placeholder="0.00"
-                  step="0.01"
-                  type="number"
-                  value={form.depositAppliedAmount}
-                />
-                <span className="flex min-h-10 items-center text-xs font-medium text-[#697178]">
-                  Available {money(availableDepositForSession)}
-                </span>
-              </label>
-              {form.paymentLines.map((line, index) => (
-                <div key={line.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                  <select
-                    className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        paymentLines: current.paymentLines.map((item) =>
-                          item.id === line.id
-                            ? { ...item, paymentMethod: event.target.value }
-                            : item,
-                        ),
-                      }))
-                    }
-                    value={line.paymentMethod}
-                  >
-                    {paymentMethods.map((method) => (
-                      <option key={method.value} value={method.value}>
-                        {method.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    min="0"
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        paymentLines: current.paymentLines.map((item) =>
-                          item.id === line.id ? { ...item, amount: event.target.value } : item,
-                        ),
-                      }))
-                    }
-                    placeholder="0.00"
-                    step="0.01"
-                    type="number"
-                    value={line.amount}
-                  />
-                  <button
-                    className="h-10 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={form.paymentLines.length === 1}
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        paymentLines: current.paymentLines.filter((item) => item.id !== line.id),
-                      }))
-                    }
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                  {index === 0 ? null : null}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
-            <p className="font-semibold">Payment balance</p>
-            <p className="mt-1 text-[#697178]">
-              Deposit {money(appliedDepositAmount)} + other payments {money(nonDepositPaidAmount)}
-            </p>
-            <p
-              className={`mt-1 font-semibold ${
-                Math.abs(remainingTattooBalance) < 0.01 ? "text-[#2f6658]" : "text-[#8a5130]"
-              }`}
-            >
-              Remaining {money(remainingTattooBalance)}
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-semibold">
-              Tip amount
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                min="0"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tipAmount: event.target.value }))
-                }
-                placeholder="0.00"
-                step="0.01"
-                type="number"
-                value={form.tipAmount}
-              />
-            </label>
-            <label className="text-sm font-semibold">
-              Tip payment
-              <select
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, tipPaymentMethod: event.target.value }))
-                }
-                value={form.tipPaymentMethod}
-              >
-                {paymentMethods.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <textarea
-            className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
-            onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
-            placeholder="Memo"
-            value={form.memo}
+        <div className="px-5 py-5">
+          <SessionEntryForm
+            appointments={appointments}
+            availableDepositBalance={availableDepositBalance}
+            depositApplications={depositApplications}
+            error={error}
+            onSave={onSave}
+            saving={saving}
+            session={session}
+            sessionPayments={sessionPayments}
           />
-
-          <button
-            className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving}
-            onClick={() => onSave(form)}
-            type="button"
-          >
-            {saving ? "Saving..." : session ? "Update session" : "Save session"}
-          </button>
         </div>
       </section>
     </div>
   );
 }
-
 export default function ProjectsPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppPage } from "@/components/app-shell";
+import { SessionEntryForm, type SessionForm } from "@/components/session-entry-form";
 import { getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
@@ -28,6 +29,17 @@ type ProjectRecord = {
   artist: ArtistRelation | ArtistRelation[] | null;
 };
 
+type AppointmentRecord = {
+  id: string;
+  customer_id: string | null;
+  project_id: string | null;
+  artist_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  appointment_type: string;
+  status: string;
+};
+
 type DepositRecord = {
   id: string;
   customer_id: string | null;
@@ -51,24 +63,19 @@ type DepositApplicationRecord = {
   memo: string | null;
 };
 
+type SessionPaymentRecord = {
+  id: string;
+  session_entry_id: string;
+  payment_method: string;
+  amount: number;
+  memo: string | null;
+};
+
 const projectSelect =
   "id, customer_id, artist_id, subject, size, status, customer:customers(name, email, phone), artist:staff(display_name)";
 
-const paymentMethods = [
-  { value: "cash", label: "Cash" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "app", label: "App" },
-  { value: "other", label: "Other" },
-];
-
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-function localDateTimeInput(value = new Date()) {
-  const offset = value.getTimezoneOffset();
-  const local = new Date(value.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 16);
 }
 
 function money(value: number | null | undefined) {
@@ -95,18 +102,10 @@ function projectLabel(project: ProjectRecord) {
 
 export default function NewSessionPage() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
   const [depositApplications, setDepositApplications] = useState<DepositApplicationRecord[]>([]);
   const [projectId, setProjectId] = useState("");
-  const [startsAt, setStartsAt] = useState(() => localDateTimeInput());
-  const [endsAt, setEndsAt] = useState(() => localDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
-  const [tattooAmount, setTattooAmount] = useState("");
-  const [depositAppliedAmount, setDepositAppliedAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [tipAmount, setTipAmount] = useState("");
-  const [tipPaymentMethod, setTipPaymentMethod] = useState("cash");
-  const [memo, setMemo] = useState("");
   const [createdSessionId, setCreatedSessionId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -116,6 +115,13 @@ export default function NewSessionPage() {
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === projectId) ?? null,
     [projectId, projects],
+  );
+  const selectedAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) => appointment.project_id === projectId && appointment.status !== "cancelled",
+      ),
+    [appointments, projectId],
   );
   const selectedDeposits = useMemo(
     () => deposits.filter((deposit) => deposit.project_id === projectId),
@@ -129,7 +135,10 @@ export default function NewSessionPage() {
       ),
     [depositApplications, selectedDeposits],
   );
-  const requiredMark = <span className="text-[#8a3030]">*</span>;
+  const selectedDepositApplications = useMemo(() => {
+    const depositIds = new Set(selectedDeposits.map((deposit) => deposit.id));
+    return depositApplications.filter((application) => depositIds.has(application.deposit_id));
+  }, [depositApplications, selectedDeposits]);
 
   useEffect(() => {
     async function load() {
@@ -137,12 +146,16 @@ export default function NewSessionPage() {
       setError("");
 
       const context = await getOperationsContext();
-      const [projectResult, depositResult, applicationResult] = await Promise.all([
+      const [projectResult, appointmentResult, depositResult, applicationResult] = await Promise.all([
         supabase
           .from("projects")
           .select(projectSelect)
           .in("status", ["booked", "in_progress", "on_hold"])
           .order("created_at", { ascending: false }),
+        supabase
+          .from("appointments")
+          .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+          .order("starts_at", { ascending: false }),
         supabase
           .from("deposits")
           .select(
@@ -156,6 +169,12 @@ export default function NewSessionPage() {
 
       if (projectResult.error) {
         setError(projectResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (appointmentResult.error) {
+        setError(appointmentResult.error.message);
         setLoading(false);
         return;
       }
@@ -180,6 +199,7 @@ export default function NewSessionPage() {
 
       setProjects(visibleProjects);
       setProjectId(visibleProjects[0]?.id ?? "");
+      setAppointments((appointmentResult.data ?? []) as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
       setDepositApplications((applicationResult.data ?? []) as DepositApplicationRecord[]);
       setLoading(false);
@@ -188,14 +208,23 @@ export default function NewSessionPage() {
     load();
   }, []);
 
-  async function saveSession() {
+  async function saveSession(form: SessionForm) {
     const project = selectedProject;
+    const appointment = selectedAppointments.find((item) => item.id === form.appointmentId);
+    const startsAt = appointment?.starts_at ?? form.startsAt;
+    const endsAt = appointment?.ends_at ?? form.endsAt;
     const startsDate = new Date(startsAt);
     const endsDate = new Date(endsAt);
-    const tattoo = Number(tattooAmount || 0);
-    const depositApplied = Number(depositAppliedAmount || 0);
-    const paid = Number(paymentAmount || 0);
-    const tip = Number(tipAmount || 0);
+    const tattooAmount = Number(form.tattooAmount || 0);
+    const tipAmount = Number(form.tipAmount || 0);
+    const depositAppliedAmount = Number(form.depositAppliedAmount || 0);
+    const paymentLines = form.paymentLines
+      .map((line) => ({
+        amount: Number(line.amount || 0),
+        paymentMethod: line.paymentMethod,
+      }))
+      .filter((line) => line.amount > 0);
+    const paymentLineTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0);
 
     setError("");
     setMessage("");
@@ -206,75 +235,87 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (!startsAt || !endsAt || endsDate <= startsDate) {
-      setError("Enter a valid session start and end time.");
+    if (!appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
+      setError("Manual sessions need a valid start and end time.");
       return;
     }
 
-    if (![tattoo, depositApplied, paid, tip].every(Number.isFinite)) {
+    if (
+      !Number.isFinite(tattooAmount) ||
+      !Number.isFinite(tipAmount) ||
+      !Number.isFinite(depositAppliedAmount) ||
+      form.paymentLines.some((line) => !Number.isFinite(Number(line.amount || 0)))
+    ) {
       setError("Amounts must be valid numbers.");
       return;
     }
 
-    if (tattoo <= 0 && tip <= 0) {
+    if (tattooAmount <= 0 && tipAmount <= 0) {
       setError("Enter a tattoo amount or a tip amount.");
       return;
     }
 
-    if (depositApplied > availableDeposit) {
+    if (depositAppliedAmount > availableDeposit) {
       setError(`Applied deposit cannot exceed available balance ${money(availableDeposit)}.`);
       return;
     }
 
-    if (depositApplied > tattoo) {
+    if (depositAppliedAmount > tattooAmount) {
       setError("Applied deposit cannot exceed tattoo amount.");
       return;
     }
 
-    if (Math.abs(tattoo - depositApplied - paid) >= 0.01) {
-      setError("Payment amount must equal tattoo amount minus applied deposit.");
+    if (Math.abs(tattooAmount - depositAppliedAmount - paymentLineTotal) >= 0.01) {
+      setError("Payment breakdown must equal tattoo amount minus applied deposit.");
       return;
     }
 
     setSaving(true);
 
     const user = await getSafeUser();
-    const appointmentResult = await supabase
-      .from("appointments")
-      .insert({
-        artist_id: project.artist_id,
-        customer_id: project.customer_id,
-        ends_at: endsDate.toISOString(),
-        notes: "Created from new session entry.",
-        appointment_type: "completed session",
-        project_id: project.id,
-        starts_at: startsDate.toISOString(),
-        status: "completed",
-      })
-      .select("id")
-      .single();
+    let sessionAppointment = appointment;
 
-    if (appointmentResult.error) {
-      setError(appointmentResult.error.message);
-      setSaving(false);
-      return;
+    if (!sessionAppointment) {
+      const appointmentResult = await supabase
+        .from("appointments")
+        .insert({
+          artist_id: project.artist_id,
+          customer_id: project.customer_id,
+          ends_at: endsDate.toISOString(),
+          notes: "Created from manual session entry.",
+          appointment_type: "walk-in",
+          project_id: project.id,
+          starts_at: startsDate.toISOString(),
+          status: "completed",
+        })
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .single();
+
+      if (appointmentResult.error) {
+        setError(appointmentResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      sessionAppointment = appointmentResult.data as AppointmentRecord;
+      setAppointments((current) => [sessionAppointment!, ...current]);
     }
 
     const sessionResult = await supabase
       .from("session_entries")
       .insert({
-        appointment_id: appointmentResult.data.id,
-        artist_id: project.artist_id,
+        appointment_id: sessionAppointment.id,
+        artist_id: sessionAppointment.artist_id ?? project.artist_id,
         created_by: user?.id ?? null,
         customer_id: project.customer_id,
-        entered_at: startsDate.toISOString(),
+        entered_at: new Date(sessionAppointment.starts_at).toISOString(),
         entry_type: "session",
-        memo: memo.trim() || null,
+        memo: form.memo.trim() || null,
         project_id: project.id,
-        tattoo_amount: tattoo,
-        tattoo_payment_method: paid > 0 ? paymentMethod : null,
-        tip_amount: tip,
-        tip_payment_method: tip > 0 ? tipPaymentMethod : null,
+        tattoo_amount: tattooAmount,
+        tattoo_payment_method: paymentLines[0]?.paymentMethod ?? null,
+        tip_amount: tipAmount,
+        tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
       })
       .select("id")
       .single();
@@ -285,13 +326,15 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (paid > 0) {
-      const paymentResult = await supabase.from("session_payments").insert({
-        amount: paid,
-        created_by: user?.id ?? null,
-        payment_method: paymentMethod,
-        session_entry_id: sessionResult.data.id,
-      });
+    if (paymentLines.length > 0) {
+      const paymentResult = await supabase.from("session_payments").insert(
+        paymentLines.map((line) => ({
+          amount: line.amount,
+          created_by: user?.id ?? null,
+          payment_method: line.paymentMethod,
+          session_entry_id: sessionResult.data.id,
+        })),
+      );
 
       if (paymentResult.error) {
         setError(`${paymentResult.error.message}. Run docs/supabase_session_payments.sql in Supabase SQL Editor.`);
@@ -303,8 +346,8 @@ export default function NewSessionPage() {
     const affectedDepositIds = new Set<string>();
     const addedApplicationsForRemaining: DepositApplicationRecord[] = [];
 
-    if (depositApplied > 0) {
-      let remainingToApply = depositApplied;
+    if (depositAppliedAmount > 0) {
+      let remainingToApply = depositAppliedAmount;
       const applicationRows: Array<{
         amount: number;
         created_by: string | null;
@@ -327,7 +370,7 @@ export default function NewSessionPage() {
           amount,
           created_by: user?.id ?? null,
           deposit_id: deposit.id,
-          memo: memo.trim() || null,
+          memo: form.memo.trim() || null,
           session_entry_id: sessionResult.data.id,
         });
         addedApplicationsForRemaining.push({
@@ -335,7 +378,7 @@ export default function NewSessionPage() {
           applied_at: new Date().toISOString(),
           deposit_id: deposit.id,
           id: crypto.randomUUID(),
-          memo: memo.trim() || null,
+          memo: form.memo.trim() || null,
           session_entry_id: sessionResult.data.id,
         });
         affectedDepositIds.add(deposit.id);
@@ -356,8 +399,10 @@ export default function NewSessionPage() {
 
       if (!deposit) continue;
 
-      const currentApplications = [...depositApplications, ...addedApplicationsForRemaining];
-      const remaining = depositRemaining(deposit, currentApplications);
+      const remaining = depositRemaining(deposit, [
+        ...depositApplications,
+        ...addedApplicationsForRemaining,
+      ]);
       const depositResult = await supabase
         .from("deposits")
         .update({
@@ -376,13 +421,9 @@ export default function NewSessionPage() {
 
     await supabase.from("projects").update({ status: "in_progress" }).eq("id", project.id);
 
+    setDepositApplications((current) => [...addedApplicationsForRemaining, ...current]);
     setCreatedSessionId(sessionResult.data.id);
     setMessage("Session entry saved.");
-    setTattooAmount("");
-    setDepositAppliedAmount("");
-    setPaymentAmount("");
-    setTipAmount("");
-    setMemo("");
     setSaving(false);
   }
 
@@ -404,11 +445,6 @@ export default function NewSessionPage() {
           <h3 className="text-lg font-semibold">Session entry</h3>
         </div>
         <div className="space-y-5 px-5 py-5">
-          {error ? (
-            <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
-              {error}
-            </p>
-          ) : null}
           {message ? (
             <p className="rounded-md bg-[#e4f1df] px-3 py-2 text-sm font-semibold text-[#476b33]">
               {message}
@@ -419,11 +455,16 @@ export default function NewSessionPage() {
             <h4 className="text-sm font-semibold text-[#6f7275]">Project</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-[1.5fr_1fr]">
               <label className="block text-sm font-semibold">
-                Project {requiredMark}
+                Project <span className="text-[#8a3030]">*</span>
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  disabled={loading}
-                  onChange={(event) => setProjectId(event.target.value)}
+                  disabled={loading || saving}
+                  onChange={(event) => {
+                    setProjectId(event.target.value);
+                    setCreatedSessionId("");
+                    setError("");
+                    setMessage("");
+                  }}
                   required
                   value={projectId}
                 >
@@ -442,125 +483,22 @@ export default function NewSessionPage() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
-            <h4 className="text-sm font-semibold text-[#6f7275]">Session time</h4>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm font-semibold">
-                Start {requiredMark}
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setStartsAt(event.target.value)}
-                  required
-                  type="datetime-local"
-                  value={startsAt}
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                End {requiredMark}
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setEndsAt(event.target.value)}
-                  required
-                  type="datetime-local"
-                  value={endsAt}
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
-            <h4 className="text-sm font-semibold text-[#6f7275]">Payment</h4>
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              <label className="block text-sm font-semibold">
-                Tattoo amount
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  min="0"
-                  onChange={(event) => setTattooAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={tattooAmount}
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                Apply deposit
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  max={availableDeposit}
-                  min="0"
-                  onChange={(event) => setDepositAppliedAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={depositAppliedAmount}
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                Remaining payment
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  min="0"
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={paymentAmount}
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                Payment method
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  value={paymentMethod}
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                Tip amount
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  min="0"
-                  onChange={(event) => setTipAmount(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={tipAmount}
-                />
-              </label>
-              <label className="block text-sm font-semibold">
-                Tip payment
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setTipPaymentMethod(event.target.value)}
-                  value={tipPaymentMethod}
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <textarea
-                className="min-h-24 rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm lg:col-span-3"
-                onChange={(event) => setMemo(event.target.value)}
-                placeholder="Memo"
-                value={memo}
-              />
-            </div>
-          </section>
-
-          <button
-            className="h-11 w-full rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || loading || Boolean(createdSessionId)}
-            onClick={saveSession}
-            type="button"
-          >
-            {saving ? "Saving..." : createdSessionId ? "Session saved" : "Save session"}
-          </button>
+          {selectedProject ? (
+            <SessionEntryForm
+              appointments={selectedAppointments}
+              availableDepositBalance={availableDeposit}
+              depositApplications={selectedDepositApplications}
+              error={error}
+              onSave={saveSession}
+              saving={saving || Boolean(createdSessionId)}
+              sessionPayments={[] as SessionPaymentRecord[]}
+              submitLabel={createdSessionId ? "Session saved" : "Save session"}
+            />
+          ) : (
+            <p className="rounded-md border border-dashed border-[#d9d3c7] px-3 py-6 text-sm font-semibold text-[#697178]">
+              Select a project to enter a session.
+            </p>
+          )}
         </div>
       </section>
     </AppPage>
