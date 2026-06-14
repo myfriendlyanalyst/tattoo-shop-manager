@@ -47,6 +47,7 @@ type FormState = {
   tattooSize: string;
   tattooPlacement: string;
   depositAmount: string;
+  depositNotCollected: boolean;
   depositPaymentMethod: string;
   depositMemo: string;
 };
@@ -68,6 +69,7 @@ function emptyForm(): FormState {
     customerPhone: "",
     depositAmount: "",
     depositMemo: "",
+    depositNotCollected: false,
     depositPaymentMethod: "cash",
     projectName: "",
     projectType: "Multiple Session",
@@ -230,13 +232,43 @@ function NewProjectContent() {
       setSaving(false);
       return;
     }
+    if (!form.customerEmail.trim()) {
+      setError("Customer email is required.");
+      setSaving(false);
+      return;
+    }
+    if (!form.customerPhone.trim()) {
+      setError("Customer phone is required.");
+      setSaving(false);
+      return;
+    }
     if (!form.artistId) {
       setError("Select an artist.");
       setSaving(false);
       return;
     }
+    if (!form.tattooSize.trim()) {
+      setError("Tattoo size is required.");
+      setSaving(false);
+      return;
+    }
+    if (!form.tattooPlacement.trim()) {
+      setError("Tattoo placement is required.");
+      setSaving(false);
+      return;
+    }
+    if (!form.tattooDescription.trim()) {
+      setError("Tattoo description is required.");
+      setSaving(false);
+      return;
+    }
     if (!Number.isFinite(depositAmount) || depositAmount < 0) {
       setError("Deposit amount must be a valid number.");
+      setSaving(false);
+      return;
+    }
+    if (depositAmount <= 0 && !form.depositNotCollected) {
+      setError("Enter a deposit amount, or check No deposit collected.");
       setSaving(false);
       return;
     }
@@ -279,6 +311,8 @@ function NewProjectContent() {
     setMessage("Project created.");
     setSaving(false);
   }
+
+  const requiredMark = <span className="text-[#8a3030]">*</span>;
 
   return (
     <AppPage
@@ -328,21 +362,23 @@ function NewProjectContent() {
           ) : null}
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
-            <h4 className="text-sm font-semibold">Project info</h4>
+            <h4 className="text-sm font-semibold text-[#6f7275]">Project info</h4>
             <div className="mt-3 grid gap-4 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
-                Project name
+                Project name {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ projectName: event.target.value })}
+                  required
                   value={form.projectName}
                 />
               </label>
               <label className="block text-sm font-semibold">
-                Artist
+                Artist {requiredMark}
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ artistId: event.target.value })}
+                  required
                   value={form.artistId}
                 >
                   <option value="">Select artist</option>
@@ -354,10 +390,11 @@ function NewProjectContent() {
                 </select>
               </label>
               <label className="block text-sm font-semibold">
-                Project type
+                Project type {requiredMark}
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ projectType: event.target.value })}
+                  required
                   value={form.projectType}
                 >
                   {projectTypeOptions.map((type) => (
@@ -369,7 +406,7 @@ function NewProjectContent() {
           </section>
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
-            <h4 className="text-sm font-semibold">Customer info</h4>
+            <h4 className="text-sm font-semibold text-[#6f7275]">Customer info</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
               <div className="relative block text-sm font-semibold lg:col-span-2">
                 Find existing customer
@@ -413,27 +450,30 @@ function NewProjectContent() {
                 ) : null}
               </div>
               <label className="block text-sm font-semibold">
-                Name
+                Name {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ customerName: event.target.value })}
+                  required
                   value={form.customerName}
                 />
               </label>
               <label className="block text-sm font-semibold">
-                Email
+                Email {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ customerEmail: event.target.value })}
+                  required
                   type="email"
                   value={form.customerEmail}
                 />
               </label>
               <label className="block text-sm font-semibold">
-                Phone
+                Phone {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ customerPhone: event.target.value })}
+                  required
                   value={form.customerPhone}
                 />
               </label>
@@ -449,29 +489,32 @@ function NewProjectContent() {
           </section>
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
-            <h4 className="text-sm font-semibold">Tattoo description</h4>
+            <h4 className="text-sm font-semibold text-[#6f7275]">Tattoo description</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
-                Size
+                Size {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ tattooSize: event.target.value })}
+                  required
                   value={form.tattooSize}
                 />
               </label>
               <label className="block text-sm font-semibold">
-                Placement
+                Placement {requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                   onChange={(event) => updateForm({ tattooPlacement: event.target.value })}
+                  required
                   value={form.tattooPlacement}
                 />
               </label>
               <label className="block text-sm font-semibold lg:col-span-3">
-                Description
+                Description {requiredMark}
                 <textarea
                   className="mt-2 min-h-28 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
                   onChange={(event) => updateForm({ tattooDescription: event.target.value })}
+                  required
                   value={form.tattooDescription}
                 />
               </label>
@@ -479,14 +522,16 @@ function NewProjectContent() {
           </section>
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
-            <h4 className="text-sm font-semibold">Deposit</h4>
+            <h4 className="text-sm font-semibold text-[#6f7275]">Deposit</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               <label className="block text-sm font-semibold">
-                Amount
+                Amount {form.depositNotCollected ? null : requiredMark}
                 <input
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  disabled={form.depositNotCollected}
                   min="0"
                   onChange={(event) => updateForm({ depositAmount: event.target.value })}
+                  required={!form.depositNotCollected}
                   type="number"
                   value={form.depositAmount}
                 />
@@ -495,6 +540,7 @@ function NewProjectContent() {
                 Payment method
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                  disabled={form.depositNotCollected}
                   onChange={(event) => updateForm({ depositPaymentMethod: event.target.value })}
                   value={form.depositPaymentMethod}
                 >
@@ -505,10 +551,24 @@ function NewProjectContent() {
                   ))}
                 </select>
               </label>
+              <label className="flex min-h-10 items-center gap-2 self-end rounded-md border border-[#d9d3c7] bg-white px-3 py-2 text-sm font-semibold">
+                <input
+                  checked={form.depositNotCollected}
+                  onChange={(event) =>
+                    updateForm({
+                      depositAmount: event.target.checked ? "" : form.depositAmount,
+                      depositNotCollected: event.target.checked,
+                    })
+                  }
+                  type="checkbox"
+                />
+                No deposit collected {form.depositAmount ? null : requiredMark}
+              </label>
               <label className="block text-sm font-semibold lg:col-span-3">
                 Deposit memo
                 <textarea
                   className="mt-2 min-h-20 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+                  disabled={form.depositNotCollected}
                   onChange={(event) => updateForm({ depositMemo: event.target.value })}
                   value={form.depositMemo}
                 />
