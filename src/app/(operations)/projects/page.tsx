@@ -440,9 +440,9 @@ function SessionEntryModal({
   onSave: (form: SessionForm) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 py-6">
-      <section className="w-full max-w-xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 px-3 py-4 sm:items-center sm:px-4 sm:py-6">
+      <section className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-md border border-[#d9d3c7] bg-white shadow-xl sm:max-h-[calc(100vh-3rem)]">
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-[#e5dfd4] px-5 py-4">
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">Session entry</p>
             <h3 className="mt-1 text-xl font-semibold">
@@ -458,7 +458,7 @@ function SessionEntryModal({
             x
           </button>
         </div>
-        <div className="px-5 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <SessionEntryForm
             appointments={appointments}
             availableDepositBalance={availableDepositBalance}
