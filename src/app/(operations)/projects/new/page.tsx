@@ -425,7 +425,10 @@ function NewProjectContent() {
                   value={customerSearch}
                 />
                 {customerSearchOpen && customerSearch.trim() && !selectedCustomerId ? (
-                  <div className="absolute left-0 right-0 top-[72px] z-20 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white shadow-lg">
+                  <div
+                    className="absolute left-0 right-0 top-[72px] z-20 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white shadow-lg"
+                    onMouseDown={(event) => event.preventDefault()}
+                  >
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.map((customer) => (
                         <button
@@ -434,6 +437,10 @@ function NewProjectContent() {
                           }`}
                           key={customer.id}
                           onClick={() => selectCustomer(customer)}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectCustomer(customer);
+                          }}
                           type="button"
                         >
                           <span className="block font-semibold">{customer.name}</span>
