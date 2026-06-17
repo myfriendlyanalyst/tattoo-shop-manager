@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
@@ -106,6 +106,7 @@ function NewProjectContent() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [createdProjectId, setCreatedProjectId] = useState("");
@@ -126,6 +127,11 @@ function NewProjectContent() {
       )
       .slice(0, 8);
   }, [customerSearch, customers]);
+
+  const activeCustomerOptionIndex = Math.min(
+    activeCustomerIndex,
+    Math.max(filteredCustomers.length - 1, 0),
+  );
 
   useEffect(() => {
     async function load() {
@@ -209,11 +215,42 @@ function NewProjectContent() {
     setSelectedCustomerId(customer.id);
     setCustomerSearch(customerLabel(customer));
     setCustomerSearchOpen(false);
+    setActiveCustomerIndex(0);
     updateForm({
       customerEmail: customer.email ?? "",
       customerName: customer.name,
       customerPhone: customer.phone ?? "",
     });
+  }
+
+  function handleCustomerSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!customerSearchOpen && ["ArrowDown", "ArrowUp"].includes(event.key)) {
+      setCustomerSearchOpen(true);
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveCustomerIndex((current) =>
+        filteredCustomers.length === 0 ? 0 : Math.min(current + 1, filteredCustomers.length - 1),
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveCustomerIndex((current) => Math.max(current - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter" && customerSearchOpen && filteredCustomers[activeCustomerOptionIndex]) {
+      event.preventDefault();
+      selectCustomer(filteredCustomers[activeCustomerOptionIndex]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setCustomerSearchOpen(false);
+    }
   }
 
   async function saveProject() {
@@ -416,11 +453,13 @@ function NewProjectContent() {
                     setSelectedCustomerId("");
                     setCustomerSearch(event.target.value);
                     setCustomerSearchOpen(true);
+                    setActiveCustomerIndex(0);
                   }}
                   onBlur={() => {
                     window.setTimeout(() => setCustomerSearchOpen(false), 120);
                   }}
                   onFocus={() => setCustomerSearchOpen(true)}
+                  onKeyDown={handleCustomerSearchKeyDown}
                   placeholder="Type name, email, or phone"
                   value={customerSearch}
                 />
@@ -430,10 +469,10 @@ function NewProjectContent() {
                     onMouseDown={(event) => event.preventDefault()}
                   >
                     {filteredCustomers.length > 0 ? (
-                      filteredCustomers.map((customer) => (
+                      filteredCustomers.map((customer, index) => (
                         <button
                           className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#f7f2e9] ${
-                            customer.id === selectedCustomerId ? "bg-[#f1eadc] font-semibold" : ""
+                            index === activeCustomerOptionIndex ? "bg-[#f1eadc] font-semibold" : ""
                           }`}
                           key={customer.id}
                           onClick={() => selectCustomer(customer)}
@@ -441,6 +480,7 @@ function NewProjectContent() {
                             event.preventDefault();
                             selectCustomer(customer);
                           }}
+                          onMouseEnter={() => setActiveCustomerIndex(index)}
                           type="button"
                         >
                           <span className="block font-semibold">{customer.name}</span>
