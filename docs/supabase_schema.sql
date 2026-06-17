@@ -239,6 +239,7 @@ create table if not exists public.deposits (
   payment_method public.payment_method not null,
   received_at timestamptz not null default now(),
   available boolean not null default true,
+  disposition text not null default 'available' check (disposition in ('available', 'applied', 'forfeited', 'refunded')),
   used_at timestamptz,
   used_session_entry_id uuid references public.session_entries(id) on delete set null,
   memo text,
@@ -366,11 +367,38 @@ select
   se.merch_amount,
   se.merch_payment_method,
   (se.tattoo_amount + se.tip_amount + se.merch_amount) as total_amount,
-  se.memo
+  se.memo,
+  0::numeric(10, 2) as deposit_amount,
+  null::public.payment_method as deposit_payment_method
 from public.session_entries se
 left join public.staff st on st.id = se.artist_id
 left join public.customers c on c.id = se.customer_id
-left join public.projects p on p.id = se.project_id;
+left join public.projects p on p.id = se.project_id
+union all
+select
+  d.id,
+  coalesce(d.used_at, d.received_at) as entered_at,
+  'deposit'::public.entry_type as entry_type,
+  null::uuid as artist_id,
+  null::text as artist_name,
+  d.customer_id,
+  c.name as customer_name,
+  d.project_id,
+  p.subject as project_subject,
+  0::numeric(10, 2) as tattoo_amount,
+  null::public.payment_method as tattoo_payment_method,
+  0::numeric(10, 2) as tip_amount,
+  null::public.payment_method as tip_payment_method,
+  0::numeric(10, 2) as merch_amount,
+  null::public.payment_method as merch_payment_method,
+  d.amount as total_amount,
+  coalesce(d.memo, 'Forfeited deposit') as memo,
+  d.amount as deposit_amount,
+  d.payment_method as deposit_payment_method
+from public.deposits d
+left join public.customers c on c.id = d.customer_id
+left join public.projects p on p.id = d.project_id
+where d.disposition = 'forfeited';
 
 -- ---------------------------------------------------------------------------
 -- Indexes
@@ -395,6 +423,7 @@ create index if not exists idx_session_entries_artist_entered on public.session_
 create index if not exists idx_session_entries_customer_id on public.session_entries(customer_id);
 create index if not exists idx_deposits_project_id on public.deposits(project_id);
 create index if not exists idx_deposits_available on public.deposits(available);
+create index if not exists idx_deposits_disposition on public.deposits(disposition);
 create index if not exists idx_payouts_artist_period on public.payouts(artist_id, period_start, period_end);
 create index if not exists idx_requests_status on public.requests(status);
 create index if not exists idx_requests_artist_id on public.requests(artist_id);

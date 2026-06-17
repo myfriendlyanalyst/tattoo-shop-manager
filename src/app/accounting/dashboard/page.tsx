@@ -22,10 +22,12 @@ type AccountingEntry = {
   tattoo_amount: number;
   tip_amount: number;
   merch_amount: number;
+  deposit_amount: number;
   total_amount: number;
   tattoo_payment_method: string | null;
   tip_payment_method: string | null;
   merch_payment_method: string | null;
+  deposit_payment_method: string | null;
 };
 
 type ArtistOption = {
@@ -46,6 +48,7 @@ type PaymentBreakdown = {
   tattoo: number;
   tip: number;
   merch: number;
+  deposit: number;
   total: number;
 };
 
@@ -109,7 +112,7 @@ function presetRange(days: number) {
 }
 
 const entrySelect =
-  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method, tip_payment_method, merch_payment_method";
+  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, deposit_amount, total_amount, tattoo_payment_method, tip_payment_method, merch_payment_method, deposit_payment_method";
 
 export default function AccountingDashboardPage() {
   const router = useRouter();
@@ -201,12 +204,13 @@ export default function AccountingDashboardPage() {
           tattoo: 0,
           tip: 0,
           merch: 0,
+          deposit: 0,
           total: 0,
         },
       ]),
     ) as Record<PaymentMethodKey, PaymentBreakdown>;
 
-    function add(method: string | null, bucket: "tattoo" | "tip" | "merch", amount: number) {
+    function add(method: string | null, bucket: "tattoo" | "tip" | "merch" | "deposit", amount: number) {
       if (amount <= 0) return;
       const key = normalizePaymentMethod(method);
       map[key][bucket] += amount;
@@ -217,6 +221,7 @@ export default function AccountingDashboardPage() {
       add(entry.tattoo_payment_method, "tattoo", Number(entry.tattoo_amount));
       add(entry.tip_payment_method, "tip", Number(entry.tip_amount));
       add(entry.merch_payment_method, "merch", Number(entry.merch_amount));
+      add(entry.deposit_payment_method, "deposit", Number(entry.deposit_amount));
     }
 
     return PAYMENT_METHODS.map((item) => map[item.key]);
@@ -226,6 +231,7 @@ export default function AccountingDashboardPage() {
   const tattooTotal = paymentBreakdown.reduce((sum, item) => sum + item.tattoo, 0);
   const tipTotal = paymentBreakdown.reduce((sum, item) => sum + item.tip, 0);
   const merchTotal = paymentBreakdown.reduce((sum, item) => sum + item.merch, 0);
+  const forfeitedDepositTotal = paymentBreakdown.reduce((sum, item) => sum + item.deposit, 0);
   const availableDeposits = deposits
     .filter((deposit) => deposit.available)
     .reduce((sum, deposit) => sum + Number(deposit.amount), 0);
@@ -365,11 +371,11 @@ export default function AccountingDashboardPage() {
               </div>
               <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
-                  Deposits
+                  Forfeited Deposits
                 </p>
-                <p className="mt-2 text-2xl font-black text-[#236c8f]">{money(availableDeposits)}</p>
+                <p className="mt-2 text-2xl font-black text-[#236c8f]">{money(forfeitedDepositTotal)}</p>
                 <p className="mt-1.5 text-xs font-bold text-[#697178]">
-                  {money(usedDeposits)} applied
+                  {money(availableDeposits)} on hold / {money(usedDeposits)} closed
                 </p>
               </div>
             </div>
@@ -380,7 +386,7 @@ export default function AccountingDashboardPage() {
               <div className="mb-4">
                 <h3 className="text-base font-bold">Payment Method Mix</h3>
                 <p className="mt-0.5 text-sm text-[#697178]">
-                  Tattoo, tips, and merch are assigned to their own payment methods.
+                  Tattoo, tips, merch, and forfeited deposits are assigned to their own payment methods.
                 </p>
               </div>
               {paymentSlices.length > 0 ? (
@@ -399,7 +405,7 @@ export default function AccountingDashboardPage() {
               <div className="mb-4">
                 <h3 className="text-base font-bold">Sales by Method</h3>
                 <p className="mt-0.5 text-sm text-[#697178]">
-                  Totals include tattoo, tips, and merch by each payment method.
+                  Totals include tattoo, tips, merch, and forfeited deposits by each payment method.
                 </p>
               </div>
               <BarChart data={paymentBars} height={170} color="#236c8f" />
@@ -421,6 +427,7 @@ export default function AccountingDashboardPage() {
                     <th className="px-5 py-3 text-right">Tattoo</th>
                     <th className="px-5 py-3 text-right">Tips</th>
                     <th className="px-5 py-3 text-right">Merch</th>
+                    <th className="px-5 py-3 text-right">Deposits</th>
                     <th className="px-5 py-3 text-right">Total</th>
                     <th className="px-5 py-3 text-right">Share</th>
                   </tr>
@@ -440,6 +447,7 @@ export default function AccountingDashboardPage() {
                       <td className="px-5 py-3 text-right">{money(item.tattoo)}</td>
                       <td className="px-5 py-3 text-right">{money(item.tip)}</td>
                       <td className="px-5 py-3 text-right">{money(item.merch)}</td>
+                      <td className="px-5 py-3 text-right">{money(item.deposit)}</td>
                       <td className="px-5 py-3 text-right font-bold text-[#236c8f]">{money(item.total)}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[#697178]">{pct(item.total, totalSales)}</td>
                     </tr>
@@ -475,6 +483,7 @@ export default function AccountingDashboardPage() {
                       <th className="px-5 py-3 text-right">Tattoo</th>
                       <th className="px-5 py-3 text-right">Tip</th>
                       <th className="px-5 py-3 text-right">Merch</th>
+                      <th className="px-5 py-3 text-right">Deposit</th>
                       <th className="px-5 py-3 text-right">Total</th>
                       <th className="px-5 py-3">Payment</th>
                     </tr>
@@ -495,6 +504,7 @@ export default function AccountingDashboardPage() {
                         <td className="px-5 py-3 text-right font-semibold">{money(Number(entry.tattoo_amount))}</td>
                         <td className="px-5 py-3 text-right text-[#697178]">{money(Number(entry.tip_amount))}</td>
                         <td className="px-5 py-3 text-right text-[#697178]">{money(Number(entry.merch_amount))}</td>
+                        <td className="px-5 py-3 text-right text-[#697178]">{money(Number(entry.deposit_amount))}</td>
                         <td className="px-5 py-3 text-right font-bold text-[#236c8f]">{money(Number(entry.total_amount))}</td>
                         <td className="px-5 py-3">
                           <div className="flex flex-wrap gap-1">
@@ -511,6 +521,11 @@ export default function AccountingDashboardPage() {
                             {Number(entry.merch_amount) > 0 ? (
                               <span className={`rounded px-2 py-0.5 text-xs font-bold ${paymentMethodClasses(entry.merch_payment_method)}`}>
                                 M: {paymentMethodLabel(entry.merch_payment_method)}
+                              </span>
+                            ) : null}
+                            {Number(entry.deposit_amount) > 0 ? (
+                              <span className={`rounded px-2 py-0.5 text-xs font-bold ${paymentMethodClasses(entry.deposit_payment_method)}`}>
+                                D: {paymentMethodLabel(entry.deposit_payment_method)}
                               </span>
                             ) : null}
                           </div>

@@ -13,6 +13,7 @@ type DepositRecord = {
   payment_method: string;
   received_at: string;
   available: boolean;
+  disposition?: "available" | "applied" | "forfeited" | "refunded" | null;
   used_at: string | null;
   // Present when the deposit column exists (requires DB migration if absent)
   used_session_entry_id?: string | null;
@@ -54,13 +55,38 @@ function paymentMethodClasses(method: string) {
   );
 }
 
+function depositDisposition(deposit: DepositRecord) {
+  if (deposit.disposition) return deposit.disposition;
+  return deposit.available ? "available" : "applied";
+}
+
+function depositStatusLabel(deposit: DepositRecord) {
+  const disposition = depositDisposition(deposit);
+  if (disposition === "forfeited") return "Forfeited";
+  if (disposition === "refunded") return "Refunded";
+  if (disposition === "applied") return "Applied";
+  return "On hold";
+}
+
+function depositStatusClasses(deposit: DepositRecord) {
+  const disposition = depositDisposition(deposit);
+  return (
+    {
+      available: "bg-[#f1eadc] text-[#775f36]",
+      applied: "bg-[#e4f1df] text-[#476b33]",
+      forfeited: "bg-[#e8eef7] text-[#236c8f]",
+      refunded: "bg-[#f7e7e7] text-[#8a3030]",
+    }[disposition] ?? "bg-[#eee8dd] text-[#4d555c]"
+  );
+}
+
 const depositSelectFull =
-  "id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo, customer:customers(name, email), project:projects(subject), artist:staff(display_name)";
+  "id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo, customer:customers(name, email), project:projects(subject), artist:staff(display_name)";
 const depositSelectBase =
   "id, amount, payment_method, received_at, available, used_at, memo, customer:customers(name, email), project:projects(subject), artist:staff(display_name)";
 
-function isMissingUsedEntryColumn(message: string) {
-  return message.includes("used_session_entry_id");
+function isMissingOptionalDepositColumn(message: string) {
+  return message.includes("used_session_entry_id") || message.includes("disposition");
 }
 
 async function fetchDeposits() {
@@ -68,7 +94,7 @@ async function fetchDeposits() {
     .from("deposits")
     .select(depositSelectFull)
     .order("received_at", { ascending: false });
-  if (!result.error || !isMissingUsedEntryColumn(result.error.message)) {
+  if (!result.error || !isMissingOptionalDepositColumn(result.error.message)) {
     return result;
   }
   return supabase
@@ -123,8 +149,9 @@ export default function DepositsPage() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return deposits.filter((d) => {
-      if (statusFilter === "available" && !d.available) return false;
-      if (statusFilter === "used" && d.available) return false;
+      const disposition = depositDisposition(d);
+      if (statusFilter === "available" && disposition !== "available") return false;
+      if (statusFilter === "used" && disposition === "available") return false;
       if (term) {
         const customer = relatedOne(d.customer);
         const project = relatedOne(d.project);
@@ -148,7 +175,7 @@ export default function DepositsPage() {
   const usedTotal = useMemo(
     () =>
       deposits
-        .filter((d) => !d.available)
+        .filter((d) => depositDisposition(d) !== "available")
         .reduce((sum, d) => sum + Number(d.amount), 0),
     [deposits],
   );
@@ -165,7 +192,7 @@ export default function DepositsPage() {
 
     const result = await supabase
       .from("deposits")
-      .update({ available: false, used_at: new Date().toISOString() })
+      .update({ available: false, disposition: "applied", used_at: new Date().toISOString() })
       .eq("id", deposit.id);
 
     if (result.error) {
@@ -177,7 +204,7 @@ export default function DepositsPage() {
     setDeposits((current) =>
       current.map((d) =>
         d.id === deposit.id
-          ? { ...d, available: false, used_at: new Date().toISOString() }
+          ? { ...d, available: false, disposition: "applied", used_at: new Date().toISOString() }
           : d,
       ),
     );
@@ -206,7 +233,7 @@ export default function DepositsPage() {
 
     const result = await supabase
       .from("deposits")
-      .update({ available: true, used_at: null })
+      .update({ available: true, disposition: "available", used_at: null })
       .eq("id", deposit.id);
 
     if (result.error) {
@@ -217,7 +244,47 @@ export default function DepositsPage() {
 
     setDeposits((current) =>
       current.map((d) =>
-        d.id === deposit.id ? { ...d, available: true, used_at: null } : d,
+        d.id === deposit.id ? { ...d, available: true, disposition: "available", used_at: null } : d,
+      ),
+    );
+    setMessage("Deposit returned to On Hold.");
+    setSaving(false);
+  }
+
+  async function returnFinalizedToHold(deposit: DepositRecord) {
+    const confirmed = window.confirm(
+      `Return this ${depositStatusLabel(deposit).toLowerCase()} deposit (${money(
+        Number(deposit.amount),
+      )}) to On Hold?\n\n` +
+        "If it was counted as forfeited revenue, it will be removed from accounting revenue until handled again.",
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("deposits")
+      .update({
+        available: true,
+        disposition: "available",
+        used_at: null,
+        used_session_entry_id: null,
+      })
+      .eq("id", deposit.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setDeposits((current) =>
+      current.map((d) =>
+        d.id === deposit.id
+          ? { ...d, available: true, disposition: "available", used_at: null, used_session_entry_id: null }
+          : d,
       ),
     );
     setMessage("Deposit returned to On Hold.");
@@ -355,21 +422,15 @@ export default function DepositsPage() {
                             </span>
                           </td>
                           <td className="px-5 py-3">
-                            {deposit.available ? (
-                              <span className="rounded px-2 py-0.5 text-xs font-bold bg-[#f1eadc] text-[#775f36]">
-                                On hold
-                              </span>
-                            ) : (
-                              <span className="rounded px-2 py-0.5 text-xs font-bold bg-[#e4f1df] text-[#476b33]">
-                                Applied
-                                {deposit.used_at
-                                  ? ` ${formatDate(deposit.used_at)}`
-                                  : ""}
-                              </span>
-                            )}
+                            <span
+                              className={`rounded px-2 py-0.5 text-xs font-bold ${depositStatusClasses(deposit)}`}
+                            >
+                              {depositStatusLabel(deposit)}
+                              {deposit.used_at ? ` ${formatDate(deposit.used_at)}` : ""}
+                            </span>
                           </td>
                           <td className="px-5 py-3">
-                            {deposit.available ? (
+                            {depositDisposition(deposit) === "available" ? (
                               <button
                                 className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
                                 disabled={saving}
@@ -377,6 +438,16 @@ export default function DepositsPage() {
                                 type="button"
                               >
                                 Mark applied
+                              </button>
+                            ) : depositDisposition(deposit) === "forfeited" || depositDisposition(deposit) === "refunded" ? (
+                              <button
+                                className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={saving}
+                                onClick={() => returnFinalizedToHold(deposit)}
+                                title="Return this deposit to On Hold"
+                                type="button"
+                              >
+                                Return to on hold
                               </button>
                             ) : (
                               <button

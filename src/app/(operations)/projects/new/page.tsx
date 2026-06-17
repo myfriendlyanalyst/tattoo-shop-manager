@@ -90,6 +90,14 @@ function projectNameFromRequest(request: RequestRecord) {
   return placement ? `${request.client_name} - ${placement} tattoo` : `${request.client_name} - tattoo project`;
 }
 
+function projectNameFromForm(form: FormState) {
+  const customer = form.customerName.trim();
+  const placement = form.tattooPlacement.trim();
+  const suffix = placement ? `${placement} tattoo` : "tattoo project";
+
+  return customer ? `${customer} - ${suffix}` : suffix;
+}
+
 function NewProjectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -222,11 +230,6 @@ function NewProjectContent() {
     }
 
     const depositAmount = Number(form.depositAmount || 0);
-    if (!form.projectName.trim()) {
-      setError("Project name is required.");
-      setSaving(false);
-      return;
-    }
     if (!form.customerName.trim()) {
       setError("Customer name is required.");
       setSaving(false);
@@ -281,14 +284,13 @@ function NewProjectContent() {
       },
       body: JSON.stringify({
         artistId: form.artistId,
-        customerAddress: form.customerAddress,
         customerEmail: form.customerEmail,
         customerName: form.customerName,
         customerPhone: form.customerPhone,
         depositAmount,
         depositMemo: form.depositMemo,
         depositPaymentMethod: form.depositPaymentMethod,
-        projectName: form.projectName,
+        projectName: projectNameFromForm(form),
         projectType: form.projectType,
         requestId: requestId || undefined,
         tattooDescription: form.tattooDescription,
@@ -364,15 +366,12 @@ function NewProjectContent() {
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold text-[#6f7275]">Project info</h4>
             <div className="mt-3 grid gap-4 lg:grid-cols-3">
-              <label className="block text-sm font-semibold">
+              <div className="block text-sm font-semibold">
                 Project name {requiredMark}
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => updateForm({ projectName: event.target.value })}
-                  required
-                  value={form.projectName}
-                />
-              </label>
+                <div className="mt-2 flex min-h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm font-semibold text-[#4d555c]">
+                  {projectNameFromForm(form)}
+                </div>
+              </div>
               <label className="block text-sm font-semibold">
                 Artist {requiredMark}
                 <select
@@ -477,14 +476,6 @@ function NewProjectContent() {
                   value={form.customerPhone}
                 />
               </label>
-              <label className="block text-sm font-semibold">
-                Address
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => updateForm({ customerAddress: event.target.value })}
-                  value={form.customerAddress}
-                />
-              </label>
             </div>
           </section>
 
@@ -578,11 +569,11 @@ function NewProjectContent() {
 
           <button
             className="h-11 w-full rounded-md bg-[#1f2428] px-4 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || loading}
+            disabled={saving || loading || Boolean(createdProjectId)}
             onClick={saveProject}
             type="button"
           >
-            {saving ? "Creating..." : "Create project"}
+            {saving ? "Creating..." : createdProjectId ? "Project created" : "Create project"}
           </button>
         </div>
       </section>

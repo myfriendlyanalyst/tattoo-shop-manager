@@ -64,6 +64,7 @@ type DepositRecord = {
   payment_method: string | null;
   received_at: string;
   available: boolean;
+  disposition: "available" | "applied" | "forfeited" | "refunded" | null;
   used_at: string | null;
   used_session_entry_id: string | null;
   memo: string | null;
@@ -175,10 +176,6 @@ function paymentLabel(value: string | null | undefined) {
   return paymentMethods.find((method) => method.value === value)?.label ?? value ?? "-";
 }
 
-function appointmentLabel(appointment: AppointmentRecord) {
-  return `${displayDateTime(appointment.starts_at)} / ${appointment.appointment_type}`;
-}
-
 function depositAppliedTotal(depositId: string, applications: DepositApplicationRecord[]) {
   return applications
     .filter((application) => application.deposit_id === depositId)
@@ -186,7 +183,23 @@ function depositAppliedTotal(depositId: string, applications: DepositApplication
 }
 
 function depositRemaining(deposit: DepositRecord, applications: DepositApplicationRecord[]) {
+  if (deposit.disposition === "forfeited" || deposit.disposition === "refunded") {
+    return 0;
+  }
+
   return Math.max(Number(deposit.amount) - depositAppliedTotal(deposit.id, applications), 0);
+}
+
+function depositHistoryLabel(deposit: DepositRecord) {
+  if (deposit.disposition === "forfeited") return "Deposit forfeited";
+  if (deposit.disposition === "refunded") return "Deposit refunded";
+  return "Deposit received";
+}
+
+function depositHistoryClasses(deposit: DepositRecord) {
+  if (deposit.disposition === "forfeited") return "text-[#236c8f]";
+  if (deposit.disposition === "refunded") return "text-[#8a3030]";
+  return "text-[#2f6658]";
 }
 
 function memoField(memo: string | null, label: string) {
@@ -616,7 +629,14 @@ export default function ProjectsPage() {
       >
     >((accumulator, row) => {
       const previousBalance = accumulator.at(-1)?.balance ?? 0;
-      const balance = previousBalance + (row.type === "deposit" ? row.amount : -row.amount);
+      const balanceDelta =
+        row.type === "deposit" &&
+        (row.deposit.disposition === "forfeited" || row.deposit.disposition === "refunded")
+          ? 0
+          : row.type === "deposit"
+            ? row.amount
+            : -row.amount;
+      const balance = previousBalance + balanceDelta;
 
       return [
         ...accumulator,
@@ -711,7 +731,7 @@ export default function ProjectsPage() {
           supabase
             .from("deposits")
             .select(
-              "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+              "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
             )
             .order("received_at", { ascending: false }),
           supabase
@@ -898,6 +918,42 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
+  async function markWaiverUnsigned(project: ProjectRecord) {
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("projects")
+      .update({
+        waiver_signed: false,
+        waiver_status: "missing",
+        waiver_signed_at: null,
+      })
+      .eq("id", project.id);
+
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((item) =>
+        item.id === project.id
+          ? {
+              ...item,
+              waiver_signed: false,
+              waiver_status: "missing",
+              waiver_signed_at: null,
+            }
+          : item,
+      ),
+    );
+    setMessage("Waiver marked as unsigned.");
+    setSaving(false);
+  }
+
   async function updateProjectType(project: ProjectRecord, sessionType: string) {
     setSaving(true);
     setError("");
@@ -948,6 +1004,100 @@ export default function ProjectsPage() {
       current.map((item) => (item.id === project.id ? { ...item, status } : item)),
     );
     setMessage(`Project marked ${projectStatusLabel(status).toLowerCase()}.`);
+    setSaving(false);
+  }
+
+  async function markCancelledDepositTreatment(treatment: "forfeited" | "refunded") {
+    if (!selectedProject || selectedDeposits.length === 0) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const updatedDeposits: DepositRecord[] = [];
+
+    for (const deposit of selectedDeposits) {
+      const result = await supabase
+        .from("deposits")
+        .update({
+          available: false,
+          disposition: treatment,
+          used_at: new Date().toISOString(),
+          used_session_entry_id: null,
+        })
+        .eq("id", deposit.id)
+        .select(
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
+        )
+        .single();
+
+      if (result.error) {
+        setError(result.error.message);
+        setSaving(false);
+        return;
+      }
+
+      updatedDeposits.push(result.data as DepositRecord);
+    }
+
+    setDeposits((current) =>
+      current.map((deposit) => updatedDeposits.find((item) => item.id === deposit.id) ?? deposit),
+    );
+    setMessage(
+      treatment === "forfeited"
+        ? "Cancelled project deposits marked forfeited."
+        : "Cancelled project deposits marked refunded.",
+    );
+    setSaving(false);
+  }
+
+  async function returnCancelledDepositsToHold() {
+    if (!selectedProject || selectedDeposits.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Return cancelled-project deposits to On Hold?\n\n" +
+        "This removes forfeited deposit revenue from accounting until the deposit is handled again.",
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const updatedDeposits: DepositRecord[] = [];
+
+    for (const deposit of selectedDeposits) {
+      const result = await supabase
+        .from("deposits")
+        .update({
+          available: true,
+          disposition: "available",
+          used_at: null,
+          used_session_entry_id: null,
+        })
+        .eq("id", deposit.id)
+        .select(
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
+        )
+        .single();
+
+      if (result.error) {
+        setError(result.error.message);
+        setSaving(false);
+        return;
+      }
+
+      updatedDeposits.push(result.data as DepositRecord);
+    }
+
+    setDeposits((current) =>
+      current.map((deposit) => updatedDeposits.find((item) => item.id === deposit.id) ?? deposit),
+    );
+    setMessage("Cancelled project deposits returned to On Hold.");
     setSaving(false);
   }
 
@@ -1016,12 +1166,20 @@ export default function ProjectsPage() {
     setMessage("");
 
     const user = await getSafeUser();
+    const remainingAfterSave = amount - alreadyApplied;
+    const disposition =
+      editingDeposit?.disposition === "forfeited" || editingDeposit?.disposition === "refunded"
+        ? editingDeposit.disposition
+        : remainingAfterSave > 0
+          ? "available"
+          : "applied";
     const payload = {
       amount,
       payment_method: form.paymentMethod,
       received_at: new Date(form.receivedAt).toISOString(),
-      available: amount - alreadyApplied > 0,
-      used_at: amount - alreadyApplied > 0 ? null : new Date().toISOString(),
+      available: disposition === "available",
+      disposition,
+      used_at: disposition === "available" ? null : new Date().toISOString(),
       memo: form.memo.trim() || null,
     };
     const result = editingDeposit
@@ -1030,7 +1188,7 @@ export default function ProjectsPage() {
           .update(payload)
           .eq("id", editingDeposit.id)
           .select(
-            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
           )
           .single()
       : await supabase
@@ -1043,7 +1201,7 @@ export default function ProjectsPage() {
             created_by: user?.id ?? null,
           })
           .select(
-            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
           )
           .single();
 
@@ -1344,12 +1502,13 @@ export default function ProjectsPage() {
         .from("deposits")
         .update({
           available: remaining > 0,
+          disposition: remaining > 0 ? "available" : "applied",
           used_at: remaining > 0 ? null : new Date().toISOString(),
           used_session_entry_id: remaining > 0 ? null : result.data.id,
         })
         .eq("id", depositId)
         .select(
-          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
         )
         .single();
 
@@ -1449,12 +1608,13 @@ export default function ProjectsPage() {
         .from("deposits")
         .update({
           available: remaining > 0,
+          disposition: remaining > 0 ? "available" : "applied",
           used_at: remaining > 0 ? null : new Date().toISOString(),
           used_session_entry_id: null,
         })
         .eq("id", depositId)
         .select(
-          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+          "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
         )
         .single();
 
@@ -1841,7 +2001,16 @@ export default function ProjectsPage() {
                         >
                           Mark signed
                         </button>
-                      ) : null}
+                      ) : (
+                        <button
+                          className="mt-2 h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={saving}
+                          onClick={() => markWaiverUnsigned(selectedProject)}
+                          type="button"
+                        >
+                          Undo signed
+                        </button>
+                      )}
                     </div>
                   </div>
                 </section>
@@ -1854,7 +2023,7 @@ export default function ProjectsPage() {
                     <div className="space-y-4 p-4">
                       <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
                         <p className="text-xs font-bold uppercase text-[#8a8174]">Client info</p>
-                        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
                           <div className="rounded-md bg-white px-3 py-3">
                             <p className="text-sm text-[#697178]">Name</p>
                             <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
@@ -1869,12 +2038,6 @@ export default function ProjectsPage() {
                             <p className="text-sm text-[#697178]">Phone</p>
                             <p className="mt-1 font-semibold">
                               {selectedProjectDetail?.customer?.phone || "-"}
-                            </p>
-                          </div>
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Address</p>
-                            <p className="mt-1 font-semibold">
-                              {selectedProjectDetail?.customerAddress || "-"}
                             </p>
                           </div>
                         </div>
@@ -1954,15 +2117,6 @@ export default function ProjectsPage() {
                         <div>
                           <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Session</p>
                           <p className="font-semibold">{displayDateTime(session.entered_at)}</p>
-                          <p className="text-[#697178]">
-                            {selectedAppointments.find((item) => item.id === session.appointment_id)
-                              ? appointmentLabel(
-                                  selectedAppointments.find(
-                                    (item) => item.id === session.appointment_id,
-                                  )!,
-                                )
-                              : "No appointment"}
-                          </p>
                         </div>
                         <div>
                           <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Tattoo</p>
@@ -1980,7 +2134,9 @@ export default function ProjectsPage() {
                         <div>
                           <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Tip</p>
                           <p className="font-semibold">{money(session.tip_amount)} tip</p>
-                          <p className="text-[#697178]">{paymentLabel(session.tip_payment_method)}</p>
+                          {Number(session.tip_amount ?? 0) > 0 ? (
+                            <p className="text-[#697178]">{paymentLabel(session.tip_payment_method)}</p>
+                          ) : null}
                         </div>
                         <div>
                           <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Deposit</p>
@@ -1992,7 +2148,6 @@ export default function ProjectsPage() {
                             )}{" "}
                             deposit
                           </p>
-                          <p className="text-[#697178]">Applied</p>
                         </div>
                         <div>
                           <p className="text-xs font-bold uppercase text-[#8a8174] md:hidden">Memo</p>
@@ -2061,11 +2216,13 @@ export default function ProjectsPage() {
                                   </p>
                                   <p
                                     className={`mt-1 font-semibold ${
-                                      row.type === "deposit" ? "text-[#2f6658]" : "text-[#8a5130]"
+                                      row.type === "deposit"
+                                        ? depositHistoryClasses(row.deposit)
+                                        : "text-[#8a5130]"
                                     }`}
                                   >
                                     {row.type === "deposit"
-                                      ? "Deposit received"
+                                      ? depositHistoryLabel(row.deposit)
                                       : `Applied to ${
                                           row.session ? displayDateTime(row.session.entered_at) : "session"
                                         }`}
@@ -2142,8 +2299,8 @@ export default function ProjectsPage() {
                                       <span>
                                         {row.type === "deposit" ? (
                                           <>
-                                            <span className="font-semibold text-[#2f6658]">
-                                              Deposit received
+                                            <span className={`font-semibold ${depositHistoryClasses(row.deposit)}`}>
+                                              {depositHistoryLabel(row.deposit)}
                                             </span>
                                             <span className="block text-xs text-[#697178]">
                                               {paymentLabel(row.deposit!.payment_method)}
@@ -2252,6 +2409,40 @@ export default function ProjectsPage() {
                       On Hold
                     </button>
                   </div>
+                  {selectedProject.status === "cancelled" && selectedDeposits.length > 0 ? (
+                    <div className="mt-4 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
+                      <p className="text-sm font-semibold">Cancelled deposit handling</p>
+                      <p className="mt-1 text-xs text-[#697178]">
+                        Mark how the deposit should be treated for accounting.
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <button
+                          className="h-9 rounded-md border border-[#8a3030] px-3 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={saving}
+                          onClick={() => markCancelledDepositTreatment("forfeited")}
+                          type="button"
+                        >
+                          Keep deposit
+                        </button>
+                        <button
+                          className="h-9 rounded-md border border-[#315f82] px-3 text-sm font-semibold text-[#315f82] hover:bg-[#e5edf4] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={saving}
+                          onClick={() => markCancelledDepositTreatment("refunded")}
+                          type="button"
+                        >
+                          Refund deposit
+                        </button>
+                        <button
+                          className="h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={saving}
+                          onClick={returnCancelledDepositsToHold}
+                          type="button"
+                        >
+                          Return to on hold
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <button

@@ -107,6 +107,7 @@ type NewAppointmentForm = {
   projectSubject: string;
   type: string;
   notes: string;
+  date: string;
   start: string;
   end: string;
 };
@@ -734,6 +735,7 @@ function NewAppointmentModal({
     projectSubject: "",
     type: firstProject ? appointmentTypeForProject(firstProject) : "Walk-in",
     notes: "",
+    date: draft.date,
     start: draft.start,
     end: draft.end,
   });
@@ -765,7 +767,7 @@ function NewAppointmentModal({
           <div>
             <p className="text-xs font-semibold text-[#8a6f4d]">New appointment</p>
             <h3 className="mt-1 text-xl font-semibold">
-              {draft.artist} / {formatTime(form.start)}
+              {draft.artist} / {formatDateLabel(form.date)} {formatTime(form.start)}
             </h3>
             <p className="mt-1 text-sm text-[#697178]">
               Created from the calendar position you clicked.
@@ -788,13 +790,22 @@ function NewAppointmentModal({
             </p>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <label className="text-sm font-semibold">
               Artist
               <input
                 className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm"
                 readOnly
                 value={draft.artist}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Date
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
+                type="date"
+                value={form.date}
               />
             </label>
             <label className="text-sm font-semibold">
@@ -1397,8 +1408,8 @@ export default function CalendarPage() {
         project_id: project.id,
         customer_id: customerId,
         artist_id: draftAppointment.artistId,
-        starts_at: timestampFor(draftAppointment.date, form.start),
-        ends_at: timestampFor(draftAppointment.date, form.end),
+        starts_at: timestampFor(form.date, form.start),
+        ends_at: timestampFor(form.date, form.end),
         appointment_type: form.type,
         status: "scheduled",
         notes: form.notes.trim() || null,

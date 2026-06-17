@@ -49,6 +49,7 @@ type DepositRecord = {
   payment_method: string | null;
   received_at: string;
   available: boolean;
+  disposition: "available" | "applied" | "forfeited" | "refunded" | null;
   used_at: string | null;
   used_session_entry_id: string | null;
   memo: string | null;
@@ -92,6 +93,10 @@ function depositAppliedTotal(depositId: string, applications: DepositApplication
 }
 
 function depositRemaining(deposit: DepositRecord, applications: DepositApplicationRecord[]) {
+  if (deposit.disposition === "forfeited" || deposit.disposition === "refunded") {
+    return 0;
+  }
+
   return Math.max(Number(deposit.amount) - depositAppliedTotal(deposit.id, applications), 0);
 }
 
@@ -159,7 +164,7 @@ export default function NewSessionPage() {
         supabase
           .from("deposits")
           .select(
-            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, used_at, used_session_entry_id, memo",
+            "id, customer_id, project_id, artist_id, amount, payment_method, received_at, available, disposition, used_at, used_session_entry_id, memo",
           )
           .order("received_at", { ascending: true }),
         supabase
@@ -407,6 +412,7 @@ export default function NewSessionPage() {
         .from("deposits")
         .update({
           available: remaining > 0,
+          disposition: remaining > 0 ? "available" : "applied",
           used_at: remaining > 0 ? null : new Date().toISOString(),
           used_session_entry_id: remaining > 0 ? null : sessionResult.data.id,
         })

@@ -18,10 +18,12 @@ type AccountingEntry = {
   tattoo_amount: number;
   tip_amount: number;
   merch_amount: number;
+  deposit_amount: number;
   total_amount: number;
   tattoo_payment_method: string | null;
   tip_payment_method: string | null;
   merch_payment_method: string | null;
+  deposit_payment_method: string | null;
   memo: string | null;
 };
 
@@ -71,7 +73,7 @@ function paymentMethodClasses(method: string | null) {
 }
 
 const entrySelect =
-  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method, tip_payment_method, merch_payment_method, memo";
+  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, deposit_amount, total_amount, tattoo_payment_method, tip_payment_method, merch_payment_method, deposit_payment_method, memo";
 
 export default function TransactionsPage() {
   const router = useRouter();
@@ -162,6 +164,7 @@ export default function TransactionsPage() {
       tattoo: filtered.reduce((s, e) => s + Number(e.tattoo_amount), 0),
       tip: filtered.reduce((s, e) => s + Number(e.tip_amount), 0),
       merch: filtered.reduce((s, e) => s + Number(e.merch_amount), 0),
+      deposit: filtered.reduce((s, e) => s + Number(e.deposit_amount), 0),
       total: filtered.reduce((s, e) => s + Number(e.total_amount), 0),
     }),
     [filtered],
@@ -257,11 +260,12 @@ export default function TransactionsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[
               { label: "Tattoo", value: totals.tattoo, highlight: false },
               { label: "Tips", value: totals.tip, highlight: false },
               { label: "Merch", value: totals.merch, highlight: false },
+              { label: "Deposits", value: totals.deposit, highlight: false },
               { label: "Total", value: totals.total, highlight: true },
             ].map((item) => (
               <div
@@ -295,7 +299,7 @@ export default function TransactionsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left text-sm">
+                <table className="w-full min-w-[980px] text-left text-sm">
                   <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                     <tr>
                       <th className="px-5 py-3">Date</th>
@@ -305,6 +309,7 @@ export default function TransactionsPage() {
                       <th className="px-5 py-3 text-right">Tattoo</th>
                       <th className="px-5 py-3 text-right">Tip</th>
                       <th className="px-5 py-3 text-right">Merch</th>
+                      <th className="px-5 py-3 text-right">Deposit</th>
                       <th className="px-5 py-3 text-right">Total</th>
                       <th className="px-5 py-3">Payment</th>
                     </tr>
@@ -336,15 +341,27 @@ export default function TransactionsPage() {
                         <td className="px-5 py-3 text-right text-[#697178]">
                           {money(Number(entry.merch_amount))}
                         </td>
+                        <td className="px-5 py-3 text-right text-[#697178]">
+                          {money(Number(entry.deposit_amount))}
+                        </td>
                         <td className="px-5 py-3 text-right font-bold text-[#236c8f]">
                           {money(Number(entry.total_amount))}
                         </td>
                         <td className="px-5 py-3">
+                          {(() => {
+                            const method =
+                              entry.deposit_payment_method ??
+                              entry.tattoo_payment_method ??
+                              entry.tip_payment_method ??
+                              entry.merch_payment_method;
+                            return (
                           <span
-                            className={`rounded px-2 py-0.5 text-xs font-bold ${paymentMethodClasses(entry.tattoo_payment_method)}`}
+                            className={`rounded px-2 py-0.5 text-xs font-bold ${paymentMethodClasses(method)}`}
                           >
-                            {paymentMethodLabel(entry.tattoo_payment_method)}
+                            {paymentMethodLabel(method)}
                           </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
@@ -363,6 +380,9 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-5 py-3 text-right text-[#697178]">
                         {money(totals.merch)}
+                      </td>
+                      <td className="px-5 py-3 text-right text-[#697178]">
+                        {money(totals.deposit)}
                       </td>
                       <td className="px-5 py-3 text-right text-[#236c8f]">
                         {money(totals.total)}
