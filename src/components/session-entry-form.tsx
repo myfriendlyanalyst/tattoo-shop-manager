@@ -251,7 +251,9 @@ export function SessionEntryForm({
   const tattooTotal = gridTotal(form.paymentGrid, "tattoo");
   const tipTotal = gridTotal(form.paymentGrid, "tip");
   const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
-  const grandTotal = tattooTotal + tipTotal;
+  const tattooWorkTotal = tattooTotal + appliedDepositAmount;
+  const newPaymentTotal = tattooTotal + tipTotal;
+  const sessionTotal = tattooWorkTotal + tipTotal;
 
   function patchGrid(field: keyof PaymentGrid, value: string) {
     setForm((current) => {
@@ -308,12 +310,22 @@ export function SessionEntryForm({
       [
         `Date: ${form.sessionDate}`,
         `Time: ${form.startTime} - ${form.endTime}`,
-        `Tattoo: ${money(tattooTotal)}`,
-        `Tip: ${money(tipTotal)}`,
+        `Tattoo payments: ${money(tattooTotal)}`,
         `Deposit applied: ${money(appliedDepositAmount)}`,
-        `Total received today: ${money(grandTotal)}`,
+        `Tattoo total: ${money(tattooWorkTotal)}`,
+        `Tip: ${money(tipTotal)}`,
+        `New payments received: ${money(newPaymentTotal)}`,
       ].join("\n"),
-    [appliedDepositAmount, form.endTime, form.sessionDate, form.startTime, grandTotal, tattooTotal, tipTotal],
+    [
+      appliedDepositAmount,
+      form.endTime,
+      form.sessionDate,
+      form.startTime,
+      newPaymentTotal,
+      tattooTotal,
+      tattooWorkTotal,
+      tipTotal,
+    ],
   );
 
   function confirmAndSave() {
@@ -321,7 +333,7 @@ export function SessionEntryForm({
     onSave({
       ...form,
       paymentLines: paymentLinesFromGrid(form.paymentGrid),
-      tattooAmount: String(tattooTotal),
+      tattooAmount: String(tattooWorkTotal),
       tipAmount: String(tipTotal),
     });
   }
@@ -387,8 +399,15 @@ export function SessionEntryForm({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-md border border-[#d9d3c7] bg-white">
-        <table className="w-full min-w-[520px] text-sm">
+      <div className="overflow-x-auto rounded-md border border-[#d9d3c7] bg-white">
+        <table className="w-full min-w-[680px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[96px]" />
+            <col className="w-[150px]" />
+            <col className="w-[150px]" />
+            <col className="w-[150px]" />
+            <col className="w-[134px]" />
+          </colgroup>
           <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
             <tr>
               <th className="px-3 py-2 text-left">Type</th>
@@ -409,7 +428,7 @@ export function SessionEntryForm({
                   return (
                     <td key={column.key} className="px-3 py-2">
                       <input
-                        className="h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-2 text-right text-sm"
+                        className="h-9 w-full min-w-0 rounded-md border border-[#cfc7b8] bg-white px-2 text-right text-sm"
                         inputMode="decimal"
                         min="0"
                         onChange={(event) => patchGrid(field, event.target.value)}
@@ -449,9 +468,12 @@ export function SessionEntryForm({
       <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
         <p className="font-semibold">Session summary</p>
         <p className="mt-1 text-[#697178]">
-          Tattoo {money(tattooTotal)} / Tip {money(tipTotal)} / Deposit applied {money(appliedDepositAmount)}
+          Tattoo payments {money(tattooTotal)} + deposit {money(appliedDepositAmount)}
         </p>
-        <p className="mt-1 font-semibold text-[#2f6658]">Total received {money(grandTotal)}</p>
+        <p className="mt-1 text-[#697178]">Tip {money(tipTotal)}</p>
+        <p className="mt-1 font-semibold text-[#2f6658]">
+          Session total {money(sessionTotal)} / New payments {money(newPaymentTotal)}
+        </p>
       </div>
 
       <textarea
