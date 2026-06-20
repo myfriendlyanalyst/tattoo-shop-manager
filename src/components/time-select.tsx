@@ -55,6 +55,7 @@ export function TimeSelect({
   className = "mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm",
   disabled,
   endHour = 24,
+  interval: intervalOverride,
   onChange,
   startHour = 0,
   value,
@@ -62,11 +63,13 @@ export function TimeSelect({
   className?: string;
   disabled?: boolean;
   endHour?: number;
+  interval?: number;
   onChange: (value: string) => void;
   startHour?: number;
   value: string;
 }) {
-  const interval = useTimeInterval();
+  const savedInterval = useTimeInterval();
+  const interval = intervalOverride ?? savedInterval;
   const options = useMemo(
     () => timeOptions(interval, startHour, endHour),
     [endHour, interval, startHour],

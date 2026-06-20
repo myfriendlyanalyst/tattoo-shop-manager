@@ -112,6 +112,7 @@ create table if not exists public.staff (
   start_date date,
   active boolean not null default true,
   must_change_password boolean not null default false,
+  default_session_duration_minutes integer not null default 120 check (default_session_duration_minutes between 30 and 720),
   notes text,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),

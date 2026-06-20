@@ -19,6 +19,7 @@ type StaffRecord = {
   display_name: string;
   role: string;
   active: boolean;
+  default_session_duration_minutes: number | null;
 };
 
 type StaffSchedule = {
@@ -93,6 +94,7 @@ type DraftAppointment = {
   date: string;
   start: string;
   end: string;
+  defaultDurationMinutes: number;
   prefillProjectId?: string;
 };
 
@@ -350,6 +352,14 @@ function timestampFor(date: string, time: string) {
   return timestamp.toISOString();
 }
 
+function endTimeFromStart(start: string, durationMinutes: number) {
+  const endMinutes = Math.min(
+    minutesFromStart(start) + durationMinutes,
+    (dayEndHour - dayStartHour) * 60,
+  );
+  return minutesToTime(endMinutes);
+}
+
 function dayRangeFor(date: string) {
   const start = new Date(`${date}T00:00:00`);
   const end = new Date(`${date}T23:59:59.999`);
@@ -373,6 +383,7 @@ function draftFromClick(
   date: string,
   event: MouseEvent<HTMLDivElement>,
   interval: number,
+  durationMinutes = 120,
 ): DraftAppointment {
   const rect = event.currentTarget.getBoundingClientRect();
   const y = Math.max(0, Math.min(event.clientY - rect.top, timelineHeight));
@@ -381,7 +392,7 @@ function draftFromClick(
     Math.round(rawMinutes / interval) * interval,
     (dayEndHour - dayStartHour - 1) * 60,
   );
-  const endMinutes = Math.min(startMinutes + 60, (dayEndHour - dayStartHour) * 60);
+  const endMinutes = Math.min(startMinutes + durationMinutes, (dayEndHour - dayStartHour) * 60);
 
   return {
     artistId: artist.id,
@@ -389,6 +400,7 @@ function draftFromClick(
     date,
     start: minutesToTime(startMinutes),
     end: minutesToTime(endMinutes),
+    defaultDurationMinutes: durationMinutes,
   };
 }
 
@@ -574,6 +586,10 @@ function AppointmentDetailModal({
     start: appointment.start,
     end: appointment.end,
   });
+  const defaultDurationMinutes = Math.max(
+    minutesFromStart(appointment.end) - minutesFromStart(appointment.start),
+    30,
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/35 md:items-center md:px-4 md:py-6">
@@ -617,7 +633,14 @@ function AppointmentDetailModal({
               Start
               <TimeSelect
                 endHour={dayEndHour}
-                onChange={(value) => setForm((current) => ({ ...current, start: value }))}
+                interval={30}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    start: value,
+                    end: endTimeFromStart(value, defaultDurationMinutes),
+                  }))
+                }
                 startHour={dayStartHour}
                 value={form.start}
               />
@@ -626,6 +649,7 @@ function AppointmentDetailModal({
               End
               <TimeSelect
                 endHour={dayEndHour}
+                interval={30}
                 onChange={(value) => setForm((current) => ({ ...current, end: value }))}
                 startHour={dayStartHour}
                 value={form.end}
@@ -739,6 +763,7 @@ function NewAppointmentModal({
     start: draft.start,
     end: draft.end,
   });
+  const defaultDurationMinutes = draft.defaultDurationMinutes || 120;
   const [customerSearch, setCustomerSearch] = useState(customerSearchLabel(initialCustomer));
   const selectedProject = projects.find((project) => project.id === form.projectId) ?? firstProject;
   const selectedProjectCustomer = relatedOne(selectedProject?.customer ?? null);
@@ -812,7 +837,14 @@ function NewAppointmentModal({
               Start
               <TimeSelect
                 endHour={dayEndHour}
-                onChange={(value) => setForm((current) => ({ ...current, start: value }))}
+                interval={30}
+                onChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    start: value,
+                    end: endTimeFromStart(value, defaultDurationMinutes),
+                  }))
+                }
                 startHour={dayStartHour}
                 value={form.start}
               />
@@ -821,6 +853,7 @@ function NewAppointmentModal({
               End
               <TimeSelect
                 endHour={dayEndHour}
+                interval={30}
                 onChange={(value) => setForm((current) => ({ ...current, end: value }))}
                 startHour={dayStartHour}
                 value={form.end}
@@ -1166,7 +1199,7 @@ export default function CalendarPage() {
       ] = await Promise.all([
         supabase
           .from("staff")
-          .select("id, display_name, role, active")
+          .select("id, display_name, role, active, default_session_duration_minutes")
           .eq("active", true)
           .order("sort_order", { ascending: true }),
         supabase
@@ -1278,7 +1311,8 @@ export default function CalendarPage() {
           artist: prefillArtist.display_name,
           date: selectedDate,
           start: "12:00",
-          end: "13:00",
+          end: endTimeFromStart("12:00", prefillArtist.default_session_duration_minutes ?? 120),
+          defaultDurationMinutes: prefillArtist.default_session_duration_minutes ?? 120,
           prefillProjectId: prefillProject.id,
         });
         window.history.replaceState(null, "", "/calendar");
@@ -1681,7 +1715,8 @@ export default function CalendarPage() {
                 artist: artist.display_name,
                 date: selectedDate,
                 start: "12:00",
-                end: "13:00",
+                end: endTimeFromStart("12:00", artist.default_session_duration_minutes ?? 120),
+                defaultDurationMinutes: artist.default_session_duration_minutes ?? 120,
               });
             }
           }}
@@ -1890,7 +1925,13 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          const draft = draftFromClick(artist, selectedDate, event, timeInterval);
+                          const draft = draftFromClick(
+                            artist,
+                            selectedDate,
+                            event,
+                            timeInterval,
+                            artist.default_session_duration_minutes ?? 120,
+                          );
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
                             setModalError("");
@@ -2055,7 +2096,13 @@ export default function CalendarPage() {
                         key={artist.id}
                         className="relative border-l border-[#eee8dd] bg-[#eee8dd]"
                         onClick={(event) => {
-                          const draft = draftFromClick(artist, selectedDate, event, timeInterval);
+                          const draft = draftFromClick(
+                            artist,
+                            selectedDate,
+                            event,
+                            timeInterval,
+                            artist.default_session_duration_minutes ?? 120,
+                          );
 
                           if (isWithinSchedule(schedule, draft.start, draft.end)) {
                             setModalError("");

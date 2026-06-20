@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       must_change_password: true,
       sort_order: 999,
     })
-    .select("id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, active")
+    .select("id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, default_session_duration_minutes, active")
     .single();
 
   if (staffError) return jsonError(staffError.message, 500);

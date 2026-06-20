@@ -16,6 +16,7 @@ type CustomerRelation = {
 
 type ArtistRelation = {
   display_name: string;
+  default_session_duration_minutes: number | null;
 };
 
 type ProjectRecord = {
@@ -25,6 +26,7 @@ type ProjectRecord = {
   subject: string;
   size: string | null;
   status: string;
+  artist_default_duration_minutes?: number | null;
   customer: CustomerRelation | CustomerRelation[] | null;
   artist: ArtistRelation | ArtistRelation[] | null;
 };
@@ -67,13 +69,14 @@ type DepositApplicationRecord = {
 type SessionPaymentRecord = {
   id: string;
   session_entry_id: string;
+  payment_type?: "tattoo" | "tip" | null;
   payment_method: string;
   amount: number;
   memo: string | null;
 };
 
 const projectSelect =
-  "id, customer_id, artist_id, subject, size, status, customer:customers(name, email, phone), artist:staff(display_name)";
+  "id, customer_id, artist_id, subject, size, status, customer:customers(name, email, phone), artist:staff(display_name, default_session_duration_minutes)";
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -227,9 +230,15 @@ export default function NewSessionPage() {
       .map((line) => ({
         amount: Number(line.amount || 0),
         paymentMethod: line.paymentMethod,
+        paymentType: line.paymentType ?? "tattoo",
       }))
       .filter((line) => line.amount > 0);
-    const paymentLineTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0);
+    const tattooPaymentTotal = paymentLines
+      .filter((line) => line.paymentType === "tattoo")
+      .reduce((sum, line) => sum + line.amount, 0);
+    const tipPaymentTotal = paymentLines
+      .filter((line) => line.paymentType === "tip")
+      .reduce((sum, line) => sum + line.amount, 0);
 
     setError("");
     setMessage("");
@@ -270,8 +279,13 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (Math.abs(tattooAmount - depositAppliedAmount - paymentLineTotal) >= 0.01) {
-      setError("Payment breakdown must equal tattoo amount minus applied deposit.");
+    if (Math.abs(tattooAmount - depositAppliedAmount - tattooPaymentTotal) >= 0.01) {
+      setError("Tattoo payments must equal tattoo total minus applied deposit.");
+      return;
+    }
+
+    if (Math.abs(tipAmount - tipPaymentTotal) >= 0.01) {
+      setError("Tip payments must equal tip total.");
       return;
     }
 
@@ -318,9 +332,11 @@ export default function NewSessionPage() {
         memo: form.memo.trim() || null,
         project_id: project.id,
         tattoo_amount: tattooAmount,
-        tattoo_payment_method: paymentLines[0]?.paymentMethod ?? null,
+        tattoo_payment_method:
+          paymentLines.find((line) => line.paymentType === "tattoo")?.paymentMethod ?? null,
         tip_amount: tipAmount,
-        tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
+        tip_payment_method:
+          paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
       })
       .select("id")
       .single();
@@ -337,6 +353,7 @@ export default function NewSessionPage() {
           amount: line.amount,
           created_by: user?.id ?? null,
           payment_method: line.paymentMethod,
+          payment_type: line.paymentType,
           session_entry_id: sessionResult.data.id,
         })),
       );
@@ -458,8 +475,7 @@ export default function NewSessionPage() {
           ) : null}
 
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
-            <h4 className="text-sm font-semibold text-[#6f7275]">Project</h4>
-            <div className="mt-3 grid gap-3 lg:grid-cols-[1.5fr_1fr]">
+            <div className="grid gap-3">
               <label className="block text-sm font-semibold">
                 Project <span className="text-[#8a3030]">*</span>
                 <select
@@ -482,10 +498,6 @@ export default function NewSessionPage() {
                   ))}
                 </select>
               </label>
-              <div className="rounded-md bg-white px-3 py-3 text-sm">
-                <p className="text-[#697178]">Available deposit</p>
-                <p className="mt-1 font-semibold">{money(availableDeposit)}</p>
-              </div>
             </div>
           </section>
 
@@ -493,6 +505,9 @@ export default function NewSessionPage() {
             <SessionEntryForm
               appointments={selectedAppointments}
               availableDepositBalance={availableDeposit}
+              defaultDurationMinutes={
+                relatedOne(selectedProject.artist)?.default_session_duration_minutes ?? 120
+              }
               depositApplications={selectedDepositApplications}
               error={error}
               onSave={saveSession}

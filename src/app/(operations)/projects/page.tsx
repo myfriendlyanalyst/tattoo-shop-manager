@@ -14,6 +14,7 @@ type StaffRecord = {
   display_name: string;
   role: string;
   active: boolean;
+  default_session_duration_minutes: number | null;
 };
 
 type CustomerRelation = {
@@ -82,6 +83,7 @@ type DepositApplicationRecord = {
 type SessionPaymentRecord = {
   id: string;
   session_entry_id: string;
+  payment_type?: "tattoo" | "tip" | null;
   payment_method: string;
   amount: number;
   memo: string | null;
@@ -437,6 +439,7 @@ function SessionEntryModal({
   appointments,
   depositApplications,
   availableDepositBalance,
+  defaultDurationMinutes,
   sessionPayments,
   onClose,
   onSave,
@@ -448,6 +451,7 @@ function SessionEntryModal({
   appointments: AppointmentRecord[];
   depositApplications: DepositApplicationRecord[];
   availableDepositBalance: number;
+  defaultDurationMinutes: number;
   sessionPayments: SessionPaymentRecord[];
   onClose: () => void;
   onSave: (form: SessionForm) => void;
@@ -475,6 +479,7 @@ function SessionEntryModal({
           <SessionEntryForm
             appointments={appointments}
             availableDepositBalance={availableDepositBalance}
+            defaultDurationMinutes={defaultDurationMinutes}
             depositApplications={depositApplications}
             error={error}
             onSave={onSave}
@@ -721,7 +726,7 @@ export default function ProjectsPage() {
         await Promise.all([
           supabase
             .from("staff")
-            .select("id, display_name, role, active")
+            .select("id, display_name, role, active, default_session_duration_minutes")
             .order("display_name", { ascending: true }),
           supabase.from("projects").select(projectSelect).order("created_at", { ascending: false }),
           supabase
@@ -740,7 +745,7 @@ export default function ProjectsPage() {
             .order("applied_at", { ascending: false }),
           supabase
             .from("session_payments")
-            .select("id, session_entry_id, payment_method, amount, memo")
+            .select("id, session_entry_id, payment_type, payment_method, amount, memo")
             .order("created_at", { ascending: false }),
           supabase
             .from("session_entries")
@@ -1242,11 +1247,17 @@ export default function ProjectsPage() {
     const depositAppliedAmount = Number(form.depositAppliedAmount || 0);
     const paymentLines = form.paymentLines
       .map((line) => ({
+        paymentType: line.paymentType ?? "tattoo",
         paymentMethod: line.paymentMethod,
         amount: Number(line.amount || 0),
       }))
       .filter((line) => line.amount > 0);
-    const paymentLineTotal = paymentLines.reduce((sum, line) => sum + line.amount, 0);
+    const tattooPaymentTotal = paymentLines
+      .filter((line) => line.paymentType === "tattoo")
+      .reduce((sum, line) => sum + line.amount, 0);
+    const tipPaymentTotal = paymentLines
+      .filter((line) => line.paymentType === "tip")
+      .reduce((sum, line) => sum + line.amount, 0);
     const priorDepositApplications = editingSession
       ? depositApplications.filter((application) => application.session_entry_id === editingSession.id)
       : [];
@@ -1289,8 +1300,13 @@ export default function ProjectsPage() {
       return;
     }
 
-    if (Math.abs(tattooAmount - depositAppliedAmount - paymentLineTotal) >= 0.01) {
-      setEntryError("Payment breakdown must equal tattoo amount minus applied deposit.");
+    if (Math.abs(tattooAmount - depositAppliedAmount - tattooPaymentTotal) >= 0.01) {
+      setEntryError("Tattoo payments must equal tattoo total minus applied deposit.");
+      return;
+    }
+
+    if (Math.abs(tipAmount - tipPaymentTotal) >= 0.01) {
+      setEntryError("Tip payments must equal tip total.");
       return;
     }
 
@@ -1330,9 +1346,11 @@ export default function ProjectsPage() {
 
     const sessionPayload = {
       tattoo_amount: tattooAmount,
-      tattoo_payment_method: paymentLines[0]?.paymentMethod ?? null,
+      tattoo_payment_method:
+        paymentLines.find((line) => line.paymentType === "tattoo")?.paymentMethod ?? null,
       tip_amount: tipAmount,
-      tip_payment_method: tipAmount > 0 ? form.tipPaymentMethod : null,
+      tip_payment_method:
+        paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
       memo: form.memo.trim() || null,
     };
     const result = editingSession
@@ -1388,12 +1406,13 @@ export default function ProjectsPage() {
         .insert(
           paymentLines.map((line) => ({
             session_entry_id: result.data.id,
+            payment_type: line.paymentType,
             payment_method: line.paymentMethod,
             amount: line.amount,
             created_by: user?.id ?? null,
           })),
         )
-        .select("id, session_entry_id, payment_method, amount, memo");
+        .select("id, session_entry_id, payment_type, payment_method, amount, memo");
 
       if (paymentResult.error) {
         setEntryError(
@@ -2468,6 +2487,10 @@ export default function ProjectsPage() {
         <SessionEntryModal
           appointments={editingSession ? selectedAppointments : unenteredSelectedAppointments}
           availableDepositBalance={selectedDepositBalance}
+          defaultDurationMinutes={
+            staff.find((member) => member.id === selectedProject.artist_id)
+              ?.default_session_duration_minutes ?? 120
+          }
           depositApplications={selectedDepositApplications}
           error={entryError}
           onClose={() => {

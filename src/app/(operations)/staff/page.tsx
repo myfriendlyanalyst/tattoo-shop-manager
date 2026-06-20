@@ -18,6 +18,7 @@ type StaffRecord = {
   address: string | null;
   artist_accept_template: string | null;
   start_date: string | null;
+  default_session_duration_minutes: number | null;
   active: boolean;
 };
 
@@ -45,6 +46,7 @@ type StaffForm = {
   address: string;
   artistAcceptTemplate: string;
   startDate: string;
+  defaultSessionDurationMinutes: string;
   schedule: StaffSchedule[];
   permissionKeys: string[];
 };
@@ -464,7 +466,7 @@ export default function StaffPage() {
         supabase
           .from("staff")
           .select(
-            "id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, active",
+            "id, profile_id, display_name, legal_name, role, email, phone, address, artist_accept_template, start_date, default_session_duration_minutes, active",
           )
           .order("sort_order", { ascending: true }),
         supabase
@@ -514,6 +516,7 @@ export default function StaffPage() {
               address: nextStaff[0].address ?? "",
               artistAcceptTemplate: nextStaff[0].artist_accept_template ?? "",
               startDate: nextStaff[0].start_date ?? "",
+              defaultSessionDurationMinutes: String(nextStaff[0].default_session_duration_minutes ?? 120),
               schedule: scheduleForStaff(nextSelectedId, nextSchedules),
               permissionKeys: permissionKeysForStaff(nextSelectedId, nextPermissions),
             }
@@ -543,6 +546,7 @@ export default function StaffPage() {
       address: person.address ?? "",
       artistAcceptTemplate: person.artist_accept_template ?? "",
       startDate: person.start_date ?? "",
+      defaultSessionDurationMinutes: String(person.default_session_duration_minutes ?? 120),
       schedule: scheduleForStaff(person.id, schedules),
       permissionKeys: permissionKeysForStaff(person.id, staffPermissions),
     });
@@ -588,6 +592,7 @@ export default function StaffPage() {
         phone: form.phone.trim() || null,
         address: form.address.trim() || null,
         artist_accept_template: form.artistAcceptTemplate.trim() || null,
+        default_session_duration_minutes: Number(form.defaultSessionDurationMinutes || 120),
         start_date: form.startDate || null,
       })
       .eq("id", selectedStaff.id);
@@ -643,6 +648,7 @@ export default function StaffPage() {
               phone: form.phone.trim() || null,
               address: form.address.trim() || null,
               artist_accept_template: form.artistAcceptTemplate.trim() || null,
+              default_session_duration_minutes: Number(form.defaultSessionDurationMinutes || 120),
               start_date: form.startDate || null,
             }
           : person,
@@ -747,6 +753,7 @@ export default function StaffPage() {
       address: "",
       artistAcceptTemplate: result.staff.artist_accept_template ?? "",
       startDate: result.staff.start_date ?? "",
+      defaultSessionDurationMinutes: String(result.staff.default_session_duration_minutes ?? 120),
       schedule: scheduleForStaff(result.staff.id, newSchedules),
       permissionKeys: [],
     });
@@ -823,6 +830,7 @@ export default function StaffPage() {
               address: nextSelected.address ?? "",
               artistAcceptTemplate: nextSelected.artist_accept_template ?? "",
               startDate: nextSelected.start_date ?? "",
+              defaultSessionDurationMinutes: String(nextSelected.default_session_duration_minutes ?? 120),
               schedule: scheduleForStaff(nextSelected.id, schedules),
               permissionKeys: permissionKeysForStaff(nextSelected.id, staffPermissions),
             }
@@ -1091,6 +1099,26 @@ export default function StaffPage() {
                     type="date"
                     value={form.startDate}
                   />
+                </label>
+                <label className="text-sm font-semibold">
+                  Default session duration
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      setForm((current) =>
+                        current
+                          ? { ...current, defaultSessionDurationMinutes: event.target.value }
+                          : current,
+                      )
+                    }
+                    value={form.defaultSessionDurationMinutes}
+                  >
+                    {[60, 90, 120, 150, 180, 240, 300, 360].map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes / 60} hr
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
 

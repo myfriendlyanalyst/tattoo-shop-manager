@@ -3,6 +3,7 @@
 create table if not exists public.session_payments (
   id uuid primary key default gen_random_uuid(),
   session_entry_id uuid not null references public.session_entries(id) on delete cascade,
+  payment_type text not null default 'tattoo' check (payment_type in ('tattoo', 'tip')),
   payment_method public.payment_method not null,
   amount numeric(10, 2) not null check (amount > 0),
   memo text,
@@ -12,6 +13,9 @@ create table if not exists public.session_payments (
 
 create index if not exists idx_session_payments_session_entry_id
 on public.session_payments(session_entry_id);
+
+create index if not exists idx_session_payments_type
+on public.session_payments(payment_type);
 
 alter table public.session_payments enable row level security;
 
