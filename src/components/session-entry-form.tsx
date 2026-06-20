@@ -192,6 +192,7 @@ function paymentLinesFromGrid(grid: PaymentGrid): PaymentLineForm[] {
 
 export function SessionEntryForm({
   appointments,
+  availableDepositBalance,
   depositApplications,
   defaultDurationMinutes = 120,
   error,
@@ -467,7 +468,12 @@ export function SessionEntryForm({
       </div>
 
       <label className="block text-sm font-semibold">
-        Deposit applied
+        <span className="flex items-center justify-between gap-3">
+          <span>Deposit applied</span>
+          <span className="text-xs font-semibold text-[#697178]">
+            Available {money(availableDepositBalance)}
+          </span>
+        </span>
         <input
           className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
           disabled={locked}
