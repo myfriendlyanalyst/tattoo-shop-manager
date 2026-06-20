@@ -115,6 +115,8 @@ export default function NewSessionPage() {
   const [depositApplications, setDepositApplications] = useState<DepositApplicationRecord[]>([]);
   const [projectId, setProjectId] = useState("");
   const [createdSessionId, setCreatedSessionId] = useState("");
+  const [createdSessionAppointmentId, setCreatedSessionAppointmentId] = useState("");
+  const [savedSessionLocked, setSavedSessionLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -218,7 +220,9 @@ export default function NewSessionPage() {
 
   async function saveSession(form: SessionForm) {
     const project = selectedProject;
-    const appointment = selectedAppointments.find((item) => item.id === form.appointmentId);
+    const existingSessionId = createdSessionId;
+    const appointmentId = form.appointmentId || createdSessionAppointmentId;
+    const appointment = selectedAppointments.find((item) => item.id === appointmentId);
     const startsAt = appointment?.starts_at ?? form.startsAt;
     const endsAt = appointment?.ends_at ?? form.endsAt;
     const startsDate = new Date(startsAt);
@@ -239,10 +243,18 @@ export default function NewSessionPage() {
     const tipPaymentTotal = paymentLines
       .filter((line) => line.paymentType === "tip")
       .reduce((sum, line) => sum + line.amount, 0);
+    const priorDepositApplications = existingSessionId
+      ? depositApplications.filter((application) => application.session_entry_id === existingSessionId)
+      : [];
+    const priorDepositAppliedTotal = priorDepositApplications.reduce(
+      (sum, application) => sum + Number(application.amount),
+      0,
+    );
+    const availableDepositForSession = availableDeposit + priorDepositAppliedTotal;
 
     setError("");
     setMessage("");
-    setCreatedSessionId("");
+    setSavedSessionLocked(false);
 
     if (!project) {
       setError("Select a project.");
@@ -269,8 +281,8 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (depositAppliedAmount > availableDeposit) {
-      setError(`Applied deposit cannot exceed available balance ${money(availableDeposit)}.`);
+    if (depositAppliedAmount > availableDepositForSession) {
+      setError(`Applied deposit cannot exceed available balance ${money(availableDepositForSession)}.`);
       return;
     }
 
@@ -320,31 +332,77 @@ export default function NewSessionPage() {
       setAppointments((current) => [sessionAppointment!, ...current]);
     }
 
-    const sessionResult = await supabase
-      .from("session_entries")
-      .insert({
-        appointment_id: sessionAppointment.id,
-        artist_id: sessionAppointment.artist_id ?? project.artist_id,
-        created_by: user?.id ?? null,
-        customer_id: project.customer_id,
-        entered_at: new Date(sessionAppointment.starts_at).toISOString(),
-        entry_type: "session",
-        memo: form.memo.trim() || null,
-        project_id: project.id,
-        tattoo_amount: tattooAmount,
-        tattoo_payment_method:
-          paymentLines.find((line) => line.paymentType === "tattoo")?.paymentMethod ?? null,
-        tip_amount: tipAmount,
-        tip_payment_method:
-          paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
-      })
-      .select("id")
-      .single();
+    if (existingSessionId && sessionAppointment) {
+      const appointmentResult = await supabase
+        .from("appointments")
+        .update({
+          ends_at: endsDate.toISOString(),
+          starts_at: startsDate.toISOString(),
+        })
+        .eq("id", sessionAppointment.id)
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .single();
+
+      if (appointmentResult.error) {
+        setError(appointmentResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      sessionAppointment = appointmentResult.data as AppointmentRecord;
+      setAppointments((current) =>
+        current.map((item) => (item.id === sessionAppointment!.id ? sessionAppointment! : item)),
+      );
+    }
+
+    const sessionPayload = {
+      appointment_id: sessionAppointment.id,
+      artist_id: sessionAppointment.artist_id ?? project.artist_id,
+      customer_id: project.customer_id,
+      entered_at: new Date(sessionAppointment.starts_at).toISOString(),
+      entry_type: "session",
+      memo: form.memo.trim() || null,
+      project_id: project.id,
+      tattoo_amount: tattooAmount,
+      tattoo_payment_method:
+        paymentLines.find((line) => line.paymentType === "tattoo")?.paymentMethod ?? null,
+      tip_amount: tipAmount,
+      tip_payment_method:
+        paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
+    };
+    const sessionResult = existingSessionId
+      ? await supabase
+          .from("session_entries")
+          .update(sessionPayload)
+          .eq("id", existingSessionId)
+          .select("id")
+          .single()
+      : await supabase
+          .from("session_entries")
+          .insert({
+            ...sessionPayload,
+            created_by: user?.id ?? null,
+          })
+          .select("id")
+          .single();
 
     if (sessionResult.error) {
       setError(sessionResult.error.message);
       setSaving(false);
       return;
+    }
+
+    if (existingSessionId) {
+      const deletePaymentsResult = await supabase
+        .from("session_payments")
+        .delete()
+        .eq("session_entry_id", existingSessionId);
+
+      if (deletePaymentsResult.error) {
+        setError(deletePaymentsResult.error.message);
+        setSaving(false);
+        return;
+      }
     }
 
     if (paymentLines.length > 0) {
@@ -365,8 +423,23 @@ export default function NewSessionPage() {
       }
     }
 
-    const affectedDepositIds = new Set<string>();
-    const addedApplicationsForRemaining: DepositApplicationRecord[] = [];
+    const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
+    let nextDepositApplications = depositApplications.filter(
+      (application) => application.session_entry_id !== sessionResult.data.id,
+    );
+
+    if (existingSessionId && priorDepositApplications.length > 0) {
+      const deleteApplicationResult = await supabase
+        .from("deposit_applications")
+        .delete()
+        .eq("session_entry_id", existingSessionId);
+
+      if (deleteApplicationResult.error) {
+        setError(deleteApplicationResult.error.message);
+        setSaving(false);
+        return;
+      }
+    }
 
     if (depositAppliedAmount > 0) {
       let remainingToApply = depositAppliedAmount;
@@ -383,7 +456,7 @@ export default function NewSessionPage() {
       )) {
         if (remainingToApply <= 0) break;
 
-        const available = depositRemaining(deposit, depositApplications);
+        const available = depositRemaining(deposit, nextDepositApplications);
         const amount = Math.min(available, remainingToApply);
 
         if (amount <= 0) continue;
@@ -395,25 +468,31 @@ export default function NewSessionPage() {
           memo: form.memo.trim() || null,
           session_entry_id: sessionResult.data.id,
         });
-        addedApplicationsForRemaining.push({
-          amount,
-          applied_at: new Date().toISOString(),
-          deposit_id: deposit.id,
-          id: crypto.randomUUID(),
-          memo: form.memo.trim() || null,
-          session_entry_id: sessionResult.data.id,
-        });
         affectedDepositIds.add(deposit.id);
         remainingToApply -= amount;
       }
 
-      const applicationResult = await supabase.from("deposit_applications").insert(applicationRows);
+      if (remainingToApply > 0.009) {
+        setError("Not enough available deposit balance.");
+        setSaving(false);
+        return;
+      }
+
+      const applicationResult = await supabase
+        .from("deposit_applications")
+        .insert(applicationRows)
+        .select("id, deposit_id, session_entry_id, amount, applied_at, memo");
 
       if (applicationResult.error) {
         setError(`${applicationResult.error.message}. Run docs/supabase_deposit_applications.sql in Supabase SQL Editor.`);
         setSaving(false);
         return;
       }
+
+      nextDepositApplications = [
+        ...((applicationResult.data ?? []) as DepositApplicationRecord[]),
+        ...nextDepositApplications,
+      ];
     }
 
     for (const depositId of affectedDepositIds) {
@@ -422,8 +501,7 @@ export default function NewSessionPage() {
       if (!deposit) continue;
 
       const remaining = depositRemaining(deposit, [
-        ...depositApplications,
-        ...addedApplicationsForRemaining,
+        ...nextDepositApplications,
       ]);
       const depositResult = await supabase
         .from("deposits")
@@ -444,9 +522,11 @@ export default function NewSessionPage() {
 
     await supabase.from("projects").update({ status: "in_progress" }).eq("id", project.id);
 
-    setDepositApplications((current) => [...addedApplicationsForRemaining, ...current]);
+    setDepositApplications(nextDepositApplications);
     setCreatedSessionId(sessionResult.data.id);
-    setMessage("Session entry saved.");
+    setCreatedSessionAppointmentId(sessionAppointment.id);
+    setSavedSessionLocked(true);
+    setMessage(existingSessionId ? "Session entry updated." : "Session entry saved.");
     setSaving(false);
   }
 
@@ -484,6 +564,8 @@ export default function NewSessionPage() {
                   onChange={(event) => {
                     setProjectId(event.target.value);
                     setCreatedSessionId("");
+                    setCreatedSessionAppointmentId("");
+                    setSavedSessionLocked(false);
                     setError("");
                     setMessage("");
                   }}
@@ -511,16 +593,17 @@ export default function NewSessionPage() {
               depositApplications={selectedDepositApplications}
               error={error}
               onEdit={() => {
-                window.location.href = "/projects";
+                setSavedSessionLocked(false);
+                setMessage("");
               }}
               onNextAppointment={() => {
                 window.location.href = `/calendar?projectId=${selectedProject.id}`;
               }}
               onSave={saveSession}
-              saved={Boolean(createdSessionId)}
+              saved={savedSessionLocked}
               saving={saving}
               sessionPayments={[] as SessionPaymentRecord[]}
-              submitLabel="Save session"
+              submitLabel={createdSessionId ? "Update session" : "Save session"}
             />
           ) : (
             <p className="rounded-md border border-dashed border-[#d9d3c7] px-3 py-6 text-sm font-semibold text-[#697178]">
