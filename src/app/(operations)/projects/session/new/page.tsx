@@ -510,10 +510,17 @@ export default function NewSessionPage() {
               }
               depositApplications={selectedDepositApplications}
               error={error}
+              onEdit={() => {
+                window.location.href = "/projects";
+              }}
+              onNextAppointment={() => {
+                window.location.href = `/calendar?projectId=${selectedProject.id}`;
+              }}
               onSave={saveSession}
-              saving={saving || Boolean(createdSessionId)}
+              saved={Boolean(createdSessionId)}
+              saving={saving}
               sessionPayments={[] as SessionPaymentRecord[]}
-              submitLabel={createdSessionId ? "Session saved" : "Save session"}
+              submitLabel="Save session"
             />
           ) : (
             <p className="rounded-md border border-dashed border-[#d9d3c7] px-3 py-6 text-sm font-semibold text-[#697178]">

@@ -443,6 +443,9 @@ function SessionEntryModal({
   sessionPayments,
   onClose,
   onSave,
+  onEditSaved,
+  onNextAppointment,
+  saved,
 }: {
   error: string;
   saving: boolean;
@@ -455,6 +458,9 @@ function SessionEntryModal({
   sessionPayments: SessionPaymentRecord[];
   onClose: () => void;
   onSave: (form: SessionForm) => void;
+  onEditSaved: () => void;
+  onNextAppointment: () => void;
+  saved: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 px-3 py-4 sm:items-center sm:px-4 sm:py-6">
@@ -482,7 +488,10 @@ function SessionEntryModal({
             defaultDurationMinutes={defaultDurationMinutes}
             depositApplications={depositApplications}
             error={error}
+            onEdit={onEditSaved}
+            onNextAppointment={onNextAppointment}
             onSave={onSave}
+            saved={saved}
             saving={saving}
             session={session}
             sessionPayments={sessionPayments}
@@ -517,6 +526,7 @@ export default function ProjectsPage() {
   const [showSessionEntry, setShowSessionEntry] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<DepositRecord | null>(null);
   const [editingSession, setEditingSession] = useState<SessionEntryRecord | null>(null);
+  const [savedSessionId, setSavedSessionId] = useState("");
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
   const isArtistUser = operationsContext?.isArtist === true;
@@ -1561,8 +1571,8 @@ export default function ProjectsPage() {
           )
         : [result.data as SessionEntryRecord, ...current],
     );
-    setEditingSession(null);
-    setShowSessionEntry(false);
+    setEditingSession(result.data as SessionEntryRecord);
+    setSavedSessionId(result.data.id);
     setMessage(editingSession ? "Session entry updated." : "Session entry saved.");
     setSaving(false);
   }
@@ -2115,6 +2125,7 @@ export default function ProjectsPage() {
                       onClick={() => {
                         setEntryError("");
                         setEditingSession(null);
+                        setSavedSessionId("");
                         setShowSessionEntry(true);
                       }}
                       type="button"
@@ -2179,6 +2190,7 @@ export default function ProjectsPage() {
                             onClick={() => {
                               setEntryError("");
                               setEditingSession(session);
+                              setSavedSessionId("");
                               setShowSessionEntry(true);
                             }}
                             type="button"
@@ -2495,10 +2507,16 @@ export default function ProjectsPage() {
           error={entryError}
           onClose={() => {
             setEditingSession(null);
+            setSavedSessionId("");
             setShowSessionEntry(false);
+          }}
+          onEditSaved={() => setSavedSessionId("")}
+          onNextAppointment={() => {
+            window.location.href = `/calendar?projectId=${selectedProject.id}`;
           }}
           onSave={saveSession}
           project={selectedProject}
+          saved={Boolean(savedSessionId && editingSession?.id === savedSessionId)}
           saving={saving}
           session={editingSession}
           sessionPayments={sessionPayments}

@@ -196,6 +196,9 @@ export function SessionEntryForm({
   defaultDurationMinutes = 120,
   error,
   onSave,
+  onEdit,
+  onNextAppointment,
+  saved = false,
   saving,
   session,
   sessionPayments,
@@ -207,11 +210,15 @@ export function SessionEntryForm({
   defaultDurationMinutes?: number;
   error: string;
   onSave: (form: SessionForm) => void;
+  onEdit?: () => void;
+  onNextAppointment?: () => void;
+  saved?: boolean;
   saving: boolean;
   session?: SessionEntryRecordForForm | null;
   sessionPayments: SessionPaymentRecord[];
   submitLabel?: string;
 }) {
+  const locked = saving || saved;
   const sessionDepositApplication = session
     ? depositApplications.filter((application) => application.session_entry_id === session.id)
     : [];
@@ -349,7 +356,7 @@ export function SessionEntryForm({
         Appointment
         <select
           className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-          disabled={Boolean(session)}
+          disabled={locked || Boolean(session)}
           onChange={(event) =>
             setForm((current) => ({ ...current, appointmentId: event.target.value }))
           }
@@ -370,6 +377,7 @@ export function SessionEntryForm({
             Date
             <input
               className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+              disabled={locked}
               onChange={(event) => updateDate(event.target.value)}
               type="date"
               value={form.sessionDate}
@@ -377,23 +385,25 @@ export function SessionEntryForm({
           </label>
           <label className="text-sm font-semibold">
             Start
-            <TimeSelect
-              endHour={24}
-              interval={30}
-              onChange={updateStartTime}
-              startHour={8}
-              value={form.startTime}
-            />
+              <TimeSelect
+                endHour={24}
+                interval={30}
+                onChange={updateStartTime}
+                startHour={8}
+                value={form.startTime}
+                disabled={locked}
+              />
           </label>
           <label className="text-sm font-semibold">
             End
-            <TimeSelect
-              endHour={24}
-              interval={30}
-              onChange={updateEndTime}
-              startHour={8}
-              value={form.endTime}
-            />
+              <TimeSelect
+                endHour={24}
+                interval={30}
+                onChange={updateEndTime}
+                startHour={8}
+                value={form.endTime}
+                disabled={locked}
+              />
           </label>
         </div>
       ) : null}
@@ -437,6 +447,7 @@ export function SessionEntryForm({
                           className="h-9 w-full min-w-0 rounded-md border border-[#cfc7b8] bg-white px-2 text-right text-sm"
                           inputMode="decimal"
                           min="0"
+                          disabled={locked}
                           onChange={(event) => patchGrid(field, event.target.value)}
                           placeholder="0.00"
                           type="number"
@@ -459,6 +470,7 @@ export function SessionEntryForm({
         Deposit applied
         <input
           className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+          disabled={locked}
           min="0"
           onChange={(event) =>
             setForm((current) => ({
@@ -474,19 +486,41 @@ export function SessionEntryForm({
 
       <textarea
         className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
+        disabled={locked}
         onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
         placeholder="Memo"
         value={form.memo}
       />
 
-      <button
-        className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-        disabled={saving}
-        onClick={confirmAndSave}
-        type="button"
-      >
-        {saving ? "Saving..." : submitLabel ?? (session ? "Update session" : "Save session")}
-      </button>
+      {saved ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+            onClick={onEdit}
+            type="button"
+          >
+            Edit
+          </button>
+          {onNextAppointment ? (
+            <button
+              className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
+              onClick={onNextAppointment}
+              type="button"
+            >
+              Next Appointment
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={saving}
+          onClick={confirmAndSave}
+          type="button"
+        >
+          {saving ? "Saving..." : submitLabel ?? (session ? "Update session" : "Save session")}
+        </button>
+      )}
     </div>
   );
 }
