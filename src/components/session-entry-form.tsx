@@ -253,7 +253,6 @@ export function SessionEntryForm({
   const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
   const tattooWorkTotal = tattooTotal + appliedDepositAmount;
   const newPaymentTotal = tattooTotal + tipTotal;
-  const sessionTotal = tattooWorkTotal + tipTotal;
 
   function patchGrid(field: keyof PaymentGrid, value: string) {
     setForm((current) => {
@@ -399,53 +398,61 @@ export function SessionEntryForm({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md border border-[#d9d3c7] bg-white">
-        <table className="w-full min-w-[680px] table-fixed text-sm">
-          <colgroup>
-            <col className="w-[96px]" />
-            <col className="w-[150px]" />
-            <col className="w-[150px]" />
-            <col className="w-[150px]" />
-            <col className="w-[134px]" />
-          </colgroup>
-          <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
-            <tr>
-              <th className="px-3 py-2 text-left">Type</th>
-              {paymentColumns.map((column) => (
-                <th key={column.key} className="px-3 py-2 text-right">
-                  {column.label}
-                </th>
-              ))}
-              <th className="px-3 py-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#eee8dd]">
-            {(["tattoo", "tip"] as const).map((type) => (
-              <tr key={type}>
-                <td className="px-3 py-2 font-semibold capitalize">{type}</td>
-                {paymentColumns.map((column) => {
-                  const field = paymentGridFields[type][column.key];
-                  return (
-                    <td key={column.key} className="px-3 py-2">
-                      <input
-                        className="h-9 w-full min-w-0 rounded-md border border-[#cfc7b8] bg-white px-2 text-right text-sm"
-                        inputMode="decimal"
-                        min="0"
-                        onChange={(event) => patchGrid(field, event.target.value)}
-                        placeholder="0.00"
-                        type="number"
-                        value={form.paymentGrid[field]}
-                      />
-                    </td>
-                  );
-                })}
-                <td className="px-3 py-2 text-right font-bold text-[#236c8f]">
-                  {money(type === "tattoo" ? tattooTotal : tipTotal)}
-                </td>
+      <div>
+        <div className="mb-2">
+          <p className="text-sm font-semibold">Payments for this session</p>
+          <p className="mt-0.5 text-xs font-medium text-[#697178]">
+            Enter only the money received today.
+          </p>
+        </div>
+        <div className="overflow-x-auto rounded-md border border-[#d9d3c7] bg-white">
+          <table className="w-full min-w-[680px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[96px]" />
+              <col className="w-[150px]" />
+              <col className="w-[150px]" />
+              <col className="w-[150px]" />
+              <col className="w-[134px]" />
+            </colgroup>
+            <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
+              <tr>
+                <th className="px-3 py-2 text-left">Type</th>
+                {paymentColumns.map((column) => (
+                  <th key={column.key} className="px-3 py-2 text-right">
+                    {column.label}
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-right">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#eee8dd]">
+              {(["tattoo", "tip"] as const).map((type) => (
+                <tr key={type}>
+                  <td className="px-3 py-2 font-semibold capitalize">{type}</td>
+                  {paymentColumns.map((column) => {
+                    const field = paymentGridFields[type][column.key];
+                    return (
+                      <td key={column.key} className="px-3 py-2">
+                        <input
+                          className="h-9 w-full min-w-0 rounded-md border border-[#cfc7b8] bg-white px-2 text-right text-sm"
+                          inputMode="decimal"
+                          min="0"
+                          onChange={(event) => patchGrid(field, event.target.value)}
+                          placeholder="0.00"
+                          type="number"
+                          value={form.paymentGrid[field]}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-right font-bold text-[#236c8f]">
+                    {money(type === "tattoo" ? tattooTotal : tipTotal)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <label className="block text-sm font-semibold">
@@ -464,17 +471,6 @@ export function SessionEntryForm({
           value={form.depositAppliedAmount}
         />
       </label>
-
-      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 text-sm">
-        <p className="font-semibold">Session summary</p>
-        <p className="mt-1 text-[#697178]">
-          Tattoo payments {money(tattooTotal)} + deposit {money(appliedDepositAmount)}
-        </p>
-        <p className="mt-1 text-[#697178]">Tip {money(tipTotal)}</p>
-        <p className="mt-1 font-semibold text-[#2f6658]">
-          Session total {money(sessionTotal)} / New payments {money(newPaymentTotal)}
-        </p>
-      </div>
 
       <textarea
         className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
