@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AppPage } from "@/components/app-shell";
-import { SessionEntryForm, type SessionForm } from "@/components/session-entry-form";
+import { SessionEntryForm, type PaymentGrid, type SessionForm } from "@/components/session-entry-form";
 import { TimeSelect } from "@/components/time-select";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext } from "@/lib/operations-access";
@@ -115,6 +115,12 @@ type SaveResult = {
   kind: SessionKind;
   tattooTotal: number;
   tipTotal: number;
+};
+
+type SavedDraft = {
+  depositAppliedAmount: string;
+  memo: string;
+  paymentGrid: PaymentGrid;
 };
 
 type WalkInAppointment = {
@@ -229,9 +235,11 @@ export default function SessionWizardPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingSavedSession, setEditingSavedSession] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
+  const [savedDraft, setSavedDraft] = useState<SavedDraft | null>(null);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === projectId) ?? null,
@@ -464,6 +472,7 @@ export default function SessionWizardPage() {
   }
 
   async function saveSessionForProject(form: SessionForm, project: ProjectRecord) {
+    const existingSessionId = editingSavedSession ? saveResult?.sessionId ?? "" : "";
     const appointment = selectedAppointments.find(
       (item) => item.id === (form.appointmentId || effectiveAppointmentId),
     );
@@ -487,6 +496,14 @@ export default function SessionWizardPage() {
     const tipPaymentTotal = paymentLines
       .filter((line) => line.paymentType === "tip")
       .reduce((sum, line) => sum + line.amount, 0);
+    const priorDepositApplications = existingSessionId
+      ? depositApplications.filter((application) => application.session_entry_id === existingSessionId)
+      : [];
+    const priorDepositAppliedTotal = priorDepositApplications.reduce(
+      (sum, application) => sum + Number(application.amount),
+      0,
+    );
+    const availableDepositForSession = availableDeposit + priorDepositAppliedTotal;
 
     if (!appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
       throw new Error("Manual sessions need a valid start and end time.");
@@ -497,8 +514,8 @@ export default function SessionWizardPage() {
     if (tattooAmount <= 0 && tipAmount <= 0) {
       throw new Error("Enter a tattoo amount or a tip amount.");
     }
-    if (depositAppliedAmount > availableDeposit) {
-      throw new Error(`Applied deposit cannot exceed available balance ${money(availableDeposit)}.`);
+    if (depositAppliedAmount > availableDepositForSession) {
+      throw new Error(`Applied deposit cannot exceed available balance ${money(availableDepositForSession)}.`);
     }
     if (depositAppliedAmount > tattooAmount) {
       throw new Error("Applied deposit cannot exceed tattoo amount.");
@@ -534,12 +551,24 @@ export default function SessionWizardPage() {
       setAppointments((current) => [sessionAppointment!, ...current]);
     }
 
-    const sessionResult = await supabase
-      .from("session_entries")
-      .insert({
+    if (existingSessionId && sessionAppointment && kind === "walk_in") {
+      const appointmentResult = await supabase
+        .from("appointments")
+        .update({
+          ends_at: endsDate.toISOString(),
+          starts_at: startsDate.toISOString(),
+        })
+        .eq("id", sessionAppointment.id)
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .single();
+
+      if (appointmentResult.error) throw new Error(appointmentResult.error.message);
+      sessionAppointment = appointmentResult.data as AppointmentRecord;
+    }
+
+    const sessionPayload = {
         appointment_id: sessionAppointment.id,
         artist_id: sessionAppointment.artist_id ?? project.artist_id,
-        created_by: user?.id ?? null,
         customer_id: project.customer_id,
         entered_at: new Date(sessionAppointment.starts_at).toISOString(),
         entry_type: "session",
@@ -551,11 +580,32 @@ export default function SessionWizardPage() {
         tip_amount: tipAmount,
         tip_payment_method:
           paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
-      })
-      .select("id")
-      .single();
+    };
+    const sessionResult = existingSessionId
+      ? await supabase
+          .from("session_entries")
+          .update(sessionPayload)
+          .eq("id", existingSessionId)
+          .select("id")
+          .single()
+      : await supabase
+          .from("session_entries")
+          .insert({
+            ...sessionPayload,
+            created_by: user?.id ?? null,
+          })
+          .select("id")
+          .single();
 
     if (sessionResult.error) throw new Error(sessionResult.error.message);
+
+    if (existingSessionId) {
+      const deletePaymentsResult = await supabase
+        .from("session_payments")
+        .delete()
+        .eq("session_entry_id", existingSessionId);
+      if (deletePaymentsResult.error) throw new Error(deletePaymentsResult.error.message);
+    }
 
     if (paymentLines.length > 0) {
       const paymentResult = await supabase.from("session_payments").insert(
@@ -572,8 +622,18 @@ export default function SessionWizardPage() {
       }
     }
 
-    const affectedDepositIds = new Set<string>();
-    const addedApplicationsForRemaining: DepositApplicationRecord[] = [];
+    const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
+    let nextDepositApplications = depositApplications.filter(
+      (application) => application.session_entry_id !== sessionResult.data.id,
+    );
+
+    if (existingSessionId && priorDepositApplications.length > 0) {
+      const deleteApplicationResult = await supabase
+        .from("deposit_applications")
+        .delete()
+        .eq("session_entry_id", existingSessionId);
+      if (deleteApplicationResult.error) throw new Error(deleteApplicationResult.error.message);
+    }
 
     if (depositAppliedAmount > 0) {
       let remainingToApply = depositAppliedAmount;
@@ -589,7 +649,7 @@ export default function SessionWizardPage() {
         (a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime(),
       )) {
         if (remainingToApply <= 0) break;
-        const available = depositRemaining(deposit, depositApplications);
+        const available = depositRemaining(deposit, nextDepositApplications);
         const amount = Math.min(available, remainingToApply);
         if (amount <= 0) continue;
         applicationRows.push({
@@ -599,31 +659,32 @@ export default function SessionWizardPage() {
           memo: form.memo.trim() || null,
           session_entry_id: sessionResult.data.id,
         });
-        addedApplicationsForRemaining.push({
-          amount,
-          applied_at: new Date().toISOString(),
-          deposit_id: deposit.id,
-          id: crypto.randomUUID(),
-          memo: form.memo.trim() || null,
-          session_entry_id: sessionResult.data.id,
-        });
         affectedDepositIds.add(deposit.id);
         remainingToApply -= amount;
       }
 
-      const applicationResult = await supabase.from("deposit_applications").insert(applicationRows);
+      if (remainingToApply > 0.009) {
+        throw new Error("Not enough available deposit balance.");
+      }
+
+      const applicationResult = await supabase
+        .from("deposit_applications")
+        .insert(applicationRows)
+        .select("id, deposit_id, session_entry_id, amount, applied_at, memo");
       if (applicationResult.error) {
         throw new Error(`${applicationResult.error.message}. Run docs/supabase_deposit_applications.sql in Supabase SQL Editor.`);
       }
+
+      nextDepositApplications = [
+        ...((applicationResult.data ?? []) as DepositApplicationRecord[]),
+        ...nextDepositApplications,
+      ];
     }
 
     for (const depositId of affectedDepositIds) {
       const deposit = selectedDeposits.find((item) => item.id === depositId);
       if (!deposit) continue;
-      const remaining = depositRemaining(deposit, [
-        ...depositApplications,
-        ...addedApplicationsForRemaining,
-      ]);
+      const remaining = depositRemaining(deposit, nextDepositApplications);
       const depositResult = await supabase
         .from("deposits")
         .update({
@@ -637,7 +698,7 @@ export default function SessionWizardPage() {
     }
 
     await supabase.from("projects").update({ status: "in_progress" }).eq("id", project.id);
-    setDepositApplications((current) => [...addedApplicationsForRemaining, ...current]);
+    setDepositApplications(nextDepositApplications);
 
     return {
       appointmentId: sessionAppointment.id,
@@ -730,8 +791,14 @@ export default function SessionWizardPage() {
 
       if (!result) throw new Error("Select a project.");
       setSaveResult({ ...result, kind: kind || "existing" });
+      setSavedDraft({
+        depositAppliedAmount: form.depositAppliedAmount,
+        memo: form.memo,
+        paymentGrid: form.paymentGrid,
+      });
+      setEditingSavedSession(false);
       setStep("result");
-      setMessage("Session saved.");
+      setMessage(editingSavedSession ? "Session updated." : "Session saved.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Session could not be saved.");
     } finally {
@@ -800,6 +867,8 @@ export default function SessionWizardPage() {
       }
 
       setSaveResult(null);
+      setSavedDraft(null);
+      setEditingSavedSession(false);
       setStep("kind");
       setMessage("Saved session deleted.");
     } catch (deleteError) {
@@ -815,6 +884,8 @@ export default function SessionWizardPage() {
     setError("");
     setMessage("");
     setSaveResult(null);
+    setSavedDraft(null);
+    setEditingSavedSession(false);
     setWalkInForm((current) => ({
       ...emptyWalkInForm(),
       artistId: current.artistId || artists[0]?.id || "",
@@ -1217,16 +1288,19 @@ export default function SessionWizardPage() {
                 hideAppointment
                 hideDeposit={kind === "walk_in"}
                 hideTiming
+                initialDepositAppliedAmount={savedDraft?.depositAppliedAmount}
                 initialEndTime={kind === "walk_in" ? walkInAppointment.endTime : undefined}
                 initialAppointmentId={kind === "existing" ? effectiveAppointmentId : undefined}
+                initialMemo={savedDraft?.memo}
+                initialPaymentGrid={savedDraft?.paymentGrid}
                 initialSessionDate={kind === "walk_in" ? walkInAppointment.date : undefined}
                 initialStartTime={kind === "walk_in" ? walkInAppointment.startTime : undefined}
-                key={`${kind}-${projectId}-${effectiveAppointmentId}-${walkInAppointment.date}-${walkInAppointment.startTime}-${walkInAppointment.endTime}`}
+                key={`${kind}-${projectId}-${effectiveAppointmentId}-${walkInAppointment.date}-${walkInAppointment.startTime}-${walkInAppointment.endTime}-${saveResult?.sessionId ?? "new"}-${editingSavedSession ? "edit" : "new"}`}
                 onNextAppointment={() => undefined}
                 onSave={handleSave}
                 saving={saving}
                 sessionPayments={[] as SessionPaymentRecord[]}
-                submitLabel="Review & save"
+                submitLabel={editingSavedSession ? "Update session" : "Review & save"}
               />
             </section>
           ) : null}
@@ -1275,12 +1349,17 @@ export default function SessionWizardPage() {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <Link
-                  className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                  href="/projects"
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                  onClick={() => {
+                    setEditingSavedSession(true);
+                    setMessage("");
+                    setStep("payments");
+                  }}
+                  type="button"
                 >
                   Edit
-                </Link>
+                </button>
                 <button
                   className="h-10 rounded-md border border-[#8a3030] bg-white px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={saving}

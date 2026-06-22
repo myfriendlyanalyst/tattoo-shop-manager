@@ -200,7 +200,10 @@ export function SessionEntryForm({
   hideDeposit = false,
   hideTiming = false,
   initialAppointmentId,
+  initialDepositAppliedAmount,
   initialEndTime,
+  initialMemo,
+  initialPaymentGrid,
   initialSessionDate,
   initialStartTime,
   onSave,
@@ -221,7 +224,10 @@ export function SessionEntryForm({
   hideDeposit?: boolean;
   hideTiming?: boolean;
   initialAppointmentId?: string;
+  initialDepositAppliedAmount?: string;
   initialEndTime?: string;
+  initialMemo?: string;
+  initialPaymentGrid?: PaymentGrid;
   initialSessionDate?: string;
   initialStartTime?: string;
   onSave: (form: SessionForm) => void;
@@ -250,16 +256,16 @@ export function SessionEntryForm({
     const startTime = initialStartTime ?? timeValue(now);
     const end = addMinutesToTime(startDate, startTime, defaultDurationMinutes);
     const endTime = initialEndTime ?? end.time;
-    const paymentGrid = paymentGridFromSession(session, sessionPaymentLines);
+    const paymentGrid = initialPaymentGrid ?? paymentGridFromSession(session, sessionPaymentLines);
     const tattooAmount = gridTotal(paymentGrid, "tattoo");
     const tipAmount = gridTotal(paymentGrid, "tip");
 
     return {
       appointmentId: session?.appointment_id ?? initialAppointmentId ?? appointments[0]?.id ?? "",
-      depositAppliedAmount: numberInputValue(sessionAppliedDepositTotal),
+      depositAppliedAmount: initialDepositAppliedAmount ?? numberInputValue(sessionAppliedDepositTotal),
       endTime,
       endsAt: localDateTimeInput(initialEndTime ? startDate : end.date, endTime),
-      memo: session?.memo ?? "",
+      memo: initialMemo ?? session?.memo ?? "",
       paymentGrid,
       paymentLines: paymentLinesFromGrid(paymentGrid),
       sessionDate: startDate,
@@ -276,6 +282,7 @@ export function SessionEntryForm({
   const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
   const tattooWorkTotal = tattooTotal + appliedDepositAmount;
   const newPaymentTotal = tattooTotal + tipTotal;
+  const remainingDepositBalance = Math.max(availableDepositBalance - appliedDepositAmount, 0);
 
   function patchGrid(field: keyof PaymentGrid, value: string) {
     setForm((current) => {
@@ -486,26 +493,35 @@ export function SessionEntryForm({
 
       {hideDeposit ? null : (
         <label className="block text-sm font-semibold">
-          <span className="flex items-center justify-between gap-3">
-            <span>Deposit applied</span>
-            <span className="text-xs font-semibold text-[#697178]">
-              Available {money(availableDepositBalance)}
-            </span>
-          </span>
-          <input
-            className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-            disabled={locked}
-            min="0"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                depositAppliedAmount: event.target.value,
-              }))
-            }
-            placeholder="0.00"
-            type="number"
-            value={form.depositAppliedAmount}
-          />
+          Deposit applied
+          <div className="mt-2 grid items-center gap-2 rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(140px,180px)_auto_minmax(0,1fr)]">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-[#697178]">Available</p>
+              <p className="mt-1 text-sm font-bold">{money(availableDepositBalance)}</p>
+            </div>
+            <span className="hidden text-center text-lg font-bold text-[#697178] sm:block">-</span>
+            <input
+              className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-right text-sm"
+              disabled={locked}
+              min="0"
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  depositAppliedAmount: event.target.value,
+                }))
+              }
+              placeholder="0.00"
+              type="number"
+              value={form.depositAppliedAmount}
+            />
+            <span className="hidden text-center text-lg font-bold text-[#697178] sm:block">=</span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-[#697178]">Remaining</p>
+              <p className="mt-1 text-sm font-bold text-[#2f6658]">
+                {money(remainingDepositBalance)}
+              </p>
+            </div>
+          </div>
         </label>
       )}
 
