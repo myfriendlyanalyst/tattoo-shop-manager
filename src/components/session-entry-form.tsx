@@ -196,6 +196,13 @@ export function SessionEntryForm({
   depositApplications,
   defaultDurationMinutes = 120,
   error,
+  hideAppointment = false,
+  hideDeposit = false,
+  hideTiming = false,
+  initialAppointmentId,
+  initialEndTime,
+  initialSessionDate,
+  initialStartTime,
   onSave,
   onEdit,
   onNextAppointment,
@@ -210,6 +217,13 @@ export function SessionEntryForm({
   depositApplications: SessionDepositApplicationRecord[];
   defaultDurationMinutes?: number;
   error: string;
+  hideAppointment?: boolean;
+  hideDeposit?: boolean;
+  hideTiming?: boolean;
+  initialAppointmentId?: string;
+  initialEndTime?: string;
+  initialSessionDate?: string;
+  initialStartTime?: string;
   onSave: (form: SessionForm) => void;
   onEdit?: () => void;
   onNextAppointment?: () => void;
@@ -232,18 +246,19 @@ export function SessionEntryForm({
     : [];
   const [form, setForm] = useState<SessionForm>(() => {
     const now = new Date();
-    const startDate = localDateValue(now);
-    const startTime = timeValue(now);
+    const startDate = initialSessionDate ?? localDateValue(now);
+    const startTime = initialStartTime ?? timeValue(now);
     const end = addMinutesToTime(startDate, startTime, defaultDurationMinutes);
+    const endTime = initialEndTime ?? end.time;
     const paymentGrid = paymentGridFromSession(session, sessionPaymentLines);
     const tattooAmount = gridTotal(paymentGrid, "tattoo");
     const tipAmount = gridTotal(paymentGrid, "tip");
 
     return {
-      appointmentId: session?.appointment_id ?? appointments[0]?.id ?? "",
+      appointmentId: session?.appointment_id ?? initialAppointmentId ?? appointments[0]?.id ?? "",
       depositAppliedAmount: numberInputValue(sessionAppliedDepositTotal),
-      endTime: end.time,
-      endsAt: localDateTimeInput(end.date, end.time),
+      endTime,
+      endsAt: localDateTimeInput(initialEndTime ? startDate : end.date, endTime),
       memo: session?.memo ?? "",
       paymentGrid,
       paymentLines: paymentLinesFromGrid(paymentGrid),
@@ -353,26 +368,28 @@ export function SessionEntryForm({
         </p>
       ) : null}
 
-      <label className="block text-sm font-semibold">
-        Appointment
-        <select
-          className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-          disabled={locked || Boolean(session)}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, appointmentId: event.target.value }))
-          }
-          value={form.appointmentId}
-        >
-          <option value="">Manual / walk-in session</option>
-          {appointments.map((appointment) => (
-            <option key={appointment.id} value={appointment.id}>
-              {appointmentLabel(appointment)}
-            </option>
-          ))}
-        </select>
-      </label>
+      {hideAppointment ? null : (
+        <label className="block text-sm font-semibold">
+          Appointment
+          <select
+            className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            disabled={locked || Boolean(session)}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, appointmentId: event.target.value }))
+            }
+            value={form.appointmentId}
+          >
+            <option value="">Manual / walk-in session</option>
+            {appointments.map((appointment) => (
+              <option key={appointment.id} value={appointment.id}>
+                {appointmentLabel(appointment)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
-      {!form.appointmentId ? (
+      {!hideTiming && !form.appointmentId ? (
         <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
           <label className="text-sm font-semibold">
             Date
@@ -467,28 +484,30 @@ export function SessionEntryForm({
         </div>
       </div>
 
-      <label className="block text-sm font-semibold">
-        <span className="flex items-center justify-between gap-3">
-          <span>Deposit applied</span>
-          <span className="text-xs font-semibold text-[#697178]">
-            Available {money(availableDepositBalance)}
+      {hideDeposit ? null : (
+        <label className="block text-sm font-semibold">
+          <span className="flex items-center justify-between gap-3">
+            <span>Deposit applied</span>
+            <span className="text-xs font-semibold text-[#697178]">
+              Available {money(availableDepositBalance)}
+            </span>
           </span>
-        </span>
-        <input
-          className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-          disabled={locked}
-          min="0"
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              depositAppliedAmount: event.target.value,
-            }))
-          }
-          placeholder="0.00"
-          type="number"
-          value={form.depositAppliedAmount}
-        />
-      </label>
+          <input
+            className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            disabled={locked}
+            min="0"
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                depositAppliedAmount: event.target.value,
+              }))
+            }
+            placeholder="0.00"
+            type="number"
+            value={form.depositAppliedAmount}
+          />
+        </label>
+      )}
 
       <textarea
         className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"

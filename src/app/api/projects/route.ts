@@ -10,6 +10,7 @@ type ProjectPayload = {
   artistId?: string;
   projectName?: string;
   projectType?: string;
+  customerId?: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -148,6 +149,18 @@ async function findOrCreateCustomer(
   payload: ProjectPayload,
   createdBy: string,
 ) {
+  const customerId = payload.customerId?.trim();
+  if (customerId) {
+    const { data, error } = await adminClient
+      .from("customers")
+      .select("id, name, email, phone")
+      .eq("id", customerId)
+      .maybeSingle();
+
+    if (error) return { error };
+    if (data) return { customer: data };
+  }
+
   const email = normalizeEmail(payload.customerEmail);
   const phoneNormalized = normalizePhone(payload.customerPhone);
   let customer: { id: string; name: string; email: string | null; phone: string | null; address?: string | null } | null =
