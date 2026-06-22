@@ -416,6 +416,14 @@ export default function SessionWizardPage() {
         setError("Customer name is required.");
         return;
       }
+      if (!walkInForm.customerEmail.trim()) {
+        setError("Customer email is required.");
+        return;
+      }
+      if (!walkInForm.customerPhone.trim()) {
+        setError("Customer phone is required.");
+        return;
+      }
       if (!walkInForm.artistId) {
         setError("Select an artist.");
         return;
@@ -1108,7 +1116,7 @@ export default function SessionWizardPage() {
                   />
                 </label>
                 <label className="block text-sm font-semibold">
-                  Email
+                  Email <span className="text-[#8a3030]">*</span>
                   <input
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                     disabled={customerMode === "existing" && Boolean(selectedCustomerId)}
@@ -1118,7 +1126,7 @@ export default function SessionWizardPage() {
                   />
                 </label>
                 <label className="block text-sm font-semibold">
-                  Phone
+                  Phone <span className="text-[#8a3030]">*</span>
                   <input
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                     disabled={customerMode === "existing" && Boolean(selectedCustomerId)}
