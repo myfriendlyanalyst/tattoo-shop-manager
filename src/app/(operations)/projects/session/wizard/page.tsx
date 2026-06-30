@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
 import { SessionEntryForm, type PaymentGrid, type SessionForm } from "@/components/session-entry-form";
 import { TimeSelect } from "@/components/time-select";
@@ -91,7 +92,7 @@ type SessionPaymentRecord = {
 };
 
 type SessionKind = "existing" | "walk_in";
-type Step = "kind" | "details" | "appointment" | "payments" | "result";
+type Step = "kind" | "details" | "appointment" | "payments" | "review" | "result";
 
 type WalkInForm = {
   artistId: string;
@@ -213,6 +214,7 @@ function addMinutesToTime(date: string, time: string, minutesToAdd: number) {
 }
 
 export default function SessionWizardPage() {
+  const router = useRouter();
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -223,6 +225,7 @@ export default function SessionWizardPage() {
   const [step, setStep] = useState<Step>("kind");
   const [projectId, setProjectId] = useState("");
   const [appointmentId, setAppointmentId] = useState("");
+  const [appointmentMode, setAppointmentMode] = useState<"scheduled" | "manual">("scheduled");
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("new");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -240,6 +243,7 @@ export default function SessionWizardPage() {
   const [message, setMessage] = useState("");
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [savedDraft, setSavedDraft] = useState<SavedDraft | null>(null);
+  const [pendingForm, setPendingForm] = useState<SessionForm | null>(null);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === projectId) ?? null,
@@ -375,6 +379,34 @@ export default function SessionWizardPage() {
       setAppointments((appointmentResult.data ?? []) as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
       setDepositApplications((applicationResult.data ?? []) as DepositApplicationRecord[]);
+
+      const editSessionId = new URLSearchParams(window.location.search).get("editSessionId") ?? "";
+      const storedEdit = editSessionId
+        ? window.sessionStorage.getItem(`session-wizard-${editSessionId}`)
+        : null;
+
+      if (storedEdit) {
+        const restored = JSON.parse(storedEdit) as {
+          appointmentId?: string;
+          appointmentMode?: "scheduled" | "manual";
+          kind?: SessionKind;
+          projectId?: string;
+          saveResult?: SaveResult;
+          savedDraft?: SavedDraft;
+          walkInAppointment?: WalkInAppointment;
+          walkInForm?: WalkInForm;
+        };
+        setKind(restored.kind ?? "existing");
+        setProjectId(restored.projectId ?? visibleProjects[0]?.id ?? "");
+        setAppointmentId(restored.appointmentId ?? "");
+        setAppointmentMode(restored.appointmentMode ?? "scheduled");
+        setSaveResult(restored.saveResult ?? null);
+        setSavedDraft(restored.savedDraft ?? null);
+        setWalkInAppointment((current) => restored.walkInAppointment ?? current);
+        setWalkInForm(restored.walkInForm ?? emptyWalkInForm());
+        setEditingSavedSession(true);
+        setStep("payments");
+      }
       setLoading(false);
     }
 
@@ -456,11 +488,11 @@ export default function SessionWizardPage() {
 
   function continueAppointmentToPayments() {
     setError("");
-    if (kind === "existing" && !selectedAppointment) {
+    if (kind === "existing" && appointmentMode === "scheduled" && !selectedAppointment) {
       setError("Select an appointment.");
       return;
     }
-    if (kind === "walk_in") {
+    if (kind === "walk_in" || appointmentMode === "manual") {
       const startsAt = new Date(`${walkInAppointment.date}T${walkInAppointment.startTime}:00`);
       const endsAt = new Date(`${walkInAppointment.date}T${walkInAppointment.endTime}:00`);
       if (!walkInAppointment.date || endsAt <= startsAt) {
@@ -473,9 +505,13 @@ export default function SessionWizardPage() {
 
   async function saveSessionForProject(form: SessionForm, project: ProjectRecord) {
     const existingSessionId = editingSavedSession ? saveResult?.sessionId ?? "" : "";
-    const appointment = selectedAppointments.find(
-      (item) => item.id === (form.appointmentId || effectiveAppointmentId),
-    );
+    const appointment = existingSessionId
+      ? appointments.find((item) => item.id === saveResult?.appointmentId)
+      : kind === "existing" && appointmentMode === "scheduled"
+        ? selectedAppointments.find(
+            (item) => item.id === (form.appointmentId || effectiveAppointmentId),
+          )
+        : undefined;
     const startsAt = appointment?.starts_at ?? form.startsAt;
     const endsAt = appointment?.ends_at ?? form.endsAt;
     const startsDate = new Date(startsAt);
@@ -777,28 +813,65 @@ export default function SessionWizardPage() {
     return saveSessionForProject(form, project);
   }
 
-  async function handleSave(form: SessionForm) {
+  function handlePaymentContinue(form: SessionForm) {
+    setPendingForm(form);
+    setSavedDraft({
+      depositAppliedAmount: form.depositAppliedAmount,
+      memo: form.memo,
+      paymentGrid: form.paymentGrid,
+    });
+    setError("");
+    setMessage("");
+    setStep("review");
+  }
+
+  async function saveReviewedSession() {
+    if (!pendingForm) return;
+
+    const form = pendingForm;
     setSaving(true);
     setError("");
     setMessage("");
     try {
-      const result =
-        kind === "walk_in"
+      const savedProject = saveResult
+        ? projects.find((project) => project.id === saveResult.projectId) ?? selectedProject
+        : selectedProject;
+      const result = editingSavedSession && savedProject
+        ? await saveSessionForProject(form, savedProject)
+        : kind === "walk_in"
           ? await createWalkInProject(form)
           : selectedProject
             ? await saveSessionForProject(form, selectedProject)
             : null;
 
       if (!result) throw new Error("Select a project.");
-      setSaveResult({ ...result, kind: kind || "existing" });
+      const nextResult = { ...result, kind: kind || "existing" } as SaveResult;
+      setSaveResult(nextResult);
       setSavedDraft({
         depositAppliedAmount: form.depositAppliedAmount,
         memo: form.memo,
         paymentGrid: form.paymentGrid,
       });
       setEditingSavedSession(false);
-      setStep("result");
       setMessage(editingSavedSession ? "Session updated." : "Session saved.");
+      window.sessionStorage.setItem(
+        `session-wizard-${nextResult.sessionId}`,
+        JSON.stringify({
+          appointmentId,
+          appointmentMode,
+          kind,
+          projectId: nextResult.projectId,
+          saveResult: nextResult,
+          savedDraft: {
+            depositAppliedAmount: form.depositAppliedAmount,
+            memo: form.memo,
+            paymentGrid: form.paymentGrid,
+          },
+          walkInAppointment,
+          walkInForm,
+        }),
+      );
+      router.push(`/projects/session/${nextResult.sessionId}/result`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Session could not be saved.");
     } finally {
@@ -892,9 +965,9 @@ export default function SessionWizardPage() {
     }));
   }
 
-  const totalSteps = kind === "existing" ? 5 : 4;
+  const totalSteps = 5;
   const stepIndex =
-    step === "kind" ? 1 : step === "details" ? 2 : step === "appointment" ? 3 : step === "payments" ? totalSteps - 1 : totalSteps;
+    step === "kind" ? 1 : step === "details" ? 2 : step === "appointment" ? 3 : step === "payments" ? 4 : 5;
 
   return (
     <AppPage
@@ -987,7 +1060,14 @@ export default function SessionWizardPage() {
                   ))}
                 </select>
               </label>
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-between gap-2">
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
+                  onClick={() => setStep("kind")}
+                  type="button"
+                >
+                  Go back
+                </button>
                 <button
                   className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
                   onClick={continueToPayments}
@@ -1005,11 +1085,35 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Appointment</p>
                 <h4 className="mt-1 text-base font-semibold">{selectedProject?.subject}</h4>
               </div>
-              {selectedAppointments.length === 0 ? (
-                <p className="rounded-md border border-dashed border-[#d9d3c7] bg-white px-3 py-5 text-sm font-semibold text-[#697178]">
-                  This project does not have an appointment yet. Schedule it from Calendar first, then enter the session.
-                </p>
-              ) : (
+              <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                <button
+                  className={`rounded-md border px-4 py-3 text-left text-sm ${appointmentMode === "scheduled" ? "border-[#1f2428] bg-white shadow-sm" : "border-[#d9d3c7] bg-white"}`}
+                  disabled={selectedAppointments.length === 0}
+                  onClick={() => setAppointmentMode("scheduled")}
+                  type="button"
+                >
+                  <span className="font-semibold">Select scheduled appointment</span>
+                </button>
+                <button
+                  className={`rounded-md border px-4 py-3 text-left text-sm ${appointmentMode === "manual" ? "border-[#1f2428] bg-white shadow-sm" : "border-[#d9d3c7] bg-white"}`}
+                  onClick={() => setAppointmentMode("manual")}
+                  type="button"
+                >
+                  <span className="font-semibold">No appointment / record completed session</span>
+                </button>
+              </div>
+              {appointmentMode === "scheduled" && selectedAppointments.length === 0 ? (
+                <div className="rounded-md border border-dashed border-[#d9d3c7] bg-white px-3 py-5 text-sm font-semibold text-[#697178]">
+                  <p>No appointment exists for this project.</p>
+                  <button
+                    className="mt-3 h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                    onClick={() => setAppointmentMode("manual")}
+                    type="button"
+                  >
+                    Record this session now
+                  </button>
+                </div>
+              ) : appointmentMode === "scheduled" ? (
                 <div className="grid gap-2">
                   {selectedAppointments.map((appointment) => (
                     <button
@@ -1027,6 +1131,41 @@ export default function SessionWizardPage() {
                     </button>
                   ))}
                 </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
+                  <label className="text-sm font-semibold">
+                    Date
+                    <input
+                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                      onChange={(event) => setWalkInAppointment((current) => ({ ...current, date: event.target.value }))}
+                      type="date"
+                      value={walkInAppointment.date}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Start
+                    <TimeSelect
+                      endHour={24}
+                      interval={30}
+                      onChange={(value) => {
+                        const end = addMinutesToTime(walkInAppointment.date, value, selectedArtistDuration);
+                        setWalkInAppointment((current) => ({ ...current, endTime: end.time, startTime: value }));
+                      }}
+                      startHour={8}
+                      value={walkInAppointment.startTime}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    End
+                    <TimeSelect
+                      endHour={24}
+                      interval={30}
+                      onChange={(value) => setWalkInAppointment((current) => ({ ...current, endTime: value }))}
+                      startHour={8}
+                      value={walkInAppointment.endTime}
+                    />
+                  </label>
+                </div>
               )}
               <div className="mt-4 flex justify-between gap-2">
                 <button
@@ -1038,7 +1177,7 @@ export default function SessionWizardPage() {
                 </button>
                 <button
                   className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={selectedAppointments.length === 0}
+                  disabled={appointmentMode === "scheduled" && selectedAppointments.length === 0}
                   onClick={continueAppointmentToPayments}
                   type="button"
                 >
@@ -1054,7 +1193,7 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Appointment</p>
                 <h4 className="mt-1 text-base font-semibold">{projectNameFromWalkIn(walkInForm)}</h4>
               </div>
-              <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm font-semibold">
                   Date
                   <input
@@ -1085,18 +1224,6 @@ export default function SessionWizardPage() {
                     }}
                     startHour={8}
                     value={walkInAppointment.startTime}
-                  />
-                </label>
-                <label className="text-sm font-semibold">
-                  End
-                  <TimeSelect
-                    endHour={24}
-                    interval={30}
-                    onChange={(value) =>
-                      setWalkInAppointment((current) => ({ ...current, endTime: value }))
-                    }
-                    startHour={8}
-                    value={walkInAppointment.endTime}
                   />
                 </label>
               </div>
@@ -1250,7 +1377,14 @@ export default function SessionWizardPage() {
                 />
               </label>
 
-              <div className="flex justify-end">
+              <div className="flex justify-between gap-2">
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
+                  onClick={() => setStep("kind")}
+                  type="button"
+                >
+                  Go back
+                </button>
                 <button
                   className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d]"
                   onClick={continueToPayments}
@@ -1273,7 +1407,7 @@ export default function SessionWizardPage() {
                 </div>
                 <button
                   className="h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
-                  onClick={() => setStep(kind === "existing" ? "appointment" : "details")}
+                  onClick={() => setStep("appointment")}
                   type="button"
                 >
                   Back
@@ -1289,19 +1423,80 @@ export default function SessionWizardPage() {
                 hideDeposit={kind === "walk_in"}
                 hideTiming
                 initialDepositAppliedAmount={savedDraft?.depositAppliedAmount}
-                initialEndTime={kind === "walk_in" ? walkInAppointment.endTime : undefined}
-                initialAppointmentId={kind === "existing" ? effectiveAppointmentId : undefined}
+                initialEndTime={kind === "walk_in" || appointmentMode === "manual" ? walkInAppointment.endTime : undefined}
+                initialAppointmentId={kind === "existing" && appointmentMode === "scheduled" ? effectiveAppointmentId : undefined}
                 initialMemo={savedDraft?.memo}
                 initialPaymentGrid={savedDraft?.paymentGrid}
-                initialSessionDate={kind === "walk_in" ? walkInAppointment.date : undefined}
-                initialStartTime={kind === "walk_in" ? walkInAppointment.startTime : undefined}
+                initialSessionDate={kind === "walk_in" || appointmentMode === "manual" ? walkInAppointment.date : undefined}
+                initialStartTime={kind === "walk_in" || appointmentMode === "manual" ? walkInAppointment.startTime : undefined}
                 key={`${kind}-${projectId}-${effectiveAppointmentId}-${walkInAppointment.date}-${walkInAppointment.startTime}-${walkInAppointment.endTime}-${saveResult?.sessionId ?? "new"}-${editingSavedSession ? "edit" : "new"}`}
                 onNextAppointment={() => undefined}
-                onSave={handleSave}
+                confirmBeforeSave={false}
+                onSave={handlePaymentContinue}
                 saving={saving}
                 sessionPayments={[] as SessionPaymentRecord[]}
-                submitLabel={editingSavedSession ? "Update session" : "Review & save"}
+                submitLabel="Continue to review"
               />
+            </section>
+          ) : null}
+
+          {step === "review" && pendingForm ? (
+            <section className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 shadow-sm">
+              <div className="border-b border-[#e5dfd4] pb-4">
+                <p className="text-sm font-semibold text-[#697178]">Review</p>
+                <h4 className="mt-1 text-xl font-semibold">Check before saving</h4>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                  <p className="text-xs font-bold uppercase text-[#697178]">Client</p>
+                  <p className="mt-1 font-semibold">
+                    {kind === "walk_in" ? walkInForm.customerName : relatedOne(selectedProject?.customer ?? null)?.name}
+                  </p>
+                </div>
+                <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                  <p className="text-xs font-bold uppercase text-[#697178]">Project</p>
+                  <p className="mt-1 font-semibold">
+                    {kind === "walk_in" ? projectNameFromWalkIn(walkInForm) : selectedProject?.subject}
+                  </p>
+                </div>
+                <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                  <p className="text-xs font-bold uppercase text-[#697178]">Date / Start</p>
+                  <p className="mt-1 font-semibold">
+                    {kind === "existing" && appointmentMode === "scheduled"
+                      ? displayDateTime(selectedAppointment?.starts_at)
+                      : `${walkInAppointment.date} / ${walkInAppointment.startTime}`}
+                  </p>
+                </div>
+                <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+                  <p className="text-xs font-bold uppercase text-[#697178]">Tattoo / Tip</p>
+                  <p className="mt-1 font-semibold">
+                    {money(Number(pendingForm.tattooAmount || 0))} / {money(Number(pendingForm.tipAmount || 0))}
+                  </p>
+                </div>
+              </div>
+              {kind === "existing" ? (
+                <div className="mt-3 rounded-md border border-[#d9d3c7] px-3 py-3 text-sm">
+                  <span className="font-semibold text-[#697178]">Deposit applied</span>
+                  <span className="float-right font-bold">{money(Number(pendingForm.depositAppliedAmount || 0))}</span>
+                </div>
+              ) : null}
+              <div className="mt-5 flex justify-between gap-2">
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
+                  onClick={() => setStep("payments")}
+                  type="button"
+                >
+                  Go back
+                </button>
+                <button
+                  className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={saving}
+                  onClick={saveReviewedSession}
+                  type="button"
+                >
+                  {saving ? "Saving..." : editingSavedSession ? "Update session" : "Save session"}
+                </button>
+              </div>
             </section>
           ) : null}
 

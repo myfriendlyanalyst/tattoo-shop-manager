@@ -196,6 +196,7 @@ export function SessionEntryForm({
   depositApplications,
   defaultDurationMinutes = 120,
   error,
+  confirmBeforeSave = true,
   hideAppointment = false,
   hideDeposit = false,
   hideTiming = false,
@@ -220,6 +221,7 @@ export function SessionEntryForm({
   depositApplications: SessionDepositApplicationRecord[];
   defaultDurationMinutes?: number;
   error: string;
+  confirmBeforeSave?: boolean;
   hideAppointment?: boolean;
   hideDeposit?: boolean;
   hideTiming?: boolean;
@@ -358,7 +360,7 @@ export function SessionEntryForm({
   );
 
   function confirmAndSave() {
-    if (!window.confirm(`Save this session?\n\n${summary}`)) return;
+    if (confirmBeforeSave && !window.confirm(`Save this session?\n\n${summary}`)) return;
     onSave({
       ...form,
       paymentLines: paymentLinesFromGrid(form.paymentGrid),
