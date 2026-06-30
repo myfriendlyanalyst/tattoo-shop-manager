@@ -92,7 +92,7 @@ type SessionPaymentRecord = {
 };
 
 type SessionKind = "existing" | "walk_in";
-type Step = "kind" | "details" | "appointment" | "payments" | "review" | "result";
+type Step = "kind" | "client" | "details" | "appointment" | "payments" | "review" | "result";
 
 type WalkInForm = {
   artistId: string;
@@ -415,7 +415,7 @@ export default function SessionWizardPage() {
 
   function chooseKind(nextKind: SessionKind) {
     setKind(nextKind);
-    setStep("details");
+    setStep(nextKind === "walk_in" ? "client" : "details");
     setError("");
     setMessage("");
     setSaveResult(null);
@@ -959,15 +959,28 @@ export default function SessionWizardPage() {
     setSaveResult(null);
     setSavedDraft(null);
     setEditingSavedSession(false);
+    setCustomerMode("new");
+    setSelectedCustomerId("");
+    setCustomerSearch("");
     setWalkInForm((current) => ({
       ...emptyWalkInForm(),
       artistId: current.artistId || artists[0]?.id || "",
     }));
   }
 
-  const totalSteps = 5;
+  const totalSteps = kind === "walk_in" ? 6 : 5;
   const stepIndex =
-    step === "kind" ? 1 : step === "details" ? 2 : step === "appointment" ? 3 : step === "payments" ? 4 : 5;
+    step === "kind"
+      ? 1
+      : step === "client"
+        ? 2
+        : step === "details"
+          ? kind === "walk_in" ? 3 : 2
+          : step === "appointment"
+            ? kind === "walk_in" ? 4 : 3
+            : step === "payments"
+              ? kind === "walk_in" ? 5 : 4
+              : totalSteps;
 
   return (
     <AppPage
@@ -1037,6 +1050,62 @@ export default function SessionWizardPage() {
                 </p>
               </button>
             </div>
+          ) : null}
+
+          {step === "client" && kind === "walk_in" ? (
+            <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-[#697178]">Client type</p>
+                <h4 className="mt-1 text-lg font-semibold">Has this client visited before?</h4>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 text-left hover:border-[#1f2428] hover:shadow-sm"
+                  onClick={() => {
+                    setCustomerMode("existing");
+                    setSelectedCustomerId("");
+                    setCustomerSearch("");
+                    setStep("details");
+                  }}
+                  type="button"
+                >
+                  <p className="text-base font-semibold">Existing client</p>
+                  <p className="mt-2 text-sm font-medium text-[#697178]">
+                    Search by name, email, or phone.
+                  </p>
+                </button>
+                <button
+                  className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 text-left hover:border-[#1f2428] hover:shadow-sm"
+                  onClick={() => {
+                    setCustomerMode("new");
+                    setSelectedCustomerId("");
+                    setCustomerSearch("");
+                    setWalkInForm((current) => ({
+                      ...current,
+                      customerEmail: "",
+                      customerName: "",
+                      customerPhone: "",
+                    }));
+                    setStep("details");
+                  }}
+                  type="button"
+                >
+                  <p className="text-base font-semibold">New client</p>
+                  <p className="mt-2 text-sm font-medium text-[#697178]">
+                    Create a new customer record.
+                  </p>
+                </button>
+              </div>
+              <div className="mt-4">
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
+                  onClick={() => setStep("kind")}
+                  type="button"
+                >
+                  Go back
+                </button>
+              </div>
+            </section>
           ) : null}
 
           {step === "details" && kind === "existing" ? (
@@ -1249,27 +1318,9 @@ export default function SessionWizardPage() {
           {step === "details" && kind === "walk_in" ? (
             <section className="space-y-4 rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
               <div>
-                <p className="text-sm font-semibold text-[#697178]">Client</p>
-                <div className="mt-2 inline-grid grid-cols-2 rounded-md border border-[#d9d3c7] bg-white p-1 text-sm font-semibold">
-                  <button
-                    className={`h-8 rounded px-3 ${customerMode === "existing" ? "bg-[#1f2428] text-white" : "text-[#4d555c]"}`}
-                    onClick={() => setCustomerMode("existing")}
-                    type="button"
-                  >
-                    Existing
-                  </button>
-                  <button
-                    className={`h-8 rounded px-3 ${customerMode === "new" ? "bg-[#1f2428] text-white" : "text-[#4d555c]"}`}
-                    onClick={() => {
-                      setCustomerMode("new");
-                      setSelectedCustomerId("");
-                      setCustomerSearch("");
-                    }}
-                    type="button"
-                  >
-                    New
-                  </button>
-                </div>
+                <p className="text-sm font-semibold text-[#697178]">
+                  {customerMode === "existing" ? "Select existing client" : "New client details"}
+                </p>
               </div>
 
               {customerMode === "existing" ? (
@@ -1303,6 +1354,7 @@ export default function SessionWizardPage() {
                 </div>
               ) : null}
 
+              {customerMode === "new" || selectedCustomerId ? (
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="block text-sm font-semibold">
                   Client name <span className="text-[#8a3030]">*</span>
@@ -1333,6 +1385,7 @@ export default function SessionWizardPage() {
                   />
                 </label>
               </div>
+              ) : null}
 
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="block text-sm font-semibold">
@@ -1380,7 +1433,7 @@ export default function SessionWizardPage() {
               <div className="flex justify-between gap-2">
                 <button
                   className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
-                  onClick={() => setStep("kind")}
+                  onClick={() => setStep("client")}
                   type="button"
                 >
                   Go back
