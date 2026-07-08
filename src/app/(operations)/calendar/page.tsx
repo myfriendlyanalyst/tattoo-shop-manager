@@ -1093,8 +1093,6 @@ export default function CalendarPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedDate, setSelectedDate] = useState(() => localDateValue());
   const [artistFilter, setArtistFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [showCancelled, setShowCancelled] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [draftAppointment, setDraftAppointment] = useState<DraftAppointment | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -1128,15 +1126,10 @@ export default function CalendarPage() {
     [mobileArtist],
   );
 
-  const visibleAppointments = useMemo(() => {
-    return appointments.filter((appointment) => {
-      if (!showCancelled && appointment.status === "cancelled") {
-        return false;
-      }
-
-      return typeFilter === "all" || appointment.type === typeFilter;
-    });
-  }, [appointments, showCancelled, typeFilter]);
+  const visibleAppointments = useMemo(
+    () => appointments.filter((appointment) => appointment.status !== "cancelled"),
+    [appointments],
+  );
 
   const dailySchedules = useMemo(
     () => scheduleMapForDate(selectedDate, schedules),
@@ -1561,9 +1554,7 @@ export default function CalendarPage() {
 
     setAppointments((current) =>
       updatedAppointment.status === "cancelled"
-        ? showCancelled
-          ? current.map((item) => (item.id === appointment.id ? updatedAppointment : item))
-          : current.filter((item) => item.id !== appointment.id)
+        ? current.filter((item) => item.id !== appointment.id)
         : current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
     );
     if (timeChanged && updatedAppointment.status !== "cancelled") {
@@ -1640,11 +1631,7 @@ export default function CalendarPage() {
     }
 
     const cancelledAppointment = mapAppointment(result.data as unknown as AppointmentRow);
-    setAppointments((current) =>
-      showCancelled
-        ? current.map((item) => (item.id === appointment.id ? cancelledAppointment : item))
-        : current.filter((item) => item.id !== appointment.id),
-    );
+    setAppointments((current) => current.filter((item) => item.id !== cancelledAppointment.id));
     await cancelAppointmentReminder(appointment.id);
     const emailResult = await sendAppointmentCancellation(appointment.id);
 
@@ -1797,27 +1784,6 @@ export default function CalendarPage() {
                   </select>
                 </label>
                 ) : null}
-                <label className="block text-sm font-semibold">
-                  Appointment type
-                  <select
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) => setTypeFilter(event.target.value)}
-                    value={typeFilter}
-                  >
-                    <option value="all">All types</option>
-                    {appointmentTypes.map((type) => (
-                      <option key={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center justify-between gap-3 rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-3 py-3 text-sm font-semibold">
-                  <span>Show cancelled</span>
-                  <input
-                    checked={showCancelled}
-                    onChange={(event) => setShowCancelled(event.target.checked)}
-                    type="checkbox"
-                  />
-                </label>
               </div>
             </div>
 

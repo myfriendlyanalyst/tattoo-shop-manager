@@ -330,6 +330,30 @@ function emailLogBody(message: RequestMessage) {
   return message.body_text || message.snippet || "No preview text.";
 }
 
+function isActionEmail(message: RequestMessage, request: RequestRecord) {
+  if (message.provider === "artist_action" || message.provider === "client_action") {
+    return true;
+  }
+
+  if (message.provider !== "resend" || message.direction !== "outbound") {
+    return false;
+  }
+
+  const clientEmail = normalizeEmail(request.email);
+  const sentToClient = Boolean(
+    clientEmail && message.to_emails?.some((email) => normalizeEmail(email) === clientEmail),
+  );
+
+  if (!sentToClient) {
+    return true;
+  }
+
+  return Boolean(
+    request.artist_reply_at &&
+      new Date(message.received_at).getTime() >= new Date(request.artist_reply_at).getTime() - 60_000,
+  );
+}
+
 function tattooTimingLabel(value: string | null) {
   return tattooTimingOptions.find((option) => option.value === (value ?? ""))?.label ?? value ?? "-";
 }
@@ -792,24 +816,17 @@ export default function RequestsPage() {
 
   const queueSummary = useMemo(() => {
     const summary = {
-      bookedOrClosed: 0,
-      needsAssignment: 0,
-      reassignment: 0,
       waitingArtist: 0,
       waitingClient: 0,
     };
 
     for (const request of requests) {
-      const requestMessageList = messagesByRequestId.get(request.id) ?? [];
-      if (isNeedsAssignment(request)) summary.needsAssignment += 1;
-      if (hasClientReassignmentRequest(request, requestMessageList)) summary.reassignment += 1;
       if (isWaitingForArtist(request)) summary.waitingArtist += 1;
       if (isWaitingForClient(request)) summary.waitingClient += 1;
-      if (isClosedRequest(request)) summary.bookedOrClosed += 1;
     }
 
     return summary;
-  }, [messagesByRequestId, requests]);
+  }, [requests]);
 
   const selectedFiles = useMemo(() => {
     if (!selectedRequest) {
@@ -826,6 +843,14 @@ export default function RequestsPage() {
 
     return messagesByRequestId.get(selectedRequest.id) ?? [];
   }, [messagesByRequestId, selectedRequest]);
+
+  const selectedActionMessages = useMemo(() => {
+    if (!selectedRequest) {
+      return [];
+    }
+
+    return selectedMessages.filter((message) => isActionEmail(message, selectedRequest));
+  }, [selectedMessages, selectedRequest]);
 
   const needsArtistAssignment = useMemo(() => {
     if (!selectedRequest) {
@@ -1418,20 +1443,8 @@ export default function RequestsPage() {
 
       {!loading && requests.length > 0 ? (
         <>
-          <section className="mb-5 grid gap-3 md:grid-cols-5">
+          <section className="mb-5 grid gap-3 sm:grid-cols-2">
             {[
-              {
-                count: queueSummary.needsAssignment,
-                filter: "needs_assignment" as QueueFilter,
-                label: "Needs assignment",
-                tone: "border-[#d9d3c7] bg-white",
-              },
-              {
-                count: queueSummary.reassignment,
-                filter: "reassignment" as QueueFilter,
-                label: "Reassignment",
-                tone: "border-[#d6b887] bg-[#fffaf1]",
-              },
               {
                 count: queueSummary.waitingArtist,
                 filter: "waiting_artist" as QueueFilter,
@@ -1443,12 +1456,6 @@ export default function RequestsPage() {
                 filter: "waiting_client" as QueueFilter,
                 label: "Waiting client",
                 tone: "border-[#ead2c3] bg-[#fdf7f2]",
-              },
-              {
-                count: queueSummary.bookedOrClosed,
-                filter: "closed" as QueueFilter,
-                label: "Booked / closed",
-                tone: "border-[#d9d3c7] bg-white",
               },
             ].map((card) => (
               <button
@@ -2040,17 +2047,17 @@ export default function RequestsPage() {
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-semibold">Email log</h4>
                       <span className="rounded bg-[#f1eadc] px-2 py-1 text-xs font-bold text-[#775f36]">
-                        {selectedMessages.length} messages
+                        {selectedActionMessages.length} messages
                       </span>
                     </div>
-                    {selectedMessages.length === 0 ? (
+                    {selectedActionMessages.length === 0 ? (
                       <p className="mt-3 rounded-md border border-dashed border-[#d9d3c7] px-3 py-4 text-sm font-semibold text-[#697178]">
                         No email activity yet. The first artist-to-client email will be recorded
                         here after the artist sends it from the draft page.
                       </p>
                     ) : (
                       <div className="mt-3 space-y-2">
-                        {selectedMessages.map((email) => (
+                        {selectedActionMessages.map((email) => (
                           <details
                             className="group rounded-md border border-[#e4dccf] bg-[#fdfbf7] text-sm"
                             key={email.id}
