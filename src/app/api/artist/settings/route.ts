@@ -33,21 +33,31 @@ async function requireOwnStaff(token: string) {
   const email = userData.user.email?.toLowerCase() ?? "";
   const { data: staffByProfileId, error: byIdError } = await adminClient
     .from("staff")
-    .select("id, display_name, role, email, artist_accept_template")
+    .select("id, display_name, role, email, artist_accept_template, calendar_feed_token")
     .eq("profile_id", userData.user.id)
     .maybeSingle();
 
-  if (byIdError) return { error: byIdError.message, status: 500 as const, adminClient };
+  if (byIdError) {
+    const suffix = byIdError.message.includes("calendar_feed_token")
+      ? " Run docs/artist_calendar_feed_migration.sql in Supabase SQL Editor."
+      : "";
+    return { error: `${byIdError.message}${suffix}`, status: 500 as const, adminClient };
+  }
 
   const { data: staffByEmail, error: byEmailError } = staffByProfileId
     ? { data: null, error: null }
     : await adminClient
         .from("staff")
-        .select("id, display_name, role, email, artist_accept_template")
+        .select("id, display_name, role, email, artist_accept_template, calendar_feed_token")
         .ilike("email", email)
         .maybeSingle();
 
-  if (byEmailError) return { error: byEmailError.message, status: 500 as const, adminClient };
+  if (byEmailError) {
+    const suffix = byEmailError.message.includes("calendar_feed_token")
+      ? " Run docs/artist_calendar_feed_migration.sql in Supabase SQL Editor."
+      : "";
+    return { error: `${byEmailError.message}${suffix}`, status: 500 as const, adminClient };
+  }
 
   const staff = staffByProfileId ?? staffByEmail;
   if (!staff || !["Artist", "Owner"].includes(staff.role)) {
@@ -72,6 +82,7 @@ export async function GET(request: NextRequest) {
       role: staff.role,
       email: staff.email,
       artistAcceptTemplate: staff.artist_accept_template ?? "",
+      calendarFeedToken: staff.calendar_feed_token ?? "",
     },
   });
 }
@@ -90,7 +101,7 @@ export async function PATCH(request: NextRequest) {
     .from("staff")
     .update({ artist_accept_template: template })
     .eq("id", access.staff.id)
-    .select("id, display_name, role, email, artist_accept_template")
+    .select("id, display_name, role, email, artist_accept_template, calendar_feed_token")
     .single();
 
   if (error) return jsonError(error.message, 500);
@@ -102,6 +113,7 @@ export async function PATCH(request: NextRequest) {
       role: data.role,
       email: data.email,
       artistAcceptTemplate: data.artist_accept_template ?? "",
+      calendarFeedToken: data.calendar_feed_token ?? "",
     },
   });
 }

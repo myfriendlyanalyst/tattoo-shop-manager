@@ -11,6 +11,10 @@ export type CalendarEventInput = {
   startsAt: string;
 };
 
+export type CalendarFeedEventInput = CalendarEventInput & {
+  status?: string | null;
+};
+
 function compactDate(value: string) {
   return new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
@@ -65,27 +69,47 @@ function escapeIcsValue(value: string) {
 }
 
 export function buildIcsContent(input: CalendarEventInput) {
-  const end = eventEnd(input.startsAt, input.endsAt);
-  const now = compactDate(new Date().toISOString());
+  return buildIcsCalendarContent([input], { method: "PUBLISH" });
+}
 
-  return [
+export function buildIcsCalendarContent(
+  events: CalendarFeedEventInput[],
+  options: { calendarName?: string; method?: "PUBLISH" | "REQUEST" } = {},
+) {
+  const now = compactDate(new Date().toISOString());
+  const method = options.method ?? "PUBLISH";
+  const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Oyabun Tattoo//Tattoo Shop Manager//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "BEGIN:VEVENT",
-    `UID:${escapeIcsValue(input.appointmentId)}@oyabuntattoo.com`,
-    `DTSTAMP:${now}`,
-    `DTSTART:${compactDate(input.startsAt)}`,
-    `DTEND:${compactDate(end)}`,
-    `SUMMARY:${escapeIcsValue(calendarEventTitle(input))}`,
-    `DESCRIPTION:${escapeIcsValue(calendarEventDescription(input))}`,
-    `LOCATION:${escapeIcsValue(studioLocation)}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-    "",
-  ].join("\r\n");
+    `METHOD:${method}`,
+  ];
+
+  if (options.calendarName) {
+    lines.push(`X-WR-CALNAME:${escapeIcsValue(options.calendarName)}`);
+  }
+
+  for (const event of events) {
+    const end = eventEnd(event.startsAt, event.endsAt);
+
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${escapeIcsValue(event.appointmentId)}@oyabuntattoo.com`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${compactDate(event.startsAt)}`,
+      `DTEND:${compactDate(end)}`,
+      `SUMMARY:${escapeIcsValue(calendarEventTitle(event))}`,
+      `DESCRIPTION:${escapeIcsValue(calendarEventDescription(event))}`,
+      `LOCATION:${escapeIcsValue(studioLocation)}`,
+      event.status ? `STATUS:${escapeIcsValue(event.status.toUpperCase())}` : "STATUS:CONFIRMED",
+      "END:VEVENT",
+    );
+  }
+
+  lines.push("END:VCALENDAR", "");
+
+  return lines.join("\r\n");
 }
 
 export function buildCalendarLinks(input: CalendarEventInput) {

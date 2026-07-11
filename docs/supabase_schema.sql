@@ -113,6 +113,7 @@ create table if not exists public.staff (
   active boolean not null default true,
   must_change_password boolean not null default false,
   default_session_duration_minutes integer not null default 120 check (default_session_duration_minutes between 30 and 720),
+  calendar_feed_token text not null default encode(gen_random_bytes(24), 'hex') unique,
   notes text,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
@@ -918,6 +919,13 @@ with check (
   or public.can_access_accounting()
   or artist_id = public.current_staff_id()
   or created_by = auth.uid()
+);
+
+create table if not exists public.calendar_feed_tokens (
+  scope text primary key,
+  token text not null unique default encode(gen_random_bytes(24), 'hex'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 drop policy if exists "deposits_delete_operations" on public.deposits;

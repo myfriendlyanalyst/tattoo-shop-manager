@@ -10,7 +10,7 @@ import {
   sendAppointmentConfirmation,
   sendAppointmentReschedule,
 } from "@/lib/appointment-email";
-import { getSafeUser } from "@/lib/auth-session";
+import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext, type OperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
 
@@ -1102,6 +1102,8 @@ export default function CalendarPage() {
   const [message, setMessage] = useState("");
   const [modalError, setModalError] = useState("");
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
+  const [personalCalendarFeedUrl, setPersonalCalendarFeedUrl] = useState("");
+  const [shopCalendarFeedUrl, setShopCalendarFeedUrl] = useState("");
   const isArtistUser = operationsContext?.isArtist === true;
   const timeInterval = useTimeInterval();
 
@@ -1173,6 +1175,7 @@ export default function CalendarPage() {
 
       const user = await getSafeUser();
       const context = await getOperationsContext();
+      const session = await getSafeSession();
 
       if (!user) {
         setError("Please log in to view the calendar.");
@@ -1284,6 +1287,47 @@ export default function CalendarPage() {
       setProjects(nextProjects);
       setSchedules(scheduleResult.data ?? []);
       setAppointments(nextAppointments.map(mapAppointment));
+      setPersonalCalendarFeedUrl("");
+      setShopCalendarFeedUrl("");
+
+      if (session && context) {
+        const origin = window.location.origin.replace(/\/$/, "");
+
+        if (context.isArtist || context.staffRole === "Owner") {
+          const response = await fetch("/api/artist/settings", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const payload = (await response.json().catch(() => ({}))) as {
+            staff?: { id?: string; calendarFeedToken?: string };
+          };
+
+          if (response.ok && payload.staff?.id && payload.staff.calendarFeedToken) {
+            setPersonalCalendarFeedUrl(
+              `${origin}/api/calendar/appointments/${encodeURIComponent(
+                payload.staff.id,
+              )}/ics?feed=staff&token=${encodeURIComponent(payload.staff.calendarFeedToken)}`,
+            );
+          }
+        }
+
+        if (!context.isArtist) {
+          const response = await fetch("/api/settings/calendar-feed", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const payload = (await response.json().catch(() => ({}))) as {
+            feed?: { token?: string };
+          };
+
+          if (response.ok && payload.feed?.token) {
+            setShopCalendarFeedUrl(
+              `${origin}/api/calendar/appointments/shop/ics?feed=shop&token=${encodeURIComponent(
+                payload.feed.token,
+              )}`,
+            );
+          }
+        }
+      }
+
       if (context?.isArtist && context.staffId) {
         setArtistFilter(context.staffId);
       }
@@ -1682,36 +1726,74 @@ export default function CalendarPage() {
     setSaving(false);
   }
 
+  async function copyCalendarFeed(url: string, label: string) {
+    if (!url) {
+      setMessage("Calendar feed is not ready. Run docs/artist_calendar_feed_migration.sql in Supabase SQL Editor.");
+      return;
+    }
+
+    await navigator.clipboard.writeText(url);
+    setMessage(`${label} copied.`);
+  }
+
   return (
     <AppPage
       eyebrow="Appointments"
       title="Calendar and booking"
       wide
       actions={
-        isArtistUser ? null : (
-        <button
-          className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={artists.length === 0}
-          onClick={() => {
-            const artist = visibleArtists[0] ?? artists[0];
+        <div className="flex flex-wrap items-center gap-2">
+          {isArtistUser ? (
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
+              onClick={() => copyCalendarFeed(personalCalendarFeedUrl, "Your calendar URL")}
+              type="button"
+            >
+              Copy my calendar URL
+            </button>
+          ) : (
+            <>
+              <button
+                className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
+                onClick={() => copyCalendarFeed(shopCalendarFeedUrl, "Shop calendar URL")}
+                type="button"
+              >
+                Copy shop calendar URL
+              </button>
+              {personalCalendarFeedUrl ? (
+                <button
+                  className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
+                  onClick={() => copyCalendarFeed(personalCalendarFeedUrl, "Your calendar URL")}
+                  type="button"
+                >
+                  Copy my calendar URL
+                </button>
+              ) : null}
+              <button
+                className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={artists.length === 0}
+                onClick={() => {
+                  const artist = visibleArtists[0] ?? artists[0];
 
-            if (artist) {
-              setMessage("");
-              setDraftAppointment({
-                artistId: artist.id,
-                artist: artist.display_name,
-                date: selectedDate,
-                start: "12:00",
-                end: endTimeFromStart("12:00", artist.default_session_duration_minutes ?? 120),
-                defaultDurationMinutes: artist.default_session_duration_minutes ?? 120,
-              });
-            }
-          }}
-          type="button"
-        >
-          New appointment
-        </button>
-        )
+                  if (artist) {
+                    setMessage("");
+                    setDraftAppointment({
+                      artistId: artist.id,
+                      artist: artist.display_name,
+                      date: selectedDate,
+                      start: "12:00",
+                      end: endTimeFromStart("12:00", artist.default_session_duration_minutes ?? 120),
+                      defaultDurationMinutes: artist.default_session_duration_minutes ?? 120,
+                    });
+                  }
+                }}
+                type="button"
+              >
+                New appointment
+              </button>
+            </>
+          )}
+        </div>
       }
     >
       {loading ? (
@@ -1735,6 +1817,21 @@ export default function CalendarPage() {
       {!loading && !error ? (
         <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="space-y-6 xl:min-w-80">
+            <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 text-sm shadow-sm">
+              <h3 className="text-base font-semibold">Google Calendar</h3>
+              <p className="mt-2 text-[#697178]">
+                Copy a calendar URL, then add it in Google Calendar from Other calendars &gt; From URL.
+              </p>
+              <a
+                className="mt-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#f7f2e9]"
+                href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Open Google Calendar
+              </a>
+            </div>
+
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
               <h3 className="text-base font-semibold">Filters</h3>
               <div className="mt-4 space-y-3">
