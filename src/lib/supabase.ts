@@ -9,4 +9,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // createBrowserClient stores the session in cookies (not localStorage).
 // This allows middleware to read the session server-side.
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+//
+// Use implicit auth links so password reset emails work even when the user opens
+// the email from a different browser or after the original PKCE verifier is gone.
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: "implicit",
+  },
+});

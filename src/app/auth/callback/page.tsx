@@ -6,6 +6,14 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { getSafeSession } from "@/lib/auth-session";
 
+function safeNextPath(value: string | null) {
+  if (value?.startsWith("/") && !value.startsWith("//")) {
+    return value;
+  }
+
+  return "/set-password";
+}
+
 function hashParams() {
   if (typeof window === "undefined") {
     return new URLSearchParams();
@@ -22,6 +30,7 @@ export default function AuthCallbackPage() {
     async function finishAuth() {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
+      const next = safeNextPath(url.searchParams.get("next"));
       const errorDescription =
         url.searchParams.get("error_description") ?? hashParams().get("error_description");
 
@@ -44,7 +53,7 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        router.replace("/set-password");
+        router.replace(next);
         return;
       }
 
@@ -56,7 +65,7 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        router.replace("/set-password");
+        router.replace(next);
         return;
       }
 
@@ -74,18 +83,18 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        router.replace("/set-password");
+        router.replace(next);
         return;
       }
 
       const session = await getSafeSession();
 
       if (session) {
-        router.replace("/set-password");
+        router.replace(next);
         return;
       }
 
-      setError("This invitation link is expired or invalid. Ask an admin to send a new invite.");
+      setError("This link is expired or invalid. Please request a new password reset link.");
     }
 
     finishAuth();
@@ -97,7 +106,7 @@ export default function AuthCallbackPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a6f4d]">
           Oyabun
         </p>
-        <h1 className="mt-2 text-2xl font-semibold">Accepting invite</h1>
+        <h1 className="mt-2 text-2xl font-semibold">Opening secure link</h1>
         {error ? (
           <p className="mt-4 rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
             {error}
