@@ -125,6 +125,7 @@ type AppointmentEditForm = {
 type GoogleCalendarStatus = {
   configured: boolean;
   connected: boolean;
+  error?: string;
   connection?: {
     google_email?: string | null;
     last_error?: string | null;
@@ -1304,10 +1305,18 @@ export default function CalendarPage() {
           const response = await fetch("/api/google-calendar/status", {
             headers: { Authorization: `Bearer ${session.access_token}` },
           });
-          const payload = (await response.json().catch(() => ({}))) as GoogleCalendarStatus;
+          const payload = (await response.json().catch(() => ({}))) as GoogleCalendarStatus & {
+            error?: string;
+          };
 
           if (response.ok) {
             setGoogleCalendarStatus(payload);
+          } else {
+            setGoogleCalendarStatus({
+              configured: false,
+              connected: false,
+              error: payload.error || `Google Calendar status failed (${response.status}).`,
+            });
           }
         }
       }
@@ -1928,6 +1937,11 @@ export default function CalendarPage() {
                   {googleCalendarStatus?.missingConfig?.length ? (
                     <p className="mt-2 rounded-md bg-[#f7f2e9] px-3 py-2 text-xs font-semibold text-[#775f36]">
                       Missing: {googleCalendarStatus.missingConfig.join(", ")}
+                    </p>
+                  ) : null}
+                  {googleCalendarStatus?.error ? (
+                    <p className="mt-2 rounded-md bg-[#f3e1e1] px-3 py-2 text-xs font-semibold text-[#8a3030]">
+                      {googleCalendarStatus.error}
                     </p>
                   ) : null}
                 </>

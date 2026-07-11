@@ -10,6 +10,10 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
+function roleKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/\s+/g, "_") ?? "";
+}
+
 async function requireOwnStaff(token: string) {
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
     return { error: "Google Calendar status is not configured.", status: 500 as const };
@@ -41,7 +45,7 @@ async function requireOwnStaff(token: string) {
   if (byEmailError) return { error: byEmailError.message, status: 500 as const };
 
   const staff = staffByProfileId ?? staffByEmail;
-  if (!staff?.active || !["Artist", "Owner"].includes(staff.role)) {
+  if (!staff?.active || !["artist", "owner"].includes(roleKey(staff.role))) {
     return { error: "Only artists can view Google Calendar status.", status: 403 as const };
   }
 
