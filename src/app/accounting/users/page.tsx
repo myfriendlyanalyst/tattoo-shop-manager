@@ -17,6 +17,14 @@ type AccountingUser = {
   created_at: string;
 };
 
+type OperationsOwner = {
+  active: boolean | null;
+  display_name: string | null;
+  email: string | null;
+  id: string;
+  role: "owner";
+};
+
 type CreateForm = {
   displayName: string;
   email: string;
@@ -199,6 +207,7 @@ function TempPasswordModal({
 }
 
 export default function AccountingUsersPage() {
+  const [operationsOwners, setOperationsOwners] = useState<OperationsOwner[]>([]);
   const [users, setUsers] = useState<AccountingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -233,11 +242,16 @@ export default function AccountingUsersPage() {
     const res = await fetch("/api/accounting/users", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const data = (await res.json()) as { users?: AccountingUser[]; error?: string };
+    const data = (await res.json()) as {
+      operationsOwners?: OperationsOwner[];
+      users?: AccountingUser[];
+      error?: string;
+    };
 
     if (!res.ok) {
       setError(data.error ?? "Failed to load users.");
     } else {
+      setOperationsOwners(data.operationsOwners ?? []);
       setUsers(data.users ?? []);
     }
     setLoading(false);
@@ -394,23 +408,73 @@ export default function AccountingUsersPage() {
       ) : null}
 
       {!loading && !error ? (
-        <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-          <div className="border-b border-[#e5dfd4] px-4 py-4">
-            <h3 className="text-base font-semibold">
-              {users.length} {users.length === 1 ? "user" : "users"}
-            </h3>
+        <div className="space-y-4">
+          <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div className="border-b border-[#e5dfd4] px-4 py-4">
+              <h3 className="text-base font-semibold">Operations owners</h3>
+              <p className="mt-1 text-sm text-[#697178]">
+                These owner accounts always have Accounting access.
+              </p>
+            </div>
+
+            {operationsOwners.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-[#697178]">
+                No operations owners found.
+              </p>
+            ) : (
+              <div className="divide-y divide-[#eee8dd]">
+                {operationsOwners.map((owner) => (
+                  <div
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    key={owner.id}
+                  >
+                    <div>
+                      <p className="font-semibold">{owner.display_name ?? "Owner"}</p>
+                      <p className="mt-0.5 text-sm text-[#697178]">{owner.email ?? "-"}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-[#1f2428] px-2 py-1 text-xs font-semibold text-white">
+                        Owner
+                      </span>
+                      <span
+                        className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                          owner.active === false
+                            ? "bg-[#f3e1e1] text-[#8a3030]"
+                            : "bg-[#e4f1df] text-[#476b33]"
+                        }`}
+                      >
+                        {owner.active === false ? "Inactive" : "Active"}
+                      </span>
+                      <span className="rounded-md bg-[#e7f0f7] px-2 py-1 text-xs font-semibold text-[#236c8f]">
+                        Automatic access
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {users.length === 0 ? (
-            <p className="px-4 py-8 text-sm text-[#697178]">
-              No accounting users yet. Create one to get started.
-            </p>
-          ) : (
-            <>
-              {/* Mobile list */}
-              <div className="divide-y divide-[#eee8dd] md:hidden">
-                {users.map((user) => (
-                  <div key={user.id} className="px-4 py-4">
+          <div className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+            <div className="border-b border-[#e5dfd4] px-4 py-4">
+              <h3 className="text-base font-semibold">
+                Dedicated accounting users
+              </h3>
+              <p className="mt-1 text-sm text-[#697178]">
+                These accounts are only for Accounting and do not get Tattoo Manager access.
+              </p>
+            </div>
+
+            {users.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-[#697178]">
+                No dedicated accounting users yet. Create one to get started.
+              </p>
+            ) : (
+              <>
+                {/* Mobile list */}
+                <div className="divide-y divide-[#eee8dd] md:hidden">
+                  {users.map((user) => (
+                    <div key={user.id} className="px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold">{user.display_name}</p>
@@ -459,12 +523,12 @@ export default function AccountingUsersPage() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {/* Desktop table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[700px] text-left text-sm">
+                {/* Desktop table */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[700px] text-left text-sm">
                   <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
                     <tr>
                       <th className="px-4 py-3 font-semibold">User</th>
@@ -535,10 +599,11 @@ export default function AccountingUsersPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       ) : null}
 

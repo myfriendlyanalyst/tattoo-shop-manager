@@ -13,6 +13,25 @@ type CreatePayload = {
   accessLevel?: AccessLevel;
 };
 
+type ProfileRow = {
+  active: boolean | null;
+  display_name: string | null;
+  email: string | null;
+  id: string;
+  role: string | null;
+};
+
+type AccountingUserRow = {
+  access_level: AccessLevel;
+  active: boolean;
+  created_at: string;
+  display_name: string;
+  email: string;
+  id: string;
+  must_change_password: boolean;
+  profile_id: string | null;
+};
+
 type CallerAccess =
   | { userId: string; isOwner: boolean; error: null }
   | { error: string; status: 401 | 403 };
@@ -138,7 +157,38 @@ export async function GET(request: NextRequest) {
 
   if (error) return jsonError(error.message, 500);
 
-  return NextResponse.json({ users: data });
+  const users = (data ?? []) as AccountingUserRow[];
+  const profileIds = users.map((user) => user.profile_id).filter(Boolean) as string[];
+
+  const { data: linkedProfiles, error: linkedProfilesError } = profileIds.length
+    ? await adminClient
+        .from("profiles")
+        .select("id, email, display_name, role, active")
+        .in("id", profileIds)
+    : { data: [] as ProfileRow[], error: null };
+
+  if (linkedProfilesError) return jsonError(linkedProfilesError.message, 500);
+
+  const profileById = new Map(
+    ((linkedProfiles ?? []) as ProfileRow[]).map((profile) => [profile.id, profile]),
+  );
+  const dedicatedAccountingUsers = users.filter((user) => {
+    const profile = user.profile_id ? profileById.get(user.profile_id) : null;
+    return !profile || profile.role === "accounting";
+  });
+
+  const { data: operationsOwners, error: ownersError } = await adminClient
+    .from("profiles")
+    .select("id, email, display_name, role, active")
+    .eq("role", "owner")
+    .order("display_name", { ascending: true });
+
+  if (ownersError) return jsonError(ownersError.message, 500);
+
+  return NextResponse.json({
+    operationsOwners: operationsOwners ?? [],
+    users: dedicatedAccountingUsers,
+  });
 }
 
 // ─── POST /api/accounting/users ───────────────────────────────────────────────
