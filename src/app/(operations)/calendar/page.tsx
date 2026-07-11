@@ -129,6 +129,7 @@ type GoogleCalendarStatus = {
     google_email?: string | null;
     last_error?: string | null;
   } | null;
+  missingConfig?: string[];
 };
 
 const dayStartHour = 12;
@@ -1920,9 +1921,16 @@ export default function CalendarPage() {
                   </button>
                 </>
               ) : (
-                <p className="mt-2 text-[#697178]">
-                  Google Calendar direct sync is not configured yet.
-                </p>
+                <>
+                  <p className="mt-2 text-[#697178]">
+                    Google Calendar direct sync is not configured yet.
+                  </p>
+                  {googleCalendarStatus?.missingConfig?.length ? (
+                    <p className="mt-2 rounded-md bg-[#f7f2e9] px-3 py-2 text-xs font-semibold text-[#775f36]">
+                      Missing: {googleCalendarStatus.missingConfig.join(", ")}
+                    </p>
+                  ) : null}
+                </>
               )}
             </div>
 

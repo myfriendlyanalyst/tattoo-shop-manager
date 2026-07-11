@@ -6,7 +6,7 @@ import {
   configuredBaseUrl,
 } from "@/lib/email-templates/calendar-links";
 
-const calendarScope = "https://www.googleapis.com/auth/calendar.events";
+const calendarScope = "https://www.googleapis.com/auth/calendar.events.owned";
 const tokenEndpoint = "https://oauth2.googleapis.com/token";
 const calendarApiBase = "https://www.googleapis.com/calendar/v3";
 const studioLocation = "8199 Clairemont Mesa Blvd, Suite L, San Diego, CA 92111";
@@ -80,6 +80,14 @@ function stateSecret() {
 
 export function googleCalendarConfigured() {
   return Boolean(googleClientId() && googleClientSecret() && stateSecret());
+}
+
+export function missingGoogleCalendarConfig() {
+  return [
+    googleClientId() ? null : "GOOGLE_CALENDAR_CLIENT_ID",
+    googleClientSecret() ? null : "GOOGLE_CALENDAR_CLIENT_SECRET",
+    stateSecret() ? null : "GOOGLE_OAUTH_STATE_SECRET",
+  ].filter(Boolean) as string[];
 }
 
 export function googleRedirectUri() {

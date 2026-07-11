@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { googleCalendarConfigured } from "@/lib/google-calendar";
+import { googleCalendarConfigured, missingGoogleCalendarConfig } from "@/lib/google-calendar";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -58,7 +58,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!googleCalendarConfigured()) {
-    return NextResponse.json({ configured: false, connected: false });
+    return NextResponse.json({
+      configured: false,
+      connected: false,
+      missingConfig: missingGoogleCalendarConfig(),
+    });
   }
 
   const { data, error } = await access.adminClient
