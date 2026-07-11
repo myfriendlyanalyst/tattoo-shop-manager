@@ -17,6 +17,14 @@ export async function hasAccountingAccess(userId: string): Promise<boolean> {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profile?.role === "owner") return true;
+
   const { data: acctUserById } = await supabase
     .from("accounting_users")
     .select("active")
@@ -32,13 +40,5 @@ export async function hasAccountingAccess(userId: string): Promise<boolean> {
         .maybeSingle();
 
   const acctUser = acctUserById ?? acctUserByEmail;
-  if (acctUser?.active === true) return true;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  return profile?.role === "owner" || profile?.role === "admin";
+  return acctUser?.active === true && (!profile || profile.role === "accounting");
 }

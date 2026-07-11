@@ -59,7 +59,7 @@ export async function PATCH(
   const callerProfile = callerProfileById ?? callerProfileByEmail;
 
   const isOwnerRole = callerProfile?.role === "owner";
-  const isSystemAccountingAdmin = callerProfile?.role === "owner" || callerProfile?.role === "admin";
+  const isSystemAccountingAdmin = callerProfile?.role === "owner";
 
   if (!isSystemAccountingAdmin) {
     const { data: callerAcctById } = await adminClient
@@ -77,8 +77,13 @@ export async function PATCH(
           .maybeSingle();
 
     const callerAcct = callerAcctById ?? callerAcctByEmail;
+    const isDedicatedAccountingUser = !callerProfile || callerProfile.role === "accounting";
 
-    if (!callerAcct?.active || !["owner", "admin"].includes(callerAcct.access_level)) {
+    if (
+      !isDedicatedAccountingUser ||
+      !callerAcct?.active ||
+      !["owner", "admin"].includes(callerAcct.access_level)
+    ) {
       return jsonError("Only accounting owners/admins can manage users.", 403);
     }
   }
@@ -156,7 +161,7 @@ export async function DELETE(
         .maybeSingle();
   const callerRole = (callerProfileById ?? callerProfileByEmail)?.role;
   const isOwnerRole = callerRole === "owner";
-  const isSystemAccountingAdmin = callerRole === "owner" || callerRole === "admin";
+  const isSystemAccountingAdmin = callerRole === "owner";
 
   if (!isSystemAccountingAdmin) {
     const { data: callerAcctById } = await adminClient
@@ -172,8 +177,13 @@ export async function DELETE(
           .ilike("email", callerEmail)
           .maybeSingle();
     const callerAcct = callerAcctById ?? callerAcctByEmail;
+    const isDedicatedAccountingUser = !callerRole || callerRole === "accounting";
 
-    if (!callerAcct?.active || !["owner", "admin"].includes(callerAcct.access_level)) {
+    if (
+      !isDedicatedAccountingUser ||
+      !callerAcct?.active ||
+      !["owner", "admin"].includes(callerAcct.access_level)
+    ) {
       return jsonError("Only accounting owners/admins can manage users.", 403);
     }
   }

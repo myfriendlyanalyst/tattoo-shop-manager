@@ -572,8 +572,10 @@ as $$
     exists (
       select 1
       from public.accounting_users au
+      left join public.profiles p on p.id = au.profile_id
       where au.profile_id = auth.uid()
         and au.active = true
+        and coalesce(p.role, 'accounting') = 'accounting'
     )
     or public.current_user_role() = 'owner',
     false
@@ -594,9 +596,11 @@ as $$
     )
     or exists (
       select 1 from public.accounting_users au
+      left join public.profiles p on p.id = au.profile_id
       where au.profile_id = auth.uid()
         and au.active = true
         and au.access_level in ('owner', 'admin')
+        and coalesce(p.role, 'accounting') = 'accounting'
     ),
     false
   )

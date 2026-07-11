@@ -48,7 +48,7 @@ async function canManageAccounting(token: string): Promise<ManageAccountingAcces
         .maybeSingle();
 
   const profile = profileById ?? profileByEmail;
-  if (profile?.role === "owner" || profile?.role === "admin") {
+  if (profile?.role === "owner") {
     return { allowed: true };
   }
 
@@ -67,7 +67,12 @@ async function canManageAccounting(token: string): Promise<ManageAccountingAcces
         .maybeSingle();
 
   const acctUser = acctUserById ?? acctUserByEmail;
-  if (acctUser?.active === true && ["owner", "admin"].includes(acctUser.access_level)) {
+  const isDedicatedAccountingUser = !profile || profile.role === "accounting";
+  if (
+    isDedicatedAccountingUser &&
+    acctUser?.active === true &&
+    ["owner", "admin"].includes(acctUser.access_level)
+  ) {
     return { allowed: true };
   }
 

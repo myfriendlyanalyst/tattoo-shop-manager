@@ -19,8 +19,11 @@ alter table public.accounting_users
   add constraint accounting_users_access_level_check
   check (access_level in ('owner', 'admin'));
 
--- Keep the RLS helper aligned with the app: owner/admin accounting users only
--- can manage accounting users, while active accounting users can access the app.
+-- Keep the RLS helper aligned with the app:
+-- - Operations owner can access and manage Accounting.
+-- - Operations admin does not get Accounting automatically.
+-- - Dedicated accounting users must have profiles.role = 'accounting'
+--   (or no legacy profile row) plus an active accounting_users row.
 create or replace function public.is_accounting_admin()
 returns boolean
 language sql
@@ -35,9 +38,11 @@ as $$
     )
     or exists (
       select 1 from public.accounting_users au
+      left join public.profiles p on p.id = au.profile_id
       where au.profile_id = auth.uid()
         and au.active = true
         and au.access_level in ('admin', 'owner')
+        and coalesce(p.role, 'accounting') = 'accounting'
     ),
     false
   )
@@ -53,8 +58,10 @@ as $$
   select coalesce(
     exists (
       select 1 from public.accounting_users au
+      left join public.profiles p on p.id = au.profile_id
       where au.profile_id = auth.uid()
         and au.active = true
+        and coalesce(p.role, 'accounting') = 'accounting'
     )
     or exists (
       select 1 from public.profiles p

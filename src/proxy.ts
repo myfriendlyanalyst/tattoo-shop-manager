@@ -170,6 +170,8 @@ export async function proxy(request: NextRequest) {
   const profile = profileById ?? profileByEmailResult.data;
   const staffUser = staffByProfileId ?? staffByEmailResult.data;
   const isOperationsUser = ["owner", "admin", "front_desk", "artist"].includes(profile?.role ?? "");
+  const isDedicatedAccountingUser =
+    acctUser?.active === true && (!profile || profile.role === "accounting");
 
   // Force temporary-password users to set a permanent password before access.
   if (acctUser?.must_change_password === true || staffUser?.must_change_password === true) {
@@ -178,7 +180,7 @@ export async function proxy(request: NextRequest) {
 
   // Accounting-only users should not browse the Tattoo Manager app, but
   // regular operations users with accounting access may still use /requests.
-  if (acctUser?.active === true && !isOperationsUser && !pathname.startsWith("/accounting")) {
+  if (isDedicatedAccountingUser && !isOperationsUser && !pathname.startsWith("/accounting")) {
     return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
   }
 
@@ -188,13 +190,14 @@ export async function proxy(request: NextRequest) {
 
   // Accounting access check.
   if (pathname.startsWith("/accounting")) {
-    // Tattoo Manager admins bypass accounting_users entirely for system management.
-    if (profile?.role === "owner" || profile?.role === "admin") {
+    // Tattoo Manager owner can always access Accounting. Admins do not get
+    // Accounting automatically unless they use a dedicated accounting account.
+    if (profile?.role === "owner") {
       return response;
     }
 
-    // All others must have an active accounting_users record.
-    if (acctUser?.active !== true) {
+    // Dedicated accounting users must have an active accounting_users record.
+    if (!isDedicatedAccountingUser) {
       return NextResponse.redirect(operationsUrl("/requests", request));
     }
   }

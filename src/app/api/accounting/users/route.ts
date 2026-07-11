@@ -77,7 +77,7 @@ async function resolveCallerAccess(token: string): Promise<CallerAccess> {
 
   const profile = profileById ?? profileByEmail;
 
-  if (profile?.role === "owner" || profile?.role === "admin") {
+  if (profile?.role === "owner") {
     return { userId, isOwner: profile.role === "owner", error: null };
   }
 
@@ -98,7 +98,12 @@ async function resolveCallerAccess(token: string): Promise<CallerAccess> {
 
   const acctUser = acctUserById ?? acctUserByEmail;
 
-  if (!acctUser?.active || !["owner", "admin"].includes(acctUser.access_level)) {
+  const isDedicatedAccountingUser = !profile || profile.role === "accounting";
+  if (
+    !isDedicatedAccountingUser ||
+    !acctUser?.active ||
+    !["owner", "admin"].includes(acctUser.access_level)
+  ) {
     return {
       error: "Only accounting owners/admins can manage users.",
       status: 403,
