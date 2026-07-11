@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   const { data: staff, error: staffError } = await adminClient
     .from("staff")
-    .select("id, active")
+    .select("id, active, email")
     .eq("id", parsedState.staffId)
     .maybeSingle();
 
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = await exchangeGoogleAuthorizationCode(code);
     await saveGoogleCalendarConnection(adminClient, {
+      fallbackGoogleEmail: staff.email,
       staffId: parsedState.staffId,
       token,
     });

@@ -6,7 +6,10 @@ import {
   configuredBaseUrl,
 } from "@/lib/email-templates/calendar-links";
 
-const calendarScope = "https://www.googleapis.com/auth/calendar.events.owned";
+const calendarScope = [
+  "https://www.googleapis.com/auth/calendar.events.owned",
+  "https://www.googleapis.com/auth/userinfo.email",
+].join(" ");
 const tokenEndpoint = "https://oauth2.googleapis.com/token";
 const calendarApiBase = "https://www.googleapis.com/calendar/v3";
 const studioLocation = "8199 Clairemont Mesa Blvd, Suite L, San Diego, CA 92111";
@@ -53,6 +56,7 @@ type GoogleTokenResponse = {
 type GoogleEventResponse = {
   id?: string;
   error?: {
+    code?: number;
     message?: string;
   };
 };
@@ -229,6 +233,7 @@ async function getGoogleUserEmail(accessToken: string) {
 export async function saveGoogleCalendarConnection(
   adminClient: SupabaseClient,
   input: {
+    fallbackGoogleEmail?: string | null;
     staffId: string;
     token: GoogleTokenResponse;
   },
@@ -245,7 +250,7 @@ export async function saveGoogleCalendarConnection(
   const { error } = await adminClient.from("staff_google_calendar_connections").upsert({
     access_token: input.token.access_token,
     calendar_id: "primary",
-    google_email: googleEmail,
+    google_email: googleEmail || input.fallbackGoogleEmail || null,
     last_error: null,
     refresh_token: input.token.refresh_token,
     scope: input.token.scope ?? calendarScope,
@@ -340,6 +345,10 @@ function googleEventBody(appointment: AppointmentForGoogle) {
   };
 }
 
+function googleEventIdForAppointment(appointmentId: string) {
+  return `oyabun-${appointmentId.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase()}`;
+}
+
 async function googleCalendarRequest(
   connection: GoogleCalendarConnection,
   path: string,
@@ -356,7 +365,9 @@ async function googleCalendarRequest(
   const payload = (await response.json().catch(() => ({}))) as GoogleEventResponse;
 
   if (!response.ok) {
-    throw new Error(payload.error?.message || "Google Calendar request failed.");
+    const error = new Error(payload.error?.message || "Google Calendar request failed.");
+    error.name = String(payload.error?.code ?? response.status);
+    throw error;
   }
 
   return payload;
@@ -431,20 +442,44 @@ export async function syncAppointmentToGoogleCalendar(
       return { status: "deleted" };
     }
 
-    const body = JSON.stringify(googleEventBody(appointment));
-    const event = eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed"
-      ? await googleCalendarRequest(
-          connection,
-          `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
-            eventMap.google_event_id,
-          )}`,
-          { body, method: "PATCH" },
-        )
-      : await googleCalendarRequest(
+    const googleEventId =
+      eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed"
+        ? eventMap.google_event_id
+        : googleEventIdForAppointment(appointment.id);
+    const eventBody = googleEventBody(appointment);
+    const patchBody = JSON.stringify(eventBody);
+    const insertBody = JSON.stringify({ ...eventBody, id: googleEventId });
+    let event: GoogleEventResponse;
+
+    if (eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed") {
+      event = await googleCalendarRequest(
+        connection,
+        `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
+          googleEventId,
+        )}`,
+        { body: patchBody, method: "PATCH" },
+      );
+    } else {
+      try {
+        event = await googleCalendarRequest(
           connection,
           `/calendars/${encodeURIComponent(connection.calendar_id)}/events`,
-          { body, method: "POST" },
+          { body: insertBody, method: "POST" },
         );
+      } catch (insertError) {
+        if (insertError instanceof Error && insertError.name === "409") {
+          event = await googleCalendarRequest(
+            connection,
+            `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
+              googleEventId,
+            )}`,
+            { body: patchBody, method: "PATCH" },
+          );
+        } else {
+          throw insertError;
+        }
+      }
+    }
 
     if (!event.id) throw new Error("Google Calendar did not return an event id.");
 

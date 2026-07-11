@@ -1908,7 +1908,9 @@ export default function CalendarPage() {
                 <>
                   <p className="mt-2 text-[#697178]">
                     {googleCalendarStatus.connected
-                      ? `Connected${googleCalendarStatus.connection?.google_email ? ` as ${googleCalendarStatus.connection.google_email}` : ""}.`
+                      ? googleCalendarStatus.connection?.google_email
+                        ? `Connected as ${googleCalendarStatus.connection.google_email}.`
+                        : "Connected. Reconnect once to show the Google account email."
                       : "Connect your artist account to sync new and updated appointments directly."}
                   </p>
                   {googleCalendarStatus.connection?.last_error ? (
