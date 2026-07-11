@@ -122,6 +122,15 @@ type AppointmentEditForm = {
   end: string;
 };
 
+type GoogleCalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  connection?: {
+    google_email?: string | null;
+    last_error?: string | null;
+  } | null;
+};
+
 const dayStartHour = 12;
 const dayEndHour = 24;
 const pixelsPerHour = 88;
@@ -1102,8 +1111,8 @@ export default function CalendarPage() {
   const [message, setMessage] = useState("");
   const [modalError, setModalError] = useState("");
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
-  const [personalCalendarFeedUrl, setPersonalCalendarFeedUrl] = useState("");
-  const [shopCalendarFeedUrl, setShopCalendarFeedUrl] = useState("");
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [googleCalendarBusy, setGoogleCalendarBusy] = useState(false);
   const isArtistUser = operationsContext?.isArtist === true;
   const timeInterval = useTimeInterval();
 
@@ -1287,43 +1296,17 @@ export default function CalendarPage() {
       setProjects(nextProjects);
       setSchedules(scheduleResult.data ?? []);
       setAppointments(nextAppointments.map(mapAppointment));
-      setPersonalCalendarFeedUrl("");
-      setShopCalendarFeedUrl("");
+      setGoogleCalendarStatus(null);
 
       if (session && context) {
-        const origin = window.location.origin.replace(/\/$/, "");
-
         if (context.isArtist || context.staffRole === "Owner") {
-          const response = await fetch("/api/artist/settings", {
+          const response = await fetch("/api/google-calendar/status", {
             headers: { Authorization: `Bearer ${session.access_token}` },
           });
-          const payload = (await response.json().catch(() => ({}))) as {
-            staff?: { id?: string; calendarFeedToken?: string };
-          };
+          const payload = (await response.json().catch(() => ({}))) as GoogleCalendarStatus;
 
-          if (response.ok && payload.staff?.id && payload.staff.calendarFeedToken) {
-            setPersonalCalendarFeedUrl(
-              `${origin}/api/calendar/appointments/${encodeURIComponent(
-                payload.staff.id,
-              )}/ics?feed=staff&token=${encodeURIComponent(payload.staff.calendarFeedToken)}`,
-            );
-          }
-        }
-
-        if (!context.isArtist) {
-          const response = await fetch("/api/settings/calendar-feed", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          const payload = (await response.json().catch(() => ({}))) as {
-            feed?: { token?: string };
-          };
-
-          if (response.ok && payload.feed?.token) {
-            setShopCalendarFeedUrl(
-              `${origin}/api/calendar/appointments/shop/ics?feed=shop&token=${encodeURIComponent(
-                payload.feed.token,
-              )}`,
-            );
+          if (response.ok) {
+            setGoogleCalendarStatus(payload);
           }
         }
       }
@@ -1333,12 +1316,22 @@ export default function CalendarPage() {
       }
 
       const params = new URLSearchParams(window.location.search);
+      const googleCalendarResult = params.get("googleCalendar") ?? "";
+      const googleCalendarMessage = params.get("googleCalendarMessage") ?? "";
       const prefillProjectId = params.get("projectId") ?? "";
       const prefillArtistId = params.get("artistId") ?? "";
       const prefillProject = nextProjects.find((project) => project.id === prefillProjectId);
       const prefillArtist = nextArtists.find(
         (artist) => artist.id === (prefillProject?.artist_id ?? prefillArtistId),
       );
+
+      if (googleCalendarResult === "connected") {
+        setMessage("Google Calendar connected. New and updated appointments will sync directly.");
+        window.history.replaceState(null, "", "/calendar");
+      } else if (googleCalendarResult === "error") {
+        setError(googleCalendarMessage || "Google Calendar connection failed.");
+        window.history.replaceState(null, "", "/calendar");
+      }
 
       if (prefillProject && prefillArtist) {
         setArtistFilter(prefillArtist.id);
@@ -1362,6 +1355,96 @@ export default function CalendarPage() {
 
   function appointmentsForArtist(artistId: string) {
     return visibleAppointments.filter((appointment) => appointment.artistId === artistId);
+  }
+
+  async function syncGoogleCalendar(appointmentId: string, action: "delete" | "upsert" = "upsert") {
+    const session = await getSafeSession();
+    if (!session) return { status: "skipped" as const };
+
+    const response = await fetch("/api/google-calendar/sync", {
+      body: JSON.stringify({ action, appointmentId }),
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      status?: string;
+    };
+
+    if (!response.ok || payload.status === "failed") {
+      return {
+        error: payload.error || "Google Calendar sync failed.",
+        status: "failed" as const,
+      };
+    }
+
+    return { status: payload.status ?? "skipped" };
+  }
+
+  async function connectGoogleCalendar() {
+    setGoogleCalendarBusy(true);
+    setError("");
+    setMessage("");
+
+    const session = await getSafeSession();
+    if (!session) {
+      setError("Please log in to connect Google Calendar.");
+      setGoogleCalendarBusy(false);
+      return;
+    }
+
+    const response = await fetch("/api/google-calendar/connect", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      method: "POST",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string; url?: string };
+
+    if (!response.ok || !payload.url) {
+      setError(payload.error || "Google Calendar connection could not start.");
+      setGoogleCalendarBusy(false);
+      return;
+    }
+
+    window.location.href = payload.url;
+  }
+
+  async function disconnectGoogleCalendar() {
+    const confirmed = window.confirm("Disconnect Google Calendar for your artist account?");
+    if (!confirmed) return;
+
+    setGoogleCalendarBusy(true);
+    setError("");
+    setMessage("");
+
+    const session = await getSafeSession();
+    if (!session) {
+      setError("Please log in to disconnect Google Calendar.");
+      setGoogleCalendarBusy(false);
+      return;
+    }
+
+    const response = await fetch("/api/google-calendar/status", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      method: "DELETE",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      setError(payload.error || "Google Calendar disconnect failed.");
+      setGoogleCalendarBusy(false);
+      return;
+    }
+
+    setGoogleCalendarStatus((current) => ({
+      configured: current?.configured ?? true,
+      connected: false,
+      connection: null,
+    }));
+    setMessage("Google Calendar disconnected.");
+    setGoogleCalendarBusy(false);
   }
 
   async function saveAppointment(form: NewAppointmentForm) {
@@ -1520,6 +1603,13 @@ export default function CalendarPage() {
       mapAppointment(appointmentResult.data as unknown as AppointmentRow),
     ]);
     let hasDeliveryWarning = false;
+    const googleSyncResult = await syncGoogleCalendar(
+      (appointmentResult.data as unknown as AppointmentRow).id,
+    );
+    if (googleSyncResult.status === "failed") {
+      hasDeliveryWarning = true;
+      setError(`Appointment saved. Google Calendar sync failed: ${googleSyncResult.error}`);
+    }
     const emailResult = await sendAppointmentConfirmation(
       (appointmentResult.data as unknown as AppointmentRow).id,
     );
@@ -1550,7 +1640,7 @@ export default function CalendarPage() {
       setMessage(
         `Appointment saved. Confirmation email sent${
           reminderResult.status === "scheduled" ? " and reminder scheduled" : ""
-        }.`,
+        }${googleSyncResult.status === "synced" ? " and Google Calendar synced" : ""}.`,
       );
     }
     setDraftAppointment(null);
@@ -1601,6 +1691,13 @@ export default function CalendarPage() {
         ? current.filter((item) => item.id !== appointment.id)
         : current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
     );
+    const googleSyncResult = await syncGoogleCalendar(appointment.id);
+    if (googleSyncResult.status === "failed") {
+      setModalError(`Appointment updated. Google Calendar sync failed: ${googleSyncResult.error}`);
+      setSelectedAppointment(updatedAppointment.status === "cancelled" ? null : updatedAppointment);
+      setSaving(false);
+      return;
+    }
     if (timeChanged && updatedAppointment.status !== "cancelled") {
       const emailResult = await sendAppointmentReschedule(appointment.id, {
         oldStartsAt,
@@ -1642,7 +1739,9 @@ export default function CalendarPage() {
     setMessage(
       updatedAppointment.status === "cancelled"
         ? "Appointment marked cancelled and reminder cancelled."
-        : `Appointment updated${timeChanged ? ". Reschedule email sent" : ""}.`,
+        : `Appointment updated${timeChanged ? ". Reschedule email sent" : ""}${
+            googleSyncResult.status === "synced" ? ". Google Calendar synced" : ""
+          }.`,
     );
     setSaving(false);
   }
@@ -1676,6 +1775,7 @@ export default function CalendarPage() {
 
     const cancelledAppointment = mapAppointment(result.data as unknown as AppointmentRow);
     setAppointments((current) => current.filter((item) => item.id !== cancelledAppointment.id));
+    const googleSyncResult = await syncGoogleCalendar(appointment.id);
     await cancelAppointmentReminder(appointment.id);
     const emailResult = await sendAppointmentCancellation(appointment.id);
 
@@ -1693,7 +1793,11 @@ export default function CalendarPage() {
     }
 
     setSelectedAppointment(null);
-    setMessage("Appointment cancelled. Cancellation email sent.");
+    setMessage(
+      `Appointment cancelled. Cancellation email sent${
+        googleSyncResult.status === "deleted" ? " and Google Calendar updated" : ""
+      }.`,
+    );
     setSaving(false);
   }
 
@@ -1712,6 +1816,7 @@ export default function CalendarPage() {
     setMessage("");
 
     await cancelAppointmentReminder(appointment.id);
+    const googleSyncResult = await syncGoogleCalendar(appointment.id, "delete");
     const result = await supabase.from("appointments").delete().eq("id", appointment.id);
 
     if (result.error) {
@@ -1722,18 +1827,12 @@ export default function CalendarPage() {
 
     setAppointments((current) => current.filter((item) => item.id !== appointment.id));
     setSelectedAppointment(null);
-    setMessage("Appointment deleted. No email sent.");
+    setMessage(
+      `Appointment deleted. No email sent${
+        googleSyncResult.status === "deleted" ? ". Google Calendar event removed" : ""
+      }.`,
+    );
     setSaving(false);
-  }
-
-  async function copyCalendarFeed(url: string, label: string) {
-    if (!url) {
-      setMessage("Calendar feed is not ready. Run docs/artist_calendar_feed_migration.sql in Supabase SQL Editor.");
-      return;
-    }
-
-    await navigator.clipboard.writeText(url);
-    setMessage(`${label} copied.`);
   }
 
   return (
@@ -1743,32 +1842,8 @@ export default function CalendarPage() {
       wide
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          {isArtistUser ? (
-            <button
-              className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
-              onClick={() => copyCalendarFeed(personalCalendarFeedUrl, "Your calendar URL")}
-              type="button"
-            >
-              Copy my calendar URL
-            </button>
-          ) : (
+          {!isArtistUser ? (
             <>
-              <button
-                className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
-                onClick={() => copyCalendarFeed(shopCalendarFeedUrl, "Shop calendar URL")}
-                type="button"
-              >
-                Copy shop calendar URL
-              </button>
-              {personalCalendarFeedUrl ? (
-                <button
-                  className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold hover:bg-[#f7f2e9]"
-                  onClick={() => copyCalendarFeed(personalCalendarFeedUrl, "Your calendar URL")}
-                  type="button"
-                >
-                  Copy my calendar URL
-                </button>
-              ) : null}
               <button
                 className="h-10 rounded-md bg-[#9f5c3c] px-4 text-sm font-semibold text-white hover:bg-[#884a2f] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={artists.length === 0}
@@ -1792,7 +1867,7 @@ export default function CalendarPage() {
                 New appointment
               </button>
             </>
-          )}
+          ) : null}
         </div>
       }
     >
@@ -1819,17 +1894,36 @@ export default function CalendarPage() {
           <aside className="space-y-6 xl:min-w-80">
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 text-sm shadow-sm">
               <h3 className="text-base font-semibold">Google Calendar</h3>
-              <p className="mt-2 text-[#697178]">
-                Copy a calendar URL, then add it in Google Calendar from Other calendars &gt; From URL.
-              </p>
-              <a
-                className="mt-3 inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#f7f2e9]"
-                href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl"
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open Google Calendar
-              </a>
+              {googleCalendarStatus?.configured ? (
+                <>
+                  <p className="mt-2 text-[#697178]">
+                    {googleCalendarStatus.connected
+                      ? `Connected${googleCalendarStatus.connection?.google_email ? ` as ${googleCalendarStatus.connection.google_email}` : ""}.`
+                      : "Connect your artist account to sync new and updated appointments directly."}
+                  </p>
+                  {googleCalendarStatus.connection?.last_error ? (
+                    <p className="mt-2 rounded-md bg-[#f3e1e1] px-3 py-2 text-xs font-semibold text-[#8a3030]">
+                      {googleCalendarStatus.connection.last_error}
+                    </p>
+                  ) : null}
+                  <button
+                    className="mt-3 h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#f7f2e9] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={googleCalendarBusy}
+                    onClick={
+                      googleCalendarStatus.connected
+                        ? disconnectGoogleCalendar
+                        : connectGoogleCalendar
+                    }
+                    type="button"
+                  >
+                    {googleCalendarStatus.connected ? "Disconnect" : "Connect Google Calendar"}
+                  </button>
+                </>
+              ) : (
+                <p className="mt-2 text-[#697178]">
+                  Google Calendar direct sync is not configured yet.
+                </p>
+              )}
             </div>
 
             <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">

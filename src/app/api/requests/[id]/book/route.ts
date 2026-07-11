@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { syncAppointmentToGoogleCalendar } from "@/lib/google-calendar";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -410,6 +411,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (appointmentError) return databaseError(appointmentError.message);
     appointment = appointmentData;
+    await syncAppointmentToGoogleCalendar(access.adminClient, appointment.id);
   }
 
   if (depositAmount > 0) {
