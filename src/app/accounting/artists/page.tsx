@@ -64,6 +64,103 @@ function paymentMethodClasses(method: string | null) {
   );
 }
 
+function payoutTotal(summary: ArtistSummary) {
+  return summary.payout_rate === null ? null : summary.total * (summary.payout_rate / 100);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
+  const payout = payoutTotal(summary);
+  const rows = summary.entries
+    .map(
+      (entry) => `
+        <tr>
+          <td>${formatDate(entry.entered_at)}</td>
+          <td>${escapeHtml(entry.customer_name ?? "-")}</td>
+          <td>${escapeHtml(entry.project_subject ?? "-")}</td>
+          <td style="text-align:right">${money(Number(entry.tattoo_amount))}</td>
+          <td style="text-align:right">${money(Number(entry.tip_amount))}</td>
+          <td style="text-align:right"><strong>${money(Number(entry.total_amount))}</strong></td>
+        </tr>
+      `,
+    )
+    .join("");
+  const popup = window.open("", "_blank", "width=960,height=720");
+  if (!popup) return;
+
+  popup.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>Artist Summary - ${escapeHtml(summary.artist_name)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 32px; color: #1f2428; }
+          h1 { margin: 0 0 6px; font-size: 24px; }
+          .meta { color: #697178; font-size: 13px; margin-bottom: 22px; }
+          .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0 22px; }
+          .box { border: 1px solid #d9d3c7; border-radius: 6px; padding: 12px; }
+          .label { color: #697178; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+          .value { margin-top: 6px; font-size: 18px; font-weight: 900; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #f7f2e9; color: #697178; text-align: left; text-transform: uppercase; font-size: 10px; padding: 8px; }
+          td { border-bottom: 1px solid #eee8dd; padding: 8px; }
+          tfoot td { border-top: 2px solid #1f2428; border-bottom: 0; font-weight: 900; }
+          .footer { margin-top: 18px; color: #697178; font-size: 11px; }
+          @media print { body { margin: 18px; } }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(summary.artist_name)}</h1>
+        <div class="meta">${escapeHtml(periodLabel)} · ${summary.entry_count} entr${summary.entry_count === 1 ? "y" : "ies"}</div>
+        <div class="totals">
+          <div class="box"><div class="label">Tattoo</div><div class="value">${money(summary.tattoo_total)}</div></div>
+          <div class="box"><div class="label">Tips</div><div class="value">${money(summary.tip_total)}</div></div>
+          <div class="box"><div class="label">Gross Total</div><div class="value">${money(summary.total)}</div></div>
+          <div class="box"><div class="label">Payout Total</div><div class="value">${
+            payout === null ? "Rate not set" : money(payout)
+          }</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Client</th>
+              <th>Project</th>
+              <th style="text-align:right">Tattoo</th>
+              <th style="text-align:right">Tip</th>
+              <th style="text-align:right">Total</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3">Subtotal</td>
+              <td style="text-align:right">${money(summary.tattoo_total)}</td>
+              <td style="text-align:right">${money(summary.tip_total)}</td>
+              <td style="text-align:right">${money(summary.total)}</td>
+            </tr>
+            <tr>
+              <td colspan="5">Payout total${summary.payout_rate !== null ? ` (${summary.payout_rate}% rate)` : ""}</td>
+              <td style="text-align:right">${payout === null ? "Rate not set" : money(payout)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="footer">Printed ${new Date().toLocaleString("en-US")} · Oyabun Accounting</div>
+        <script>window.onload = function() { window.print(); };<\/script>
+      </body>
+    </html>
+  `);
+  popup.document.close();
+}
+
 const entrySelect =
   "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method";
 
@@ -172,6 +269,7 @@ export default function ArtistsPage() {
     () => summaries.reduce((s, a) => s + a.total, 0),
     [summaries],
   );
+  const periodLabel = `${dateFrom} - ${dateTo}`;
 
   function setPreset(monthsAgo: number, endToday = false) {
     const start = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
@@ -339,6 +437,7 @@ export default function ArtistsPage() {
                 const editVal =
                   rateEdit[artist.artist_id] ??
                   (artist.payout_rate !== null ? String(artist.payout_rate) : "");
+                const artistPayoutTotal = payoutTotal(artist);
 
                 return (
                   <div
@@ -386,6 +485,14 @@ export default function ArtistsPage() {
                             </p>
                             <p className="text-xl font-black text-[#236c8f]">
                               {money(artist.total)}
+                            </p>
+                          </div>
+                          <div className="hidden lg:block">
+                            <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
+                              Payout
+                            </p>
+                            <p className="font-black text-[#1f2428]">
+                              {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
                             </p>
                           </div>
                           <span className="text-sm text-[#697178]">{expanded ? "Hide" : "Show"}</span>
@@ -464,6 +571,33 @@ export default function ArtistsPage() {
                               </tr>
                             </tfoot>
                           </table>
+                        </div>
+
+                        <div className="flex flex-col gap-3 border-t border-[#e5dfd4] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="grid gap-1 text-sm">
+                            <p>
+                              <span className="font-semibold text-[#697178]">Gross total:</span>{" "}
+                              <span className="font-bold text-[#236c8f]">{money(artist.total)}</span>
+                            </p>
+                            <p>
+                              <span className="font-semibold text-[#697178]">Payout total:</span>{" "}
+                              <span className="font-black text-[#1f2428]">
+                                {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
+                              </span>
+                              {artist.payout_rate !== null ? (
+                                <span className="ml-2 text-xs font-semibold text-[#697178]">
+                                  {artist.payout_rate}% rate
+                                </span>
+                              ) : null}
+                            </p>
+                          </div>
+                          <button
+                            className="h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                            onClick={() => printArtistSummary(artist, periodLabel)}
+                            type="button"
+                          >
+                            Print summary
+                          </button>
                         </div>
 
                         {/* Payout rate editor */}

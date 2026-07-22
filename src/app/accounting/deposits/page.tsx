@@ -72,8 +72,8 @@ function depositStatusClasses(deposit: DepositRecord) {
   const disposition = depositDisposition(deposit);
   return (
     {
-      available: "bg-[#f1eadc] text-[#775f36]",
-      applied: "bg-[#e4f1df] text-[#476b33]",
+      available: "bg-[#edf7ed] text-[#5f8f4f]",
+      applied: "bg-[#d92d20] text-white",
       forfeited: "bg-[#e8eef7] text-[#236c8f]",
       refunded: "bg-[#f7e7e7] text-[#8a3030]",
     }[disposition] ?? "bg-[#eee8dd] text-[#4d555c]"
@@ -385,9 +385,9 @@ export default function DepositsPage() {
                   <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                     <tr>
                       <th className="px-5 py-3">Received</th>
+                      <th className="px-5 py-3">Artist</th>
                       <th className="px-5 py-3">Customer</th>
                       <th className="px-5 py-3">Project</th>
-                      <th className="px-5 py-3">Artist</th>
                       <th className="px-5 py-3 text-right">Amount</th>
                       <th className="px-5 py-3">Payment</th>
                       <th className="px-5 py-3">Status</th>
@@ -404,13 +404,13 @@ export default function DepositsPage() {
                           <td className="px-5 py-3 text-xs text-[#4d555c]">
                             {formatDate(deposit.received_at)}
                           </td>
+                          <td className="px-5 py-3">{artist?.display_name ?? "-"}</td>
                           <td className="px-5 py-3 font-semibold">
                             {customer?.name ?? "-"}
                           </td>
                           <td className="px-5 py-3 text-[#697178]">
                             {project?.subject ?? "-"}
                           </td>
-                          <td className="px-5 py-3">{artist?.display_name ?? "-"}</td>
                           <td className="px-5 py-3 text-right font-bold text-[#236c8f]">
                             {money(Number(deposit.amount))}
                           </td>
