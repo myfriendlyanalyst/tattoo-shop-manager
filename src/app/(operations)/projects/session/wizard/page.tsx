@@ -1499,13 +1499,7 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Review</p>
                 <h4 className="mt-1 text-xl font-semibold">Check before saving</h4>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                  <p className="text-xs font-bold uppercase text-[#697178]">Client</p>
-                  <p className="mt-1 font-semibold">
-                    {kind === "walk_in" ? walkInForm.customerName : relatedOne(selectedProject?.customer ?? null)?.name}
-                  </p>
-                </div>
+              <div className="mt-4 grid gap-3">
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                   <p className="text-xs font-bold uppercase text-[#697178]">Project</p>
                   <p className="mt-1 font-semibold">

@@ -17,6 +17,11 @@ type StaffRecord = {
   role: string;
 };
 
+type ArtistFilterOption = {
+  value: string;
+  label: string;
+};
+
 type StaffPermission = {
   staff_id: string;
   permission_key: string;
@@ -213,6 +218,20 @@ function effectiveArtistId(request: RequestRecord, artists: StaffRecord[]) {
         (request.requested_artist_label?.trim().toLowerCase() ?? ""),
     )?.id ?? ""
   );
+}
+
+function artistMatchesFilter(request: RequestRecord, artistFilter: string) {
+  if (artistFilter === "all") return true;
+  if (artistFilter === "unassigned") return !request.artist_id;
+  if (artistFilter.startsWith("label:")) {
+    return (
+      !request.artist_id &&
+      (request.requested_artist_label?.trim().toLowerCase() ?? "") ===
+        artistFilter.slice("label:".length).toLowerCase()
+    );
+  }
+
+  return request.artist_id === artistFilter;
 }
 
 function requestNameFromParts(clientName: string, placement: string) {
@@ -807,12 +826,44 @@ export default function RequestsPage() {
         statusFilter === "all"
           ? queueFilter === "closed" || request.status !== "spam"
           : request.status === statusFilter;
-      const artistMatches = artistFilter === "all" || request.artist_id === artistFilter;
+      const artistMatches = artistMatchesFilter(request, artistFilter);
       const queueMatches = matchesQueueFilter(request, requestMessageList, queueFilter);
 
       return statusMatches && artistMatches && queueMatches;
     });
   }, [artistFilter, messagesByRequestId, queueFilter, requests, statusFilter]);
+
+  const artistFilterOptions = useMemo<ArtistFilterOption[]>(() => {
+    const registeredArtistNames = new Set(
+      artists.map((artist) => artist.display_name.trim().toLowerCase()),
+    );
+    const requestedLabels = new Map<string, string>();
+    let hasUnassignedRequests = false;
+
+    for (const request of requests) {
+      if (!request.artist_id) {
+        hasUnassignedRequests = true;
+      }
+
+      const label = request.requested_artist_label?.trim();
+      if (
+        label &&
+        !isAnyAvailableLabel(label) &&
+        !registeredArtistNames.has(label.toLowerCase())
+      ) {
+        requestedLabels.set(label.toLowerCase(), label);
+      }
+    }
+
+    return [
+      ...artists.map((artist) => ({ label: artist.display_name, value: artist.id })),
+      ...Array.from(requestedLabels.values()).map((label) => ({
+        label: `${label} (requested)`,
+        value: `label:${label}`,
+      })),
+      ...(hasUnassignedRequests ? [{ label: "Unassigned / any available", value: "unassigned" }] : []),
+    ];
+  }, [artists, requests]);
 
   const queueSummary = useMemo(() => {
     const summary = {
@@ -1544,9 +1595,9 @@ export default function RequestsPage() {
                     value={artistFilter}
                   >
                     <option value="all">All artists</option>
-                    {artists.map((artist) => (
-                      <option key={artist.id} value={artist.id}>
-                        {artist.display_name}
+                    {artistFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
