@@ -377,6 +377,16 @@ function tattooTimingLabel(value: string | null) {
   return tattooTimingOptions.find((option) => option.value === (value ?? ""))?.label ?? value ?? "-";
 }
 
+function requestArtistLabel(request: RequestRecord) {
+  const assignedArtist = relatedOne(request.artist)?.display_name?.trim();
+  if (assignedArtist) return assignedArtist;
+
+  const requestedLabel = request.requested_artist_label?.trim();
+  if (requestedLabel) return requestedLabel;
+
+  return "Any available";
+}
+
 function hasClientReassignmentRequest(request: RequestRecord, messages: RequestMessage[]) {
   return (
     request.status === "new" &&
@@ -1607,7 +1617,6 @@ export default function RequestsPage() {
 
               <div className="divide-y divide-[#eee8dd] md:hidden">
                 {filteredRequests.map((request) => {
-                  const artist = relatedOne(request.artist);
                   const isReassignment = hasClientReassignmentRequest(
                     request,
                     messagesByRequestId.get(request.id) ?? [],
@@ -1662,7 +1671,7 @@ export default function RequestsPage() {
                         <p>{request.email || "-"}</p>
                         <p>{request.phone || "-"}</p>
                         <p className="font-semibold text-[#4d555c]">
-                          {artist?.display_name ?? "Any available"}
+                          {requestArtistLabel(request)}
                         </p>
                         <p>
                           Last touch:{" "}
@@ -1690,7 +1699,6 @@ export default function RequestsPage() {
                   </thead>
                   <tbody className="divide-y divide-[#eee8dd]">
                     {filteredRequests.map((request) => {
-                      const artist = relatedOne(request.artist);
                       const isReassignment = hasClientReassignmentRequest(
                         request,
                         messagesByRequestId.get(request.id) ?? [],
@@ -1730,7 +1738,7 @@ export default function RequestsPage() {
                             <p className="mt-1">{request.phone || "-"}</p>
                           </td>
                           <td className="px-4 py-4 font-semibold">
-                            {artist?.display_name ?? "Any available"}
+                            {requestArtistLabel(request)}
                           </td>
                           <td className="px-4 py-4">
                             <span
