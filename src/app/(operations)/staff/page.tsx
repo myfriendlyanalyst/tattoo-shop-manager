@@ -38,6 +38,16 @@ type StaffPermission = {
   enabled: boolean;
 };
 
+type GoogleCalendarStaffStatus = {
+  staffId: string;
+  connected: boolean;
+  googleEmail: string | null;
+  calendarId: string | null;
+  connectedAt: string | null;
+  updatedAt: string | null;
+  lastError: string | null;
+};
+
 type StaffForm = {
   displayName: string;
   legalName: string;
@@ -119,6 +129,16 @@ function displayDate(value: string | null) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function displayDateTime(value: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function normalizeTime(value: string | null) {
   return value ? value.slice(0, 5) : "";
 }
@@ -155,6 +175,18 @@ function errorMessage(message: string) {
     return `${message}. 현재 로그인 계정이 Supabase에서 owner/admin 직원으로 연결되어 있어야 저장할 수 있습니다.`;
   }
   return message;
+}
+
+function googleCalendarStatusClasses(status: GoogleCalendarStaffStatus | undefined) {
+  if (status?.lastError) return "bg-[#f3e1e1] text-[#8a3030]";
+  if (status?.connected) return "bg-[#e4f1df] text-[#476b33]";
+  return "bg-[#eee8dd] text-[#4d555c]";
+}
+
+function googleCalendarStatusLabel(status: GoogleCalendarStaffStatus | undefined) {
+  if (status?.lastError) return "Error";
+  if (status?.connected) return "Connected";
+  return "Not connected";
 }
 
 function ManageStaffUserModal({
@@ -432,6 +464,10 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [schedules, setSchedules] = useState<StaffSchedule[]>([]);
   const [staffPermissions, setStaffPermissions] = useState<StaffPermission[]>([]);
+  const [googleCalendarStatuses, setGoogleCalendarStatuses] = useState<
+    Record<string, GoogleCalendarStaffStatus>
+  >({});
+  const [googleCalendarStatusError, setGoogleCalendarStatusError] = useState("");
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [staffDetailOpen, setStaffDetailOpen] = useState(false);
   const [form, setForm] = useState<StaffForm | null>(null);
@@ -461,6 +497,9 @@ export default function StaffPage() {
         setError("Please log in to view staff records.");
         return;
       }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
 
       const [staffResult, scheduleResult, permissionResult] = await Promise.all([
         supabase
@@ -505,6 +544,33 @@ export default function StaffPage() {
       setStaff(nextStaff);
       setSchedules(nextSchedules);
       setStaffPermissions(nextPermissions);
+
+      if (accessToken) {
+        const statusResponse = await fetch("/api/google-calendar/admin-status", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          method: "GET",
+        });
+        const statusPayload = (await statusResponse.json().catch(() => ({}))) as {
+          error?: string;
+          statuses?: GoogleCalendarStaffStatus[];
+        };
+
+        if (!statusResponse.ok) {
+          setGoogleCalendarStatusError(
+            statusPayload.error ?? "Google Calendar connection status could not be loaded.",
+          );
+        } else {
+          setGoogleCalendarStatuses(
+            Object.fromEntries(
+              (statusPayload.statuses ?? []).map((status) => [status.staffId, status]),
+            ),
+          );
+          setGoogleCalendarStatusError("");
+        }
+      } else {
+        setGoogleCalendarStatusError("Google Calendar connection status requires login.");
+      }
+
       setSelectedStaffId(nextSelectedId);
       setForm(
         nextStaff[0]
@@ -892,8 +958,13 @@ export default function StaffPage() {
             <div>
               <h3 className="text-base font-semibold">Team</h3>
               <p className="mt-1 text-sm text-[#697178]">
-                Staff records are loaded from Supabase.
+                Staff records are loaded from Supabase. Google Calendar status is read-only.
               </p>
+              {googleCalendarStatusError ? (
+                <p className="mt-2 rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
+                  {googleCalendarStatusError}
+                </p>
+              ) : null}
             </div>
             <select className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm">
               <option>All roles</option>
@@ -905,85 +976,55 @@ export default function StaffPage() {
           </div>
 
           <div className="divide-y divide-[#eee8dd] md:hidden">
-            {staff.map((person) => (
-              <button
-                key={person.id}
-                className="block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9]"
-                onClick={() => selectStaff(person)}
-                type="button"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold">{person.display_name}</p>
-                    {person.legal_name ? (
-                      <p className="mt-1 truncate text-sm text-[#697178]">
-                        {person.legal_name}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
-                  >
-                    {person.role}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-1 text-sm text-[#4d555c]">
-                  <p>{person.email || "-"}</p>
-                  <p>{person.phone || "-"}</p>
-                  <div className="flex items-center justify-between gap-3 pt-1">
-                    <span>Started {displayDate(person.start_date)}</span>
-                    <span
-                      className={`rounded-md px-2 py-1 text-xs font-semibold ${
-                        person.active
-                          ? "bg-[#e4f1df] text-[#476b33]"
-                          : "bg-[#f3e1e1] text-[#8a3030]"
-                      }`}
-                    >
-                      {person.active ? "Active" : "Inactive"}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+            {staff.map((person) => {
+              const googleStatus = googleCalendarStatuses[person.id];
 
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[780px] text-left text-sm">
-              <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Staff</th>
-                  <th className="px-4 py-3 font-semibold">Role</th>
-                  <th className="px-4 py-3 font-semibold">Contact</th>
-                  <th className="px-4 py-3 font-semibold">Start</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#eee8dd]">
-                {staff.map((person) => (
-                  <tr
-                    key={person.id}
-                    className="cursor-pointer hover:bg-[#f7f2e9]"
-                    onClick={() => selectStaff(person)}
-                  >
-                    <td className="px-4 py-4">
+              return (
+                <button
+                  key={person.id}
+                  className="block w-full px-4 py-4 text-left transition hover:bg-[#f7f2e9]"
+                  onClick={() => selectStaff(person)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
                       <p className="font-semibold">{person.display_name}</p>
                       {person.legal_name ? (
-                        <p className="mt-1 text-[#697178]">{person.legal_name}</p>
+                        <p className="mt-1 truncate text-sm text-[#697178]">
+                          {person.legal_name}
+                        </p>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-4">
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
+                    >
+                      {person.role}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-1 text-sm text-[#4d555c]">
+                    <p>{person.email || "-"}</p>
+                    <p>{person.phone || "-"}</p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
                       <span
-                        className={`rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
+                        className={`rounded-md px-2 py-1 text-xs font-semibold ${googleCalendarStatusClasses(
+                          googleStatus,
+                        )}`}
                       >
-                        {person.role}
+                        Google Calendar: {googleCalendarStatusLabel(googleStatus)}
                       </span>
-                    </td>
-                    <td className="px-4 py-4 text-[#4d555c]">
-                      <p>{person.email || "-"}</p>
-                      <p className="mt-1">{person.phone || "-"}</p>
-                    </td>
-                    <td className="px-4 py-4 text-[#4d555c]">{displayDate(person.start_date)}</td>
-                    <td className="px-4 py-4">
+                      {googleStatus?.googleEmail ? (
+                        <span className="truncate text-xs text-[#697178]">
+                          {googleStatus.googleEmail}
+                        </span>
+                      ) : null}
+                    </div>
+                    {googleStatus?.lastError ? (
+                      <p className="text-xs font-semibold text-[#8a3030]">
+                        {googleStatus.lastError}
+                      </p>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <span>Started {displayDate(person.start_date)}</span>
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-semibold ${
                           person.active
@@ -993,9 +1034,89 @@ export default function StaffPage() {
                       >
                         {person.active ? "Active" : "Inactive"}
                       </span>
-                    </td>
-                  </tr>
-                ))}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="bg-[#f7f2e9] text-xs uppercase text-[#6f7275]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Staff</th>
+                  <th className="px-4 py-3 font-semibold">Role</th>
+                  <th className="px-4 py-3 font-semibold">Contact</th>
+                  <th className="px-4 py-3 font-semibold">Google Calendar</th>
+                  <th className="px-4 py-3 font-semibold">Start</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#eee8dd]">
+                {staff.map((person) => {
+                  const googleStatus = googleCalendarStatuses[person.id];
+
+                  return (
+                    <tr
+                      key={person.id}
+                      className="cursor-pointer hover:bg-[#f7f2e9]"
+                      onClick={() => selectStaff(person)}
+                    >
+                      <td className="px-4 py-4">
+                        <p className="font-semibold">{person.display_name}</p>
+                        {person.legal_name ? (
+                          <p className="mt-1 text-[#697178]">{person.legal_name}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`rounded-md px-2 py-1 text-xs font-semibold ${roleClasses(person.role)}`}
+                        >
+                          {person.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-[#4d555c]">
+                        <p>{person.email || "-"}</p>
+                        <p className="mt-1">{person.phone || "-"}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`rounded-md px-2 py-1 text-xs font-semibold ${googleCalendarStatusClasses(
+                            googleStatus,
+                          )}`}
+                        >
+                          {googleCalendarStatusLabel(googleStatus)}
+                        </span>
+                        {googleStatus?.googleEmail ? (
+                          <p className="mt-2 text-[#4d555c]">{googleStatus.googleEmail}</p>
+                        ) : null}
+                        {googleStatus?.updatedAt ? (
+                          <p className="mt-1 text-xs text-[#697178]">
+                            Updated {displayDateTime(googleStatus.updatedAt)}
+                          </p>
+                        ) : null}
+                        {googleStatus?.lastError ? (
+                          <p className="mt-1 max-w-xs text-xs font-semibold text-[#8a3030]">
+                            {googleStatus.lastError}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-4 text-[#4d555c]">{displayDate(person.start_date)}</td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`rounded-md px-2 py-1 text-xs font-semibold ${
+                            person.active
+                              ? "bg-[#e4f1df] text-[#476b33]"
+                              : "bg-[#f3e1e1] text-[#8a3030]"
+                          }`}
+                        >
+                          {person.active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
