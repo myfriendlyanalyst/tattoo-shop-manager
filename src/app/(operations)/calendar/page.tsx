@@ -580,6 +580,7 @@ function AppointmentDetailModal({
   onClose,
   onCancel,
   onDelete,
+  onRetryGoogleSync,
   onSave,
 }: {
   appointment: Appointment;
@@ -588,6 +589,7 @@ function AppointmentDetailModal({
   onClose: () => void;
   onCancel: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
+  onRetryGoogleSync: (appointment: Appointment) => void;
   onSave: (appointment: Appointment, form: AppointmentEditForm) => void;
 }) {
   const [form, setForm] = useState<AppointmentEditForm>({
@@ -703,7 +705,7 @@ function AppointmentDetailModal({
             />
           </label>
 
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
             <button
               className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={saving}
@@ -719,6 +721,14 @@ function AppointmentDetailModal({
               type="button"
             >
               {appointment.status === "cancelled" ? "Cancelled" : "Cancel appointment"}
+            </button>
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving}
+              onClick={() => onRetryGoogleSync(appointment)}
+              type="button"
+            >
+              Sync Google
             </button>
             <button
               className="h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
@@ -1845,6 +1855,28 @@ export default function CalendarPage() {
     setSaving(false);
   }
 
+  async function retryGoogleCalendarSync(appointment: Appointment) {
+    setSaving(true);
+    setModalError("");
+    setError("");
+    setMessage("");
+
+    const googleSyncResult = await syncGoogleCalendar(appointment.id);
+
+    if (googleSyncResult.status === "failed") {
+      setModalError(`Google Calendar sync failed: ${googleSyncResult.error}`);
+      setSaving(false);
+      return;
+    }
+
+    setMessage(
+      googleSyncResult.status === "synced"
+        ? "Google Calendar synced."
+        : "Google Calendar sync skipped. Connect this artist's Google Calendar first.",
+    );
+    setSaving(false);
+  }
+
   return (
     <AppPage
       eyebrow="Appointments"
@@ -2380,6 +2412,7 @@ export default function CalendarPage() {
             setModalError("");
           }}
           onDelete={deleteAppointment}
+          onRetryGoogleSync={retryGoogleCalendarSync}
           onSave={updateAppointment}
           saving={saving}
         />
