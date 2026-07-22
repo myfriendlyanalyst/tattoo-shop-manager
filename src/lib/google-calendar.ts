@@ -346,7 +346,7 @@ function googleEventBody(appointment: AppointmentForGoogle) {
 }
 
 function googleEventIdForAppointment(appointmentId: string) {
-  return `oyabun-${appointmentId.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase()}`;
+  return `0${appointmentId.replace(/[^a-fA-F0-9]/g, "").toLowerCase()}`;
 }
 
 async function googleCalendarRequest(
