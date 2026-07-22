@@ -155,6 +155,27 @@ function money(value: number | null | undefined) {
   }).format(value ?? 0);
 }
 
+function paymentBreakdown(grid: PaymentGrid, type: "tattoo" | "tip") {
+  const rows =
+    type === "tattoo"
+      ? [
+          ["Cash", Number(grid.tattooCash || 0)],
+          ["Card", Number(grid.tattooCreditCard || 0)],
+          ["App", Number(grid.tattooApp || 0)],
+        ]
+      : [
+          ["Cash", Number(grid.tipCash || 0)],
+          ["Card", Number(grid.tipCreditCard || 0)],
+          ["App", Number(grid.tipApp || 0)],
+        ];
+
+  const paidRows = rows.filter(([, amount]) => Number(amount) > 0);
+
+  if (paidRows.length === 0) return money(0);
+
+  return paidRows.map(([label, amount]) => `${label} ${money(Number(amount))}`).join(" / ");
+}
+
 function displayDateTime(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-US", {
@@ -1519,6 +1540,16 @@ export default function SessionWizardPage() {
                   <p className="mt-1 font-semibold">
                     {money(Number(pendingForm.tattooAmount || 0))} / {money(Number(pendingForm.tipAmount || 0))}
                   </p>
+                  <div className="mt-2 grid gap-1 text-sm text-[#4d555c]">
+                    <p>
+                      <span className="font-semibold text-[#697178]">Tattoo:</span>{" "}
+                      {paymentBreakdown(pendingForm.paymentGrid, "tattoo")}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-[#697178]">Tip:</span>{" "}
+                      {paymentBreakdown(pendingForm.paymentGrid, "tip")}
+                    </p>
+                  </div>
                 </div>
               </div>
               {kind === "existing" ? (

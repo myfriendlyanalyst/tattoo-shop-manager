@@ -191,21 +191,35 @@ export default function SessionResultPage() {
           html,
           body {
             width: 72mm !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: white !important;
             color: #000 !important;
             font-size: 10px !important;
           }
 
+          body * {
+            visibility: hidden !important;
+          }
+
+          .receipt-sheet,
+          .receipt-sheet * {
+            visibility: visible !important;
+          }
+
           aside,
           header,
+          nav,
           .print\\:hidden {
             display: none !important;
           }
 
           main,
-          main > div {
+          main > div,
+          main > div > div {
             display: block !important;
-            width: 64mm !important;
+            width: auto !important;
             min-height: auto !important;
             padding: 0 !important;
             margin: 0 !important;
@@ -213,14 +227,28 @@ export default function SessionResultPage() {
           }
 
           .receipt-sheet {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
             width: 64mm !important;
             max-width: 64mm !important;
             margin: 0 !important;
             padding: 0 !important;
             border: 0 !important;
+            background: white !important;
             box-shadow: none !important;
+            color: #000 !important;
             font-size: 10px !important;
             line-height: 1.25 !important;
+            transform: none !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
+
+          .receipt-sheet .text-\\[\\#476b33\\],
+          .receipt-sheet .text-\\[\\#697178\\],
+          .receipt-sheet .text-\\[\\#1f2428\\] {
+            color: #000 !important;
           }
 
           .receipt-header {
