@@ -41,8 +41,13 @@ function relatedOne<T>(value: Relation<T>) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-function money(value: number | null | undefined) {
-  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value ?? 0);
+function receiptMoney(value: number | null | undefined) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    style: "currency",
+  }).format(value ?? 0);
 }
 
 function displayDateTime(value: string | null | undefined) {
@@ -55,6 +60,31 @@ function displayDateTime(value: string | null | undefined) {
 
 function paymentLabel(value: string) {
   return value === "credit_card" ? "Card" : value === "app" ? "App" : value === "cash" ? "Cash" : value;
+}
+
+function titleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function placementLabel(projectSubject: string | null | undefined, customerName: string | null | undefined) {
+  if (!projectSubject) return "-";
+
+  const afterDash = projectSubject.includes(" - ")
+    ? projectSubject.split(" - ").slice(1).join(" - ")
+    : projectSubject;
+  const withoutClient = customerName
+    ? afterDash.replace(new RegExp(`^${escapeRegExp(customerName)}\\s*-\\s*`, "i"), "")
+    : afterDash;
+
+  return titleCase(withoutClient.trim() || projectSubject);
 }
 
 export default function SessionResultPage() {
@@ -120,6 +150,7 @@ export default function SessionResultPage() {
           .select("display_name")
           .eq("profile_id", nextSession.created_by)
           .maybeSingle();
+
         if (!staffResult.error && staffResult.data?.display_name) {
           setEnteredBy(staffResult.data.display_name);
         }
@@ -138,6 +169,10 @@ export default function SessionResultPage() {
     () => payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
     [payments],
   );
+  const artistName = artist?.display_name ?? "-";
+  const customerName = customer?.name ?? "-";
+  const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
+  const placement = placementLabel(project?.subject, customer?.name ?? null);
 
   async function deleteSession() {
     if (!session || !window.confirm("Delete this session?")) return;
@@ -233,13 +268,13 @@ export default function SessionResultPage() {
             width: 64mm !important;
             max-width: 64mm !important;
             margin: 0 !important;
-            padding: 0 !important;
-            border: 0 !important;
+            padding: 5mm !important;
+            border: 0.7mm solid #000 !important;
             background: white !important;
             box-shadow: none !important;
             color: #000 !important;
             font-size: 10px !important;
-            line-height: 1.25 !important;
+            line-height: 1.15 !important;
             transform: none !important;
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
@@ -253,115 +288,151 @@ export default function SessionResultPage() {
 
           .receipt-header {
             padding-bottom: 3mm !important;
-            border-bottom: 1px solid #000 !important;
+            border-bottom: 0.5mm solid #176783 !important;
           }
 
-          .receipt-header h2 {
-            margin-top: 1mm !important;
-            font-size: 13px !important;
+          .receipt-artist {
+            margin-top: 3mm !important;
+            font-size: 15mm !important;
+            line-height: 0.9 !important;
+            letter-spacing: 0 !important;
+          }
+
+          .receipt-entered {
+            margin-top: 3mm !important;
+            font-size: 5mm !important;
             line-height: 1.2 !important;
+          }
+
+          .receipt-section {
+            padding: 2.5mm 0 !important;
+            border-bottom: 0.45mm dashed #176783 !important;
+          }
+
+          .receipt-label {
+            font-size: 3.8mm !important;
+            line-height: 1 !important;
+            letter-spacing: 0 !important;
+          }
+
+          .receipt-value {
+            margin-top: 1.5mm !important;
+            font-size: 6.8mm !important;
+            line-height: 1.05 !important;
+            letter-spacing: 0 !important;
             overflow-wrap: anywhere !important;
           }
 
-          .receipt-info-grid {
-            display: block !important;
-            margin-top: 3mm !important;
-          }
-
-          .receipt-box {
-            margin-top: 2mm !important;
-            padding: 0 0 2mm 0 !important;
-            border-bottom: 1px dashed #999 !important;
-            border-radius: 0 !important;
-            background: white !important;
-            page-break-inside: avoid !important;
-          }
-
-          .receipt-box p {
+          .receipt-contact {
+            margin-top: 1.5mm !important;
+            font-size: 3.8mm !important;
+            line-height: 1.15 !important;
             overflow-wrap: anywhere !important;
           }
 
-          .receipt-lines {
-            margin-top: 3mm !important;
-            border: 0 !important;
-            border-radius: 0 !important;
+          .receipt-payments {
+            padding-top: 4mm !important;
           }
 
-          .receipt-line {
+          .receipt-payment-line {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
             gap: 2mm !important;
-            padding: 1.5mm 0 !important;
-            border-bottom: 1px dashed #999 !important;
-            font-size: 10px !important;
+            align-items: baseline !important;
+            padding: 1mm 0 !important;
+            border-bottom: 0 !important;
+          }
+
+          .receipt-payment-label {
+            font-size: 5.4mm !important;
+            line-height: 1 !important;
+          }
+
+          .receipt-payment-amount {
+            font-size: 8.5mm !important;
+            line-height: 1 !important;
           }
 
           .receipt-total {
-            padding-top: 2mm !important;
-            border-top: 1px solid #000 !important;
+            margin-top: 2mm !important;
+            padding-top: 2.5mm !important;
+            border-top: 0.5mm solid #176783 !important;
             border-bottom: 0 !important;
             background: white !important;
-            font-size: 11px !important;
           }
 
-          .receipt-memo {
-            margin-top: 3mm !important;
-            padding: 2mm 0 0 0 !important;
-            border: 0 !important;
-            border-top: 1px dashed #999 !important;
-            border-radius: 0 !important;
-            overflow-wrap: anywhere !important;
+          .receipt-total .receipt-payment-label,
+          .receipt-total .receipt-payment-amount {
+            font-size: 8.8mm !important;
           }
         }
       `}</style>
-      <section className="receipt-sheet mx-auto max-w-3xl rounded-md border border-[#d9d3c7] bg-white px-6 py-6 shadow-sm print:border-0 print:shadow-none">
+      <section className="receipt-sheet mx-auto w-full max-w-[520px] border-4 border-black bg-white px-8 py-8 shadow-sm print:shadow-none">
         {loading ? <p className="text-sm font-semibold text-[#697178]">Loading...</p> : null}
         {error ? <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">{error}</p> : null}
 
         {session ? (
           <>
-            <div className="receipt-header border-b border-[#d9d3c7] pb-5">
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#476b33]">Saved session</p>
-              <h2 className="mt-2 text-2xl font-semibold">{project?.subject ?? "Session"}</h2>
-              <p className="mt-2 text-sm font-medium text-[#697178]">Entered {displayDateTime(session.entered_at)} by {enteredBy}</p>
+            <div className="receipt-header border-b-4 border-[#176783] pb-5">
+              <p className="receipt-label text-lg uppercase tracking-normal text-black">Saved session</p>
+              <h2 className="receipt-artist mt-5 text-7xl font-black leading-none tracking-normal text-black">
+                {artistName}
+              </h2>
+              <p className="receipt-entered mt-5 text-4xl leading-tight text-black">
+                Entered {displayDateTime(session.entered_at)}
+                <br />
+                By {enteredBy}
+              </p>
             </div>
 
-            <div className="receipt-info-grid mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="receipt-box rounded-md bg-[#f7f2e9] px-4 py-4">
-                <p className="text-xs font-bold uppercase text-[#697178]">Client</p>
-                <p className="mt-1 font-semibold">{customer?.name ?? "-"}</p>
-                <p className="mt-1 text-sm text-[#697178]">{customer?.email ?? "-"} / {customer?.phone ?? "-"}</p>
-              </div>
-              <div className="receipt-box rounded-md bg-[#f7f2e9] px-4 py-4">
-                <p className="text-xs font-bold uppercase text-[#697178]">Artist</p>
-                <p className="mt-1 font-semibold">{artist?.display_name ?? "-"}</p>
-              </div>
-              <div className="receipt-box rounded-md bg-[#f7f2e9] px-4 py-4 sm:col-span-2">
-                <p className="text-xs font-bold uppercase text-[#697178]">Appointment</p>
-                <p className="mt-1 font-semibold">{displayDateTime(appointment?.starts_at)}</p>
-              </div>
+            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+              <p className="receipt-label text-lg uppercase text-black">Client</p>
+              <p className="receipt-value mt-2 text-5xl font-black leading-tight text-black">{customerName}</p>
+              {contactLine ? (
+                <p className="receipt-contact mt-3 text-2xl text-[#176783]">{contactLine}</p>
+              ) : null}
             </div>
 
-            <div className="receipt-lines mt-5 overflow-hidden rounded-md border border-[#d9d3c7]">
+            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+              <p className="receipt-label text-2xl text-black">Placement</p>
+              <p className="receipt-value mt-2 text-5xl font-black leading-tight text-black">{placement}</p>
+            </div>
+
+            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+              <p className="receipt-label text-lg uppercase text-black">Appointment</p>
+              <p className="receipt-value mt-2 text-4xl font-black leading-tight text-black">
+                {displayDateTime(appointment?.starts_at)}
+              </p>
+            </div>
+
+            <div className="receipt-payments pt-8">
               {payments.map((payment) => (
-                <div className="receipt-line grid grid-cols-[1fr_auto] border-b border-[#eee8dd] px-4 py-3 text-sm last:border-b-0" key={payment.id}>
-                  <span className="font-semibold capitalize">{payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}</span>
-                  <span className="font-bold">{money(payment.amount)}</span>
+                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
+                  <span className="receipt-payment-label text-4xl capitalize text-black">
+                    {payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}
+                  </span>
+                  <span className="receipt-payment-amount text-6xl font-normal leading-none text-black">
+                    {receiptMoney(payment.amount)}
+                  </span>
                 </div>
               ))}
               {depositApplied > 0 ? (
-                <div className="receipt-line grid grid-cols-[1fr_auto] border-b border-[#eee8dd] px-4 py-3 text-sm">
-                  <span className="font-semibold">Deposit applied</span>
-                  <span className="font-bold">{money(depositApplied)}</span>
+                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
+                  <span className="receipt-payment-label text-4xl text-black">Deposit applied</span>
+                  <span className="receipt-payment-amount text-6xl font-normal leading-none text-black">
+                    {receiptMoney(depositApplied)}
+                  </span>
                 </div>
               ) : null}
-              <div className="receipt-line receipt-total grid grid-cols-[1fr_auto] bg-[#f7f2e9] px-4 py-4">
-                <span className="font-bold">Recorded total</span>
-                <span className="text-lg font-bold">{money(paymentTotal + depositApplied)}</span>
+              <div className="receipt-payment-line receipt-total mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t-4 border-[#176783] pt-5">
+                <span className="receipt-payment-label text-5xl text-black">Total</span>
+                <span className="receipt-payment-amount text-7xl font-normal leading-none text-black">
+                  {receiptMoney(paymentTotal + depositApplied)}
+                </span>
               </div>
             </div>
 
-            {session.memo ? <p className="receipt-memo mt-4 rounded-md border border-[#d9d3c7] px-4 py-3 text-sm">{session.memo}</p> : null}
+            {session.memo ? <p className="mt-6 text-sm text-[#697178] print:hidden">{session.memo}</p> : null}
 
             <div className="mt-6 flex flex-wrap gap-2 print:hidden">
               <button className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white" onClick={() => window.print()} type="button">Print</button>
