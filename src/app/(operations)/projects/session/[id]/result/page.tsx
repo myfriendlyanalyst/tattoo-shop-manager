@@ -265,10 +265,11 @@ export default function SessionResultPage() {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
+            box-sizing: border-box !important;
             width: 64mm !important;
             max-width: 64mm !important;
             margin: 0 !important;
-            padding: 5mm !important;
+            padding: 4mm !important;
             border: 0.7mm solid #000 !important;
             background: white !important;
             box-shadow: none !important;
@@ -293,14 +294,14 @@ export default function SessionResultPage() {
 
           .receipt-artist {
             margin-top: 3mm !important;
-            font-size: 15mm !important;
+            font-size: 13mm !important;
             line-height: 0.9 !important;
             letter-spacing: 0 !important;
           }
 
           .receipt-entered {
             margin-top: 3mm !important;
-            font-size: 5mm !important;
+            font-size: 4.2mm !important;
             line-height: 1.2 !important;
           }
 
@@ -310,14 +311,14 @@ export default function SessionResultPage() {
           }
 
           .receipt-label {
-            font-size: 3.8mm !important;
+            font-size: 3.4mm !important;
             line-height: 1 !important;
             letter-spacing: 0 !important;
           }
 
           .receipt-value {
             margin-top: 1.5mm !important;
-            font-size: 6.8mm !important;
+            font-size: 6mm !important;
             line-height: 1.05 !important;
             letter-spacing: 0 !important;
             overflow-wrap: anywhere !important;
@@ -325,7 +326,7 @@ export default function SessionResultPage() {
 
           .receipt-contact {
             margin-top: 1.5mm !important;
-            font-size: 3.8mm !important;
+            font-size: 3.2mm !important;
             line-height: 1.15 !important;
             overflow-wrap: anywhere !important;
           }
@@ -337,19 +338,21 @@ export default function SessionResultPage() {
           .receipt-payment-line {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
-            gap: 2mm !important;
+            gap: 1mm !important;
             align-items: baseline !important;
             padding: 1mm 0 !important;
             border-bottom: 0 !important;
           }
 
           .receipt-payment-label {
-            font-size: 5.4mm !important;
+            font-size: 4.2mm !important;
             line-height: 1 !important;
+            white-space: nowrap !important;
           }
 
           .receipt-payment-amount {
-            font-size: 8.5mm !important;
+            font-size: 7.2mm !important;
+            font-weight: 700 !important;
             line-height: 1 !important;
           }
 
@@ -363,7 +366,7 @@ export default function SessionResultPage() {
 
           .receipt-total .receipt-payment-label,
           .receipt-total .receipt-payment-amount {
-            font-size: 8.8mm !important;
+            font-size: 7.8mm !important;
           }
         }
       `}</style>
@@ -411,7 +414,7 @@ export default function SessionResultPage() {
                   <span className="receipt-payment-label text-4xl capitalize text-black">
                     {payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}
                   </span>
-                  <span className="receipt-payment-amount text-6xl font-normal leading-none text-black">
+                  <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
                     {receiptMoney(payment.amount)}
                   </span>
                 </div>
@@ -419,14 +422,14 @@ export default function SessionResultPage() {
               {depositApplied > 0 ? (
                 <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
                   <span className="receipt-payment-label text-4xl text-black">Deposit applied</span>
-                  <span className="receipt-payment-amount text-6xl font-normal leading-none text-black">
+                  <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
                     {receiptMoney(depositApplied)}
                   </span>
                 </div>
               ) : null}
               <div className="receipt-payment-line receipt-total mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t-4 border-[#176783] pt-5">
                 <span className="receipt-payment-label text-5xl text-black">Total</span>
-                <span className="receipt-payment-amount text-7xl font-normal leading-none text-black">
+                <span className="receipt-payment-amount text-7xl font-bold leading-none text-black">
                   {receiptMoney(paymentTotal + depositApplied)}
                 </span>
               </div>
