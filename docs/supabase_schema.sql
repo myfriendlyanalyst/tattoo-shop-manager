@@ -292,6 +292,7 @@ create table if not exists public.requests (
   placement text,
   reference_image_url text,
   requested_artist_label text,
+  how_did_you_hear_about_us text,
   tattoo_timing_preference text check (
     tattoo_timing_preference is null
     or tattoo_timing_preference in ('asap', 'within_1_2_weeks', 'flexible', 'preferred_date')

@@ -28,6 +28,7 @@ These are the fields visible on the Oyabun website request form:
 - `Tattoo Description`
 - `Approximate Size (in inches)`
 - `Placement on your Body`
+- `How did you hear about us?`
 - `Reference image`
 - `Yes, I am 18 years or older.`
 
@@ -65,6 +66,7 @@ Recommended first-version body:
   "tattoo_description": "{{Tattoo Description}}",
   "approximate_size": "{{Approximate Size (in inches)}}",
   "placement": "{{Placement on your Body}}",
+  "how_did_you_hear_about_us": "{{How did you hear about us?}}",
   "reference_image_url": null,
   "requested_artist_label": "{{Artist you want to consult with}}",
   "age_confirmed": true,
@@ -80,6 +82,16 @@ tokens that correspond to the labels above.
 `subject` is still required by the database, but the app treats it as an
 internal summary and fills it from `Tattoo Description`. Operators do not need a
 separate short subject field.
+
+If the scenario also sends a Gmail notification to the shop, add the same
+Webflow token to the Gmail HTML body:
+
+```html
+<div style="padding: 16px 0; border-bottom: 1px solid #f0f0f0; width: 100%; box-sizing: border-box;">
+    <div style="font-weight: 600; color: #1a1a1a; font-size: 15px; margin-bottom: 4px;">How did you hear about us?</div>
+    <div style="color: #333; font-size: 15px; font-weight: 400; line-height: 1.4;">{{1.data.`How-Did-you-Hear-about-us`}}</div>
+</div>
+```
 
 ## Required Request Columns
 
@@ -97,6 +109,7 @@ The app expects these Webflow-specific fields to be stored as separate columns:
 - `placement`
 - `reference_image_url`
 - `requested_artist_label`
+- `how_did_you_hear_about_us`
 - `age_confirmed`
 
 When using `POST /api/requests/email-webhook`, send the Webflow `When` label as

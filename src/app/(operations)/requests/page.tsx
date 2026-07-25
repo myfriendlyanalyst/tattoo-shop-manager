@@ -42,6 +42,7 @@ type RequestRecord = {
   placement: string | null;
   reference_image_url: string | null;
   requested_artist_label: string | null;
+  how_did_you_hear_about_us: string | null;
   tattoo_timing_preference: string | null;
   preferred_appointment_date: string | null;
   age_confirmed: boolean;
@@ -103,6 +104,7 @@ type NewRequestForm = {
   placement: string;
   referenceFile: File | null;
   requestedArtistLabel: string;
+  howDidYouHearAboutUs: string;
   artistId: string;
   tattooTimingPreference: string;
   notes: string;
@@ -159,7 +161,7 @@ const statusOptions = [
 
 const referenceBucket = "request-references";
 const requestSelect =
-  "id, request_number, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
+  "id, request_number, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, how_did_you_hear_about_us, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
 const requestMessageSelect =
   "id, request_id, provider, provider_thread_id, provider_message_id, direction, from_email, from_name, to_emails, cc_emails, subject, body_text, snippet, received_at";
 
@@ -169,6 +171,15 @@ const tattooTimingOptions = [
   { value: "asap", label: "ASAP" },
   { value: "within_1_2_weeks", label: "Within 1-2 weeks" },
   { value: "flexible", label: "Flexible" },
+];
+const referralSourceOptions = [
+  "",
+  "Instagram",
+  "Google",
+  "Friend / Referral",
+  "Walk by",
+  "Returning client",
+  "Other",
 ];
 const paymentMethods = [
   { value: "cash", label: "Cash" },
@@ -579,6 +590,7 @@ function NewRequestModal({
     placement: "",
     referenceFile: null,
     requestedArtistLabel: "Any available",
+    howDidYouHearAboutUs: "",
     artistId: "",
     tattooTimingPreference: "",
     notes: "",
@@ -763,6 +775,25 @@ function NewRequestModal({
                 {tattooTimingOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold">
+              How did they hear about us?
+              <select
+                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    howDidYouHearAboutUs: event.target.value,
+                  }))
+                }
+                value={form.howDidYouHearAboutUs}
+              >
+                {referralSourceOptions.map((option) => (
+                  <option key={option || "blank"} value={option}>
+                    {option || "Not provided"}
                   </option>
                 ))}
               </select>
@@ -1137,6 +1168,7 @@ export default function RequestsPage() {
         placement,
         reference_image_url: null,
         requested_artist_label: form.requestedArtistLabel,
+        how_did_you_hear_about_us: form.howDidYouHearAboutUs || null,
         tattoo_timing_preference: tattooTimingPreference,
         preferred_appointment_date: null,
         age_confirmed: false,
@@ -2019,6 +2051,12 @@ export default function RequestsPage() {
                         <p className="text-[#697178]">Timing preference</p>
                         <p className="mt-1 font-semibold">
                           {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-2">
+                        <p className="text-[#697178]">How did they hear about us?</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedRequest.how_did_you_hear_about_us || "-"}
                         </p>
                       </div>
                       <div className="rounded-md bg-[#f7f2e9] px-3 py-3 lg:col-span-4">

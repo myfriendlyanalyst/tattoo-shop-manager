@@ -66,6 +66,7 @@ Body:
     "approximateSize": "{{Approximate Size (in inches)}}",
     "placement": "{{Placement on your Body}}",
     "requestedArtistLabel": "{{Artist you want to consult with}}",
+    "howDidYouHearAboutUs": "{{How-Did-you-Hear-about-us}}",
     "tattooTimingPreference": "{{When are you looking to get tattooed?}}",
     "ageConfirmed": true,
     "externalId": "{{Webflow Submission ID}}"
@@ -90,6 +91,16 @@ Gmail subject format:
 The app cannot know `REQ-00025` until the webhook creates the request row, so
 Gmail must run after the HTTP module if the first contact email should include
 that code.
+
+For the Gmail `Send an Email` module that notifies the shop, include the Webflow
+referral field in the HTML body near the other request details:
+
+```html
+<div style="padding: 16px 0; border-bottom: 1px solid #f0f0f0; width: 100%; box-sizing: border-box;">
+    <div style="font-weight: 600; color: #1a1a1a; font-size: 15px; margin-bottom: 4px;">How did you hear about us?</div>
+    <div style="color: #333; font-size: 15px; font-weight: 400; line-height: 1.4;">{{1.data.`How-Did-you-Hear-about-us`}}</div>
+</div>
+```
 
 If the Gmail message is only a reply and does not include the `request` object,
 the app will attach it by `threadId` when a matching request already exists.

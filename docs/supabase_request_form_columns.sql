@@ -7,6 +7,7 @@ add column if not exists approximate_size text,
 add column if not exists placement text,
 add column if not exists reference_image_url text,
 add column if not exists requested_artist_label text,
+add column if not exists how_did_you_hear_about_us text,
 add column if not exists tattoo_timing_preference text,
 add column if not exists preferred_appointment_date date,
 add column if not exists age_confirmed boolean not null default false;
@@ -41,6 +42,9 @@ comment on column public.requests.reference_image_url is
 
 comment on column public.requests.requested_artist_label is
 'Raw artist dropdown label submitted from Webflow, such as Any available artist, YUSHI, BAKI, JC, or Phangs.';
+
+comment on column public.requests.how_did_you_hear_about_us is
+'How the client heard about Oyabun Tattoo, captured from the Webflow request form.';
 
 comment on column public.requests.tattoo_timing_preference is
 'When the client says they would like to get tattooed: asap, within_1_2_weeks, flexible, or preferred_date.';

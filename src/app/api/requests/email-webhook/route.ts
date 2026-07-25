@@ -35,6 +35,8 @@ type EmailWebhookPayload = {
   approximateSize?: string;
   placement?: string;
   requestedArtistLabel?: string;
+  howDidYouHearAboutUs?: string;
+  how_did_you_hear_about_us?: string;
   tattooTimingPreference?: string;
   referenceImageUrl?: string;
   referenceImageURL?: string;
@@ -52,6 +54,8 @@ type EmailWebhookPayload = {
     approximateSize?: string;
     placement?: string;
     requestedArtistLabel?: string;
+    howDidYouHearAboutUs?: string;
+    how_did_you_hear_about_us?: string;
     tattooTimingPreference?: string;
     referenceImageUrl?: string;
     referenceImageURL?: string;
@@ -108,6 +112,15 @@ function requestReferenceImageUrl(payload: EmailWebhookPayload) {
     cleanText(payload.referenceImageUrl) ||
     cleanText(payload.referenceImageURL) ||
     cleanText(payload.attachment)
+  );
+}
+
+function requestReferralSource(payload: EmailWebhookPayload) {
+  return (
+    cleanText(payload.request?.howDidYouHearAboutUs) ||
+    cleanText(payload.request?.how_did_you_hear_about_us) ||
+    cleanText(payload.howDidYouHearAboutUs) ||
+    cleanText(payload.how_did_you_hear_about_us)
   );
 }
 
@@ -727,6 +740,7 @@ export async function POST(request: NextRequest) {
       requestText(payload, "tattooTimingPreference"),
     );
     const requestedArtistLabel = requestText(payload, "requestedArtistLabel");
+    const howDidYouHearAboutUs = requestReferralSource(payload);
     const { data: matchedArtist } =
       requestedArtistLabel && !isAnyAvailableLabel(requestedArtistLabel)
         ? await adminClient
@@ -749,6 +763,7 @@ export async function POST(request: NextRequest) {
         placement: requestText(payload, "placement") || null,
         reference_image_url: requestReferenceImageUrl(payload) || null,
         requested_artist_label: requestedArtistLabel || null,
+        how_did_you_hear_about_us: howDidYouHearAboutUs || null,
         tattoo_timing_preference: tattooTimingPreference,
         preferred_appointment_date: null,
         age_confirmed: Boolean(payload.request?.ageConfirmed ?? payload.ageConfirmed),
@@ -826,6 +841,7 @@ export async function POST(request: NextRequest) {
     const nextPlacement = requestText(payload, "placement");
     const nextReferenceImageUrl = requestReferenceImageUrl(payload);
     const nextRequestedArtistLabel = requestText(payload, "requestedArtistLabel");
+    const nextHowDidYouHearAboutUs = requestReferralSource(payload);
     const nextTimingPreference = normalizeTattooTimingPreference(
       requestText(payload, "tattooTimingPreference"),
     );
@@ -841,6 +857,7 @@ export async function POST(request: NextRequest) {
     }
     if (nextReferenceImageUrl) updatePatch.reference_image_url = nextReferenceImageUrl;
     if (nextRequestedArtistLabel) updatePatch.requested_artist_label = nextRequestedArtistLabel;
+    if (nextHowDidYouHearAboutUs) updatePatch.how_did_you_hear_about_us = nextHowDidYouHearAboutUs;
     if (nextTimingPreference) updatePatch.tattoo_timing_preference = nextTimingPreference;
 
     if (Object.keys(updatePatch).length > 0) {
