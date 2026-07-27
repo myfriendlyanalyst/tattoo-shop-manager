@@ -28,6 +28,7 @@ type GoogleCalendarConnection = {
 type GoogleCalendarEventMap = {
   appointment_id: string;
   google_event_id: string;
+  staff_id: string | null;
 };
 
 type AppointmentForGoogle = {
@@ -373,6 +374,28 @@ async function googleCalendarRequest(
   return payload;
 }
 
+function isMissingGoogleEvent(error: unknown) {
+  return error instanceof Error && (error.name === "404" || error.name === "410");
+}
+
+async function deleteGoogleEvent(
+  connection: GoogleCalendarConnection,
+  googleEventId: string,
+) {
+  try {
+    await googleCalendarRequest(
+      connection,
+      `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
+        googleEventId,
+      )}`,
+      { method: "DELETE" },
+    );
+  } catch (error) {
+    // A missing event is already in the desired deleted state.
+    if (!isMissingGoogleEvent(error)) throw error;
+  }
+}
+
 async function recordGoogleSyncError(
   adminClient: SupabaseClient,
   appointmentId: string,
@@ -423,42 +446,65 @@ export async function syncAppointmentToGoogleCalendar(
 
     const { data: eventMapData } = await adminClient
       .from("appointment_google_calendar_events")
-      .select("appointment_id, google_event_id")
+      .select("appointment_id, google_event_id, staff_id")
       .eq("appointment_id", appointment.id)
       .maybeSingle();
     const eventMap = eventMapData as GoogleCalendarEventMap | null;
+    const mappedEventId =
+      eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed"
+        ? eventMap.google_event_id
+        : null;
 
     if (appointment.status === "cancelled") {
-      if (eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed") {
-        await googleCalendarRequest(
-          connection,
-          `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
-            eventMap.google_event_id,
-          )}`,
-          { method: "DELETE" },
-        );
+      if (mappedEventId) {
+        const mappedConnection =
+          eventMap?.staff_id && eventMap.staff_id !== appointment.artist_id
+            ? await usableConnection(adminClient, eventMap.staff_id)
+            : connection;
+        if (!mappedConnection) {
+          throw new Error("The previously assigned artist's Google Calendar is disconnected.");
+        }
+        await deleteGoogleEvent(mappedConnection, mappedEventId);
       }
       await adminClient.from("appointment_google_calendar_events").delete().eq("appointment_id", appointment.id);
       return { status: "deleted" };
     }
 
-    const googleEventId =
-      eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed"
-        ? eventMap.google_event_id
-        : googleEventIdForAppointment(appointment.id);
+    let googleEventId = mappedEventId ?? googleEventIdForAppointment(appointment.id);
+    const artistChanged = Boolean(
+      mappedEventId && eventMap?.staff_id && eventMap.staff_id !== appointment.artist_id,
+    );
+    if (artistChanged) {
+      const previousConnection = await usableConnection(adminClient, eventMap!.staff_id!);
+      if (!previousConnection) {
+        throw new Error("The previously assigned artist's Google Calendar is disconnected.");
+      }
+      await deleteGoogleEvent(previousConnection, googleEventId);
+      googleEventId = googleEventIdForAppointment(appointment.id);
+    }
+
     const eventBody = googleEventBody(appointment);
     const patchBody = JSON.stringify(eventBody);
     const insertBody = JSON.stringify({ ...eventBody, id: googleEventId });
     let event: GoogleEventResponse;
 
-    if (eventMap?.google_event_id && eventMap.google_event_id !== "sync_failed") {
-      event = await googleCalendarRequest(
-        connection,
-        `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
-          googleEventId,
-        )}`,
-        { body: patchBody, method: "PATCH" },
-      );
+    if (mappedEventId && !artistChanged) {
+      try {
+        event = await googleCalendarRequest(
+          connection,
+          `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
+            googleEventId,
+          )}`,
+          { body: patchBody, method: "PATCH" },
+        );
+      } catch (patchError) {
+        if (!isMissingGoogleEvent(patchError)) throw patchError;
+        event = await googleCalendarRequest(
+          connection,
+          `/calendars/${encodeURIComponent(connection.calendar_id)}/events`,
+          { body: JSON.stringify(eventBody), method: "POST" },
+        );
+      }
     } else {
       try {
         event = await googleCalendarRequest(
@@ -505,36 +551,24 @@ export async function deleteAppointmentFromGoogleCalendar(
 ): Promise<GoogleSyncResult> {
   const { data: eventMapData } = await adminClient
     .from("appointment_google_calendar_events")
-    .select("appointment_id, google_event_id")
+    .select("appointment_id, google_event_id, staff_id")
     .eq("appointment_id", appointmentId)
     .maybeSingle();
   const eventMap = eventMapData as GoogleCalendarEventMap | null;
   if (!eventMap?.google_event_id || eventMap.google_event_id === "sync_failed") return { status: "skipped" };
 
-  const { data: appointmentData } = await adminClient
-    .from("appointments")
-    .select("artist_id")
-    .eq("id", appointmentId)
-    .maybeSingle();
-  const appointment = appointmentData as { artist_id: string | null } | null;
-  if (!appointment?.artist_id) return { status: "skipped" };
+  if (!eventMap.staff_id) return { status: "skipped" };
 
   try {
-    const connection = await usableConnection(adminClient, appointment.artist_id);
+    const connection = await usableConnection(adminClient, eventMap.staff_id);
     if (!connection) return { status: "skipped" };
 
-    await googleCalendarRequest(
-      connection,
-      `/calendars/${encodeURIComponent(connection.calendar_id)}/events/${encodeURIComponent(
-        eventMap.google_event_id,
-      )}`,
-      { method: "DELETE" },
-    );
+    await deleteGoogleEvent(connection, eventMap.google_event_id);
     await adminClient.from("appointment_google_calendar_events").delete().eq("appointment_id", appointmentId);
     return { status: "deleted" };
   } catch (syncError) {
     const message = syncError instanceof Error ? syncError.message : "Google Calendar delete failed.";
-    await recordGoogleSyncError(adminClient, appointmentId, appointment.artist_id, message);
+    await recordGoogleSyncError(adminClient, appointmentId, eventMap.staff_id, message);
     return { status: "failed", error: message };
   }
 }
