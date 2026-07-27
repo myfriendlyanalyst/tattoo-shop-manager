@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
       available: true,
       customer_id: customer.id,
       memo: payload.depositMemo?.trim() || null,
-      payment_method: payload.depositPaymentMethod || "cash",
+      payment_method: "cash",
       project_id: project.id,
       received_at: new Date().toISOString(),
     });

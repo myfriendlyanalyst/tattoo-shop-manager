@@ -53,13 +53,6 @@ type FormState = {
 };
 
 const projectTypeOptions = ["Walk-in", "One Done", "Multiple Session"];
-const paymentMethods = [
-  { value: "cash", label: "Cash" },
-  { value: "credit_card", label: "Credit card" },
-  { value: "app", label: "App" },
-  { value: "other", label: "Other" },
-];
-
 function emptyForm(): FormState {
   return {
     artistId: "",
@@ -576,18 +569,9 @@ function NewProjectContent() {
               </label>
               <label className="block text-sm font-semibold">
                 Payment method
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  disabled={form.depositNotCollected}
-                  onChange={(event) => updateForm({ depositPaymentMethod: event.target.value })}
-                  value={form.depositPaymentMethod}
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-2 flex h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm">
+                  Cash
+                </div>
               </label>
               <label className="flex min-h-10 items-center gap-2 self-end rounded-md border border-[#d9d3c7] bg-white px-3 py-2 text-sm font-semibold">
                 <input

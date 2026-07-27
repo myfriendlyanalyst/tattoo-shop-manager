@@ -6,6 +6,11 @@ import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
+import {
+  calculatePayout,
+  type PayoutCalculation,
+  type PayoutSession,
+} from "@/lib/payout-calculation";
 
 type PayoutRow = {
   id: string;
@@ -18,6 +23,14 @@ type PayoutRow = {
   // Requires migration: supabase_accounting_migration.sql section 5
   adjustment_amount: number;
   adjustment_note: string | null;
+  calculation_snapshot: (PayoutCalculation & {
+    adjustmentAmount?: number;
+    entries?: EntryRow[];
+    sessionIds?: string[];
+  }) | null;
+  snapshot_at: string | null;
+  artist_earnings: number | null;
+  settlement_amount: number | null;
   created_at: string;
   artist: { display_name: string; payout_rate?: number | null } | { display_name: string; payout_rate?: number | null }[] | null;
 };
@@ -33,11 +46,30 @@ type EntryRow = {
   merch_amount: number;
   total_amount: number;
   tattoo_payment_method: string | null;
+  tip_payment_method: string | null;
+};
+
+type SessionPaymentRow = {
+  session_entry_id: string;
+  payment_type: "tattoo" | "tip";
+  payment_method: string;
+  amount: number;
+};
+
+type DepositApplicationRow = {
+  session_entry_id: string;
+  amount: number;
+  deposit: { payment_method: string } | { payment_method: string }[] | null;
+};
+
+type PayoutBundle = {
+  calculation: PayoutCalculation;
+  entries: EntryRow[];
 };
 
 type AdjFormEntry = { amount: string; note: string; isAutoCalc: boolean };
 
-type StaffRecord = { id: string; display_name: string };
+type StaffRecord = { id: string; display_name: string; payout_rate: number | null };
 type FilterStatus = "all" | "draft" | "ready" | "paid" | "void";
 type NewPayoutForm = {
   artist_id: string;
@@ -113,16 +145,23 @@ function escapeHtml(value: string | number | null | undefined) {
 }
 
 const payoutSelect =
-  "id, artist_id, period_start, period_end, status, paid_at, notes, adjustment_amount, adjustment_note, created_at, artist:staff(display_name, payout_rate)";
+  "id, artist_id, period_start, period_end, status, paid_at, notes, adjustment_amount, adjustment_note, calculation_snapshot, snapshot_at, artist_earnings, settlement_amount, created_at, artist:staff(display_name, payout_rate)";
 
 const basePayoutSelect =
   "id, artist_id, period_start, period_end, status, paid_at, notes, created_at, artist:staff(display_name, payout_rate)";
 
 const entrySelect =
-  "id, entered_at, entry_type, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method";
+  "id, entered_at, entry_type, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method, tip_payment_method";
 
 function isMissingAdjustmentColumn(message: string) {
-  return message.includes("adjustment_amount") || message.includes("adjustment_note");
+  return (
+    message.includes("adjustment_amount") ||
+    message.includes("adjustment_note") ||
+    message.includes("calculation_snapshot") ||
+    message.includes("snapshot_at") ||
+    message.includes("artist_earnings") ||
+    message.includes("settlement_amount")
+  );
 }
 
 function withAdjustmentDefaults(rows: unknown[] | null | undefined) {
@@ -130,6 +169,10 @@ function withAdjustmentDefaults(rows: unknown[] | null | undefined) {
     ...(row as Omit<PayoutRow, "adjustment_amount" | "adjustment_note">),
     adjustment_amount: Number((row as Partial<PayoutRow>).adjustment_amount ?? 0),
     adjustment_note: (row as Partial<PayoutRow>).adjustment_note ?? null,
+    artist_earnings: (row as Partial<PayoutRow>).artist_earnings ?? null,
+    calculation_snapshot: (row as Partial<PayoutRow>).calculation_snapshot ?? null,
+    settlement_amount: (row as Partial<PayoutRow>).settlement_amount ?? null,
+    snapshot_at: (row as Partial<PayoutRow>).snapshot_at ?? null,
   })) as PayoutRow[];
 }
 
@@ -161,10 +204,70 @@ async function fetchEntriesForPayout(artistId: string, periodStart: string, peri
     .order("entered_at", { ascending: false });
 }
 
+async function fetchPayoutBundle(
+  artistId: string,
+  periodStart: string,
+  periodEnd: string,
+  artistRate: number,
+): Promise<{ data: PayoutBundle | null; error: string | null }> {
+  const entryResult = await fetchEntriesForPayout(artistId, periodStart, periodEnd);
+  if (entryResult.error) return { data: null, error: entryResult.error.message };
+
+  const entries = ((entryResult.data ?? []) as EntryRow[]).filter(
+    (entry) => entry.entry_type === "session",
+  );
+  if (!entries.length) {
+    return { data: { calculation: calculatePayout([], artistRate), entries: [] }, error: null };
+  }
+
+  const sessionIds = entries.map((entry) => entry.id);
+  const [paymentResult, depositResult] = await Promise.all([
+    supabase
+      .from("session_payments")
+      .select("session_entry_id, payment_type, payment_method, amount")
+      .in("session_entry_id", sessionIds),
+    supabase
+      .from("deposit_applications")
+      .select("session_entry_id, amount, deposit:deposits(payment_method)")
+      .in("session_entry_id", sessionIds),
+  ]);
+
+  if (paymentResult.error) return { data: null, error: paymentResult.error.message };
+  if (depositResult.error) return { data: null, error: depositResult.error.message };
+
+  const payments = (paymentResult.data ?? []) as SessionPaymentRow[];
+  const deposits = (depositResult.data ?? []) as DepositApplicationRow[];
+  const sessions: PayoutSession[] = entries.map((entry) => ({
+    deposits: deposits
+      .filter((deposit) => deposit.session_entry_id === entry.id)
+      .map((deposit) => ({
+        amount: Number(deposit.amount),
+        paymentMethod: relatedOne(deposit.deposit)?.payment_method ?? null,
+      })),
+    id: entry.id,
+    payments: payments
+      .filter((payment) => payment.session_entry_id === entry.id)
+      .map((payment) => ({
+        amount: Number(payment.amount),
+        paymentMethod: payment.payment_method,
+        paymentType: payment.payment_type,
+      })),
+    tattooAmount: Number(entry.tattoo_amount),
+    tattooPaymentMethod: entry.tattoo_payment_method,
+    tipAmount: Number(entry.tip_amount),
+    tipPaymentMethod: entry.tip_payment_method,
+  }));
+
+  return {
+    data: { calculation: calculatePayout(sessions, artistRate), entries },
+    error: null,
+  };
+}
+
 function printPayout(
   payout: PayoutRow,
   entries: EntryRow[],
-  grossTotal: number,
+  calculation: PayoutCalculation,
   adjustmentAmount: number,
   finalPayout: number,
   adjustmentNote: string | null,
@@ -247,9 +350,16 @@ function printPayout(
 
   <div class="totals-wrap">
     <table class="totals-table">
-      <tr><td>Gross total</td><td>${money(grossTotal)}</td></tr>
+      <tr><td>Cash tattoo × ${calculation.artistRate}%</td><td>${money(calculation.tattoo.cash * calculation.artistRate / 100)}</td></tr>
+      <tr><td>Card tattoo × ${calculation.artistRate}%</td><td>${money(calculation.tattoo.credit_card * calculation.artistRate / 100)}</td></tr>
+      <tr><td>App tattoo × shop ${100 - calculation.artistRate}%</td><td>-${money(calculation.tattoo.app * (100 - calculation.artistRate) / 100)}</td></tr>
+      <tr><td>Cash tips</td><td>${money(calculation.tip.cash)}</td></tr>
+      <tr><td>Card tips</td><td>${money(calculation.tip.credit_card)}</td></tr>
+      <tr><td>Card tip fee (${calculation.cardTipFeeRate}%)</td><td>-${money(calculation.cardTipFee)}</td></tr>
+      <tr><td>App tips (already held)</td><td>${money(0)}</td></tr>
+      <tr><td>Artist earnings</td><td>${money(calculation.artistEarnings)}</td></tr>
       <tr><td>Adjustment${adjNote}</td><td>${money(adjustmentAmount)}</td></tr>
-      <tr class="total-row"><td>Payout total</td><td>${money(finalPayout)}</td></tr>
+      <tr class="total-row"><td>${finalPayout < 0 ? "Artist pays shop" : "Shop pays artist"}</td><td>${money(Math.abs(finalPayout))}</td></tr>
     </table>
   </div>
 
@@ -288,11 +398,13 @@ export default function PayoutsPage() {
   });
   const [formError, setFormError] = useState("");
   const [previewEntries, setPreviewEntries] = useState<EntryRow[] | null>(null);
+  const [previewCalculation, setPreviewCalculation] = useState<PayoutCalculation | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   // Expanded detail
   const [expandedPayoutId, setExpandedPayoutId] = useState<string | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Record<string, EntryRow[]>>({});
+  const [expandedCalculations, setExpandedCalculations] = useState<Record<string, PayoutCalculation>>({});
   const [expandedLoading, setExpandedLoading] = useState<Record<string, boolean>>({});
   const [adjustmentForm, setAdjustmentForm] = useState<Record<string, AdjFormEntry>>({});
   const [adjustmentSaving, setAdjustmentSaving] = useState<string | null>(null);
@@ -320,7 +432,7 @@ export default function PayoutsPage() {
         fetchPayouts(),
         supabase
           .from("staff")
-          .select("id, display_name")
+          .select("id, display_name, payout_rate")
           .eq("active", true)
           .order("sort_order", { ascending: true }),
       ]);
@@ -353,6 +465,7 @@ export default function PayoutsPage() {
       if (cancelled) return;
 
       setPreviewEntries(null);
+      setPreviewCalculation(null);
 
       if (!showModal || !form.artist_id || !form.period_start || !form.period_end) {
         setPreviewLoading(false);
@@ -361,15 +474,22 @@ export default function PayoutsPage() {
 
       setPreviewLoading(true);
 
-      const { data, error: qErr } = await fetchEntriesForPayout(
+      const artistRate = artists.find((artist) => artist.id === form.artist_id)?.payout_rate;
+      if (artistRate === null || artistRate === undefined) {
+        setPreviewLoading(false);
+        return;
+      }
+      const result = await fetchPayoutBundle(
         form.artist_id,
         form.period_start,
         form.period_end,
+        artistRate,
       );
 
       if (cancelled) return;
-      if (!qErr) {
-        setPreviewEntries((data ?? []) as EntryRow[]);
+      if (!result.error && result.data) {
+        setPreviewEntries(result.data.entries);
+        setPreviewCalculation(result.data.calculation);
       }
       setPreviewLoading(false);
     }
@@ -377,7 +497,7 @@ export default function PayoutsPage() {
     loadPreview();
 
     return () => { cancelled = true; };
-  }, [showModal, form.artist_id, form.period_start, form.period_end]);
+  }, [artists, showModal, form.artist_id, form.period_start, form.period_end]);
 
   const filtered =
     statusFilter === "all" ? payouts : payouts.filter((p) => p.status === statusFilter);
@@ -403,12 +523,74 @@ export default function PayoutsPage() {
     const updates: Record<string, unknown> = { status: newStatus };
     if (newStatus === "paid") updates.paid_at = new Date().toISOString();
 
+    if (newStatus === "ready") {
+      const calculation = expandedCalculations[payout.id];
+      const entries = expandedEntries[payout.id];
+      const adjustment = adjustmentForm[payout.id];
+      const adjustmentAmount = adjustment
+        ? Number(adjustment.amount || 0)
+        : Number(payout.adjustment_amount ?? 0);
+      if (!calculation || !entries) {
+        setError("Open this payout and review its calculation before marking it ready.");
+        setSaving(false);
+        return;
+      }
+      if (adjustmentAmount !== 0 && !(adjustment?.note ?? payout.adjustment_note)?.trim()) {
+        setError("An adjustment reason is required when the adjustment is not zero.");
+        setSaving(false);
+        return;
+      }
+
+      const itemResult = entries.length
+        ? await supabase.from("payout_items").insert(
+            entries.map((entry) => ({
+              amount: Number(entry.tattoo_amount) + Number(entry.tip_amount),
+              item_type: "session",
+              payout_id: payout.id,
+              session_entry_id: entry.id,
+            })),
+          )
+        : { error: null };
+      if (itemResult.error) {
+        setError(
+          itemResult.error.message.includes("idx_payout_items_unique_session")
+            ? "One or more sessions are already included in another payout."
+            : `${itemResult.error.message}. Run docs/payout_settlement_migration.sql in Supabase SQL Editor.`,
+        );
+        setSaving(false);
+        return;
+      }
+
+      Object.assign(updates, {
+        artist_earnings: calculation.artistEarnings,
+        artist_rate_snapshot: calculation.artistRate,
+        calculation_snapshot: {
+          ...calculation,
+          adjustmentAmount,
+          entries,
+          sessionIds: entries.map((entry) => entry.id),
+        },
+        card_tip_fee_rate_snapshot: calculation.cardTipFeeRate,
+        settlement_amount: Math.round(
+          (calculation.settlementBeforeAdjustment + adjustmentAmount) * 100,
+        ) / 100,
+        snapshot_at: new Date().toISOString(),
+      });
+    }
+
     const result = await supabase.from("payouts").update(updates).eq("id", payout.id);
 
     if (result.error) {
+      if (newStatus === "ready") {
+        await supabase.from("payout_items").delete().eq("payout_id", payout.id);
+      }
       setError(result.error.message);
       setSaving(false);
       return;
+    }
+
+    if (newStatus === "void") {
+      await supabase.from("payout_items").delete().eq("payout_id", payout.id);
     }
 
     setPayouts((current) =>
@@ -545,35 +727,12 @@ export default function PayoutsPage() {
     setSaving(false);
   }
 
-  function seedAdjustmentForm(payout: PayoutRow, entries: EntryRow[]) {
+  function seedAdjustmentForm(payout: PayoutRow) {
     setAdjustmentForm((prev) => {
       if (prev[payout.id]) return prev;
 
-      const artist = relatedOne(payout.artist);
-      const payoutRate = artist?.payout_rate ?? null;
-      const grossTotal = entries.reduce((s, e) => s + Number(e.total_amount), 0);
       const savedAdj = Number(payout.adjustment_amount ?? 0);
       const savedNote = payout.adjustment_note ?? "";
-
-      // Auto-calc when: payout_rate set, no adjustment saved yet
-      const canAutoCalc =
-        payoutRate !== null &&
-        payoutRate !== undefined &&
-        savedAdj === 0 &&
-        !savedNote;
-
-      if (canAutoCalc) {
-        const autoAmount =
-          Math.round(grossTotal * (payoutRate! / 100 - 1) * 100) / 100;
-        return {
-          ...prev,
-          [payout.id]: {
-            amount: String(autoAmount),
-            note: `${payoutRate}% artist rate (auto)`,
-            isAutoCalc: true,
-          },
-        };
-      }
 
       return {
         ...prev,
@@ -598,26 +757,59 @@ export default function PayoutsPage() {
 
     if (expandedEntries[id] !== undefined) {
       // Already loaded; seed adjustment form if not yet done.
-      seedAdjustmentForm(payout, expandedEntries[id]);
+      seedAdjustmentForm(payout);
+      return;
+    }
+
+    if (
+      payout.status !== "draft" &&
+      payout.calculation_snapshot &&
+      payout.calculation_snapshot.entries
+    ) {
+      setExpandedEntries((prev) => ({
+        ...prev,
+        [id]: payout.calculation_snapshot!.entries!,
+      }));
+      setExpandedCalculations((prev) => ({
+        ...prev,
+        [id]: payout.calculation_snapshot!,
+      }));
+      seedAdjustmentForm(payout);
       return;
     }
 
     setExpandedLoading((prev) => ({ ...prev, [id]: true }));
 
-    const { data, error: qErr } = await fetchEntriesForPayout(
+    const artistRate = relatedOne(payout.artist)?.payout_rate;
+    if (artistRate === null || artistRate === undefined) {
+      setError("Set an artist payout rate before calculating this payout.");
+      setExpandedLoading((prev) => ({ ...prev, [id]: false }));
+      return;
+    }
+    const result = await fetchPayoutBundle(
       payout.artist_id,
       payout.period_start,
       payout.period_end,
+      artistRate,
     );
 
-    const entries = (data ?? []) as EntryRow[];
+    const entries = result.data?.entries ?? [];
 
-    if (!qErr) {
+    if (!result.error && result.data) {
       setExpandedEntries((prev) => ({ ...prev, [id]: entries }));
+      setExpandedCalculations((prev) => ({
+        ...prev,
+        [id]:
+          payout.status !== "draft" && payout.calculation_snapshot
+            ? payout.calculation_snapshot
+            : result.data!.calculation,
+      }));
+    } else if (result.error) {
+      setError(result.error);
     }
     setExpandedLoading((prev) => ({ ...prev, [id]: false }));
 
-    seedAdjustmentForm(payout, qErr ? [] : entries);
+    seedAdjustmentForm(payout);
   }
 
   async function saveAdjustment(payout: PayoutRow) {
@@ -627,6 +819,10 @@ export default function PayoutsPage() {
     const amount = parseFloat(adj.amount);
     if (isNaN(amount)) {
       setError("Adjustment amount must be a number.");
+      return;
+    }
+    if (amount !== 0 && !adj.note.trim()) {
+      setError("An adjustment reason is required when the adjustment is not zero.");
       return;
     }
 
@@ -653,15 +849,6 @@ export default function PayoutsPage() {
     }
     setAdjustmentSaving(null);
   }
-
-  const previewTotals = previewEntries
-    ? {
-        tattoo: previewEntries.reduce((s, e) => s + Number(e.tattoo_amount), 0),
-        tip: previewEntries.reduce((s, e) => s + Number(e.tip_amount), 0),
-        merch: previewEntries.reduce((s, e) => s + Number(e.merch_amount), 0),
-        total: previewEntries.reduce((s, e) => s + Number(e.total_amount), 0),
-      }
-    : null;
 
   return (
     <AccountingShell
@@ -738,17 +925,17 @@ export default function PayoutsPage() {
             <div className="space-y-2">
               {filtered.map((payout) => {
                 const artist = relatedOne(payout.artist);
-                const payoutRate = artist?.payout_rate ?? null;
                 const isExpanded = expandedPayoutId === payout.id;
                 const entries = expandedEntries[payout.id] ?? [];
+                const calculation = expandedCalculations[payout.id];
                 const isLoadingEntries = expandedLoading[payout.id] ?? false;
                 const adj = adjustmentForm[payout.id];
-                const grossTotal = entries.reduce((s, e) => s + Number(e.total_amount), 0);
                 const adjustmentAmount = adj
                   ? parseFloat(adj.amount) || 0
                   : Number(payout.adjustment_amount ?? 0);
-                const finalPayout = grossTotal + adjustmentAmount;
-                const canEdit = payout.status === "draft" || payout.status === "ready";
+                const finalPayout =
+                  (calculation?.settlementBeforeAdjustment ?? 0) + adjustmentAmount;
+                const canEdit = payout.status === "draft";
 
                 return (
                   <div
@@ -857,13 +1044,45 @@ export default function PayoutsPage() {
                           <div className="flex flex-wrap items-start justify-between gap-4">
                             {/* Calculation */}
                             <div className="space-y-2 text-sm">
-                              <div className="flex items-center gap-8">
-                                <span className="w-32 font-semibold text-[#697178]">Gross total</span>
-                                <span className="font-bold">{money(grossTotal)}</span>
-                                {payoutRate !== null ? (
-                                  <span className="text-xs text-[#697178]">{payoutRate}% rate</span>
-                                ) : null}
-                              </div>
+                              {calculation ? (
+                                <>
+                                  <div className="grid grid-cols-[9rem_6rem_6rem] gap-3 text-xs">
+                                    <span className="font-semibold text-[#697178]">Cash tattoo</span>
+                                    <span className="text-right">{money(calculation.tattoo.cash)}</span>
+                                    <span className="text-right font-bold">
+                                      +{money(calculation.tattoo.cash * calculation.artistRate / 100)}
+                                    </span>
+                                    <span className="font-semibold text-[#697178]">Card tattoo</span>
+                                    <span className="text-right">{money(calculation.tattoo.credit_card)}</span>
+                                    <span className="text-right font-bold">
+                                      +{money(calculation.tattoo.credit_card * calculation.artistRate / 100)}
+                                    </span>
+                                    <span className="font-semibold text-[#697178]">App tattoo</span>
+                                    <span className="text-right">{money(calculation.tattoo.app)}</span>
+                                    <span className="text-right font-bold text-[#8a3030]">
+                                      -{money(calculation.tattoo.app * (100 - calculation.artistRate) / 100)}
+                                    </span>
+                                    <span className="font-semibold text-[#697178]">Cash tips</span>
+                                    <span className="text-right">{money(calculation.tip.cash)}</span>
+                                    <span className="text-right font-bold">+{money(calculation.tip.cash)}</span>
+                                    <span className="font-semibold text-[#697178]">Card tips</span>
+                                    <span className="text-right">{money(calculation.tip.credit_card)}</span>
+                                    <span className="text-right font-bold">
+                                      +{money(calculation.tip.credit_card - calculation.cardTipFee)}
+                                    </span>
+                                    <span className="font-semibold text-[#697178]">App tips</span>
+                                    <span className="text-right">{money(calculation.tip.app)}</span>
+                                    <span className="text-right text-[#697178]">Already held</span>
+                                  </div>
+                                  <div className="flex items-center gap-8 border-t border-[#d9d3c7] pt-2">
+                                    <span className="w-32 font-semibold text-[#697178]">Artist earnings</span>
+                                    <span className="font-bold">{money(calculation.artistEarnings)}</span>
+                                    <span className="text-xs text-[#697178]">
+                                      {calculation.artistRate}% rate / card tip fee {calculation.cardTipFeeRate}%
+                                    </span>
+                                  </div>
+                                </>
+                              ) : null}
 
                               {/* Adjustment row */}
                               <div className="flex flex-wrap items-center gap-2">
@@ -902,17 +1121,6 @@ export default function PayoutsPage() {
                                       placeholder="Note (e.g. shop cut 30%)"
                                       value={adj?.note ?? ""}
                                     />
-                                    {payoutRate !== null && adj && (
-                                      <span
-                                        className={`text-xs font-semibold ${
-                                          adj.isAutoCalc
-                                            ? "text-[#476b33]"
-                                            : "text-[#775f36]"
-                                        }`}
-                                      >
-                                        {adj.isAutoCalc ? "Auto-calc" : "Override"}
-                                      </span>
-                                    )}
                                     <button
                                       className="h-8 rounded border border-[#cfc7b8] px-3 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50"
                                       disabled={adjustmentSaving === payout.id}
@@ -935,9 +1143,11 @@ export default function PayoutsPage() {
                               </div>
 
                               <div className="flex items-center gap-8 border-t border-[#d9d3c7] pt-2">
-                                <span className="w-32 font-black text-[#1f2428]">Payout total</span>
-                                <span className="text-lg font-black text-[#236c8f]">
-                                  {money(finalPayout)}
+                                <span className="w-32 font-black text-[#1f2428]">
+                                  {finalPayout < 0 ? "Artist pays shop" : "Shop pays artist"}
+                                </span>
+                                <span className={`text-lg font-black ${finalPayout < 0 ? "text-[#8a3030]" : "text-[#236c8f]"}`}>
+                                  {money(Math.abs(finalPayout))}
                                 </span>
                               </div>
                             </div>
@@ -945,14 +1155,14 @@ export default function PayoutsPage() {
                             {/* Status actions + print */}
                             <div className="flex flex-col items-end gap-2">
                               {/* Print button is available when entries are loaded. */}
-                              {!isLoadingEntries && (
+                              {!isLoadingEntries && calculation ? (
                                 <button
                                   className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                                   onClick={() =>
                                     printPayout(
                                       payout,
                                       entries,
-                                      grossTotal,
+                                      calculation,
                                       adjustmentAmount,
                                       finalPayout,
                                       adj?.note ?? payout.adjustment_note ?? null,
@@ -962,7 +1172,7 @@ export default function PayoutsPage() {
                                 >
                                   Print
                                 </button>
-                              )}
+                              ) : null}
 
                               {payout.status === "draft" ? (
                                 <>
@@ -1134,26 +1344,30 @@ export default function PayoutsPage() {
                         <span className="text-[#697178]">Entries</span>
                         <span className="font-semibold">{previewEntries.length}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#697178]">Tattoo</span>
-                        <span className="font-semibold">{money(previewTotals!.tattoo)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#697178]">Tips</span>
-                        <span className="font-semibold">{money(previewTotals!.tip)}</span>
-                      </div>
-                      {previewTotals!.merch > 0 ? (
-                        <div className="flex justify-between">
-                          <span className="text-[#697178]">Merch</span>
-                          <span className="font-semibold">{money(previewTotals!.merch)}</span>
-                        </div>
+                      {previewCalculation ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-[#697178]">Artist earnings</span>
+                            <span className="font-semibold">
+                              {money(previewCalculation.artistEarnings)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t border-[#d9d3c7] pt-1">
+                            <span className="font-black text-[#1f2428]">
+                              {previewCalculation.settlementBeforeAdjustment < 0
+                                ? "Artist pays shop"
+                                : "Shop pays artist"}
+                            </span>
+                            <span className={`font-black ${
+                              previewCalculation.settlementBeforeAdjustment < 0
+                                ? "text-[#8a3030]"
+                                : "text-[#236c8f]"
+                            }`}>
+                              {money(Math.abs(previewCalculation.settlementBeforeAdjustment))}
+                            </span>
+                          </div>
+                        </>
                       ) : null}
-                      <div className="flex justify-between border-t border-[#d9d3c7] pt-1">
-                        <span className="font-black text-[#1f2428]">Gross total</span>
-                        <span className="font-black text-[#236c8f]">
-                          {money(previewTotals!.total)}
-                        </span>
-                      </div>
                     </div>
                   )}
                 </div>

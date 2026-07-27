@@ -420,7 +420,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       project_id: project.id,
       artist_id: artistId,
       amount: depositAmount,
-      payment_method: payload.depositPaymentMethod || "cash",
+      payment_method: "cash",
       received_at: new Date().toISOString(),
       available: true,
       memo: payload.depositMemo?.trim() || null,

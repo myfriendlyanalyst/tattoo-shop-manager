@@ -75,7 +75,7 @@ const appointments: Appointment[] = [
   },
 ];
 
-const paymentMethods = ["Cash", "Credit Card", "Venmo / Zelle / Cash App", "Other"];
+const paymentMethods = ["Cash", "Credit Card", "Venmo / Zelle / Cash App"];
 const artists = ["JC", "YUSHI", "BAKI", "AIMEE"];
 
 function money(value: number) {
@@ -94,7 +94,7 @@ export default function ArtistEntryPage() {
   const [tipAmount, setTipAmount] = useState("0");
   const [tipPayment, setTipPayment] = useState("Cash");
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositPayment, setDepositPayment] = useState("Credit Card");
+  const [depositPayment] = useState("Cash");
   const [merchAmount, setMerchAmount] = useState("");
   const [merchPayment, setMerchPayment] = useState("Cash");
   const [memo, setMemo] = useState("");
@@ -305,15 +305,9 @@ export default function ArtistEntryPage() {
                 </label>
                 <label className="text-sm font-semibold">
                   Deposit payment
-                  <select
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) => setDepositPayment(event.target.value)}
-                    value={depositPayment}
-                  >
-                    {paymentMethods.map((method) => (
-                      <option key={method}>{method}</option>
-                    ))}
-                  </select>
+                  <div className="mt-2 flex h-10 w-full items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm">
+                    Cash
+                  </div>
                 </label>
               </div>
             ) : null}
