@@ -207,7 +207,93 @@ export default function SessionResultPage() {
       <style jsx global>{`
         @media screen {
           .receipt-sheet {
-            zoom: 0.55;
+            box-sizing: border-box;
+            width: 64mm;
+            max-width: 64mm;
+            padding: 4mm;
+            border: 0.7mm solid #000;
+            font-size: 10px;
+            line-height: 1.15;
+          }
+
+          .receipt-header {
+            padding-bottom: 3mm !important;
+            border-bottom: 0.5mm solid #176783 !important;
+          }
+
+          .receipt-artist {
+            margin-top: 3mm !important;
+            font-size: 13mm !important;
+            line-height: 0.9 !important;
+            letter-spacing: 0 !important;
+          }
+
+          .receipt-entered {
+            margin-top: 3mm !important;
+            font-size: 4.2mm !important;
+            line-height: 1.2 !important;
+          }
+
+          .receipt-section {
+            padding: 2.5mm 0 !important;
+            border-bottom: 0.45mm dashed #176783 !important;
+          }
+
+          .receipt-label {
+            font-size: 3.4mm !important;
+            line-height: 1 !important;
+            letter-spacing: 0 !important;
+          }
+
+          .receipt-value {
+            margin-top: 1.5mm !important;
+            font-size: 6mm !important;
+            line-height: 1.05 !important;
+            letter-spacing: 0 !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .receipt-contact {
+            margin-top: 1.5mm !important;
+            font-size: 3.2mm !important;
+            line-height: 1.15 !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .receipt-payments {
+            padding-top: 4mm !important;
+          }
+
+          .receipt-payment-line {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            gap: 1mm !important;
+            align-items: baseline !important;
+            padding: 1mm 0 !important;
+            border-bottom: 0 !important;
+          }
+
+          .receipt-payment-label {
+            font-size: 4.2mm !important;
+            line-height: 1 !important;
+            white-space: nowrap !important;
+          }
+
+          .receipt-payment-amount {
+            font-size: 7.2mm !important;
+            font-weight: 700 !important;
+            line-height: 1 !important;
+          }
+
+          .receipt-total {
+            margin-top: 2mm !important;
+            padding-top: 2.5mm !important;
+            border-top: 0.5mm solid #176783 !important;
+          }
+
+          .receipt-total .receipt-payment-label,
+          .receipt-total .receipt-payment-amount {
+            font-size: 7.8mm !important;
           }
         }
 
@@ -430,15 +516,17 @@ export default function SessionResultPage() {
 
             {session.memo ? <p className="mt-6 text-sm text-[#697178] print:hidden">{session.memo}</p> : null}
 
-            <div className="mt-6 flex flex-wrap gap-2 print:hidden">
-              <button className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white" onClick={() => window.print()} type="button">Print</button>
-              <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={`/projects/session/wizard?editSessionId=${session.id}`}>Edit</Link>
-              <button className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] disabled:opacity-60" disabled={deleting} onClick={deleteSession} type="button">{deleting ? "Deleting..." : "Delete"}</button>
-              <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href="/projects/session/wizard">Next session</Link>
-            </div>
           </>
         ) : null}
       </section>
+      {session ? (
+        <div className="mx-auto mt-4 flex w-full max-w-[620px] flex-wrap justify-center gap-2 print:hidden">
+          <button className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white" onClick={() => window.print()} type="button">Print</button>
+          <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={`/projects/session/wizard?editSessionId=${session.id}`}>Edit</Link>
+          <button className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] disabled:opacity-60" disabled={deleting} onClick={deleteSession} type="button">{deleting ? "Deleting..." : "Delete"}</button>
+          <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href="/projects/session/wizard">Next session</Link>
+        </div>
+      ) : null}
     </AppPage>
   );
 }
