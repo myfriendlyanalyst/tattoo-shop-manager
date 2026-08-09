@@ -205,6 +205,12 @@ export default function SessionResultPage() {
   return (
     <AppPage eyebrow="Projects" title="Session result">
       <style jsx global>{`
+        @media screen {
+          .receipt-sheet {
+            zoom: 0.55;
+          }
+        }
+
         @media print {
           @page {
             size: 72mm 210mm;
@@ -265,6 +271,7 @@ export default function SessionResultPage() {
             font-size: 10px !important;
             line-height: 1.15 !important;
             transform: none !important;
+            zoom: 1 !important;
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
           }
