@@ -86,7 +86,7 @@ function projectNameFromRequest(request: RequestRecord) {
 function projectNameFromForm(form: FormState) {
   const customer = form.customerName.trim();
   const placement = form.tattooPlacement.trim();
-  const suffix = placement ? `${placement} tattoo` : "tattoo project";
+  const suffix = placement ? `${placement} tattoo` : form.projectType;
 
   return customer ? `${customer} - ${suffix}` : suffix;
 }
@@ -370,9 +370,15 @@ function NewProjectContent() {
               {error}
             </p>
           ) : null}
-          {message ? (
-            <div className="rounded-md bg-[#e4f1df] px-3 py-3 text-sm font-semibold text-[#476b33]">
-              <p>{message}</p>
+          {message && createdProjectId ? (
+            <div className="rounded-md border border-[#b8d5ae] bg-[#eef8ea] px-5 py-5 text-[#355b27]">
+              <p className="text-xs font-black uppercase tracking-[0.1em]">Project created</p>
+              <h3 className="mt-2 text-xl font-black text-[#1f2428]">{projectNameFromForm(form)}</h3>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                <div><dt className="text-xs font-bold uppercase text-[#697178]">Customer</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.customerName}</dd></div>
+                <div><dt className="text-xs font-bold uppercase text-[#697178]">Artist</dt><dd className="mt-1 font-semibold text-[#1f2428]">{artists.find((artist) => artist.id === form.artistId)?.display_name ?? "-"}</dd></div>
+                <div><dt className="text-xs font-bold uppercase text-[#697178]">Project type</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.projectType}</dd></div>
+              </dl>
               {createdProjectId ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
@@ -382,6 +388,12 @@ function NewProjectContent() {
                   >
                     Schedule now
                   </button>
+                  <Link
+                    className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-bold text-[#30373d]"
+                    href="/projects"
+                  >
+                    View or edit project
+                  </Link>
                   <Link
                     className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-bold text-[#30373d]"
                     href="/projects"
@@ -393,16 +405,16 @@ function NewProjectContent() {
             </div>
           ) : null}
 
-          <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
+          {!createdProjectId ? <><section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold text-[#6f7275]">Project info</h4>
-            <div className="mt-3 grid gap-4 lg:grid-cols-3">
+            <div className="mt-3 grid gap-4 lg:grid-cols-2">
               <div className="block text-sm font-semibold">
                 Project name {requiredMark}
                 <div className="mt-2 flex min-h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm font-semibold text-[#4d555c]">
                   {projectNameFromForm(form)}
                 </div>
               </div>
-              <label className="block text-sm font-semibold">
+              {artists.length > 1 ? <label className="block text-sm font-semibold">
                 Artist {requiredMark}
                 <select
                   className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -417,20 +429,18 @@ function NewProjectContent() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                Project type {requiredMark}
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => updateForm({ projectType: event.target.value })}
-                  required
-                  value={form.projectType}
-                >
-                  {projectTypeOptions.map((type) => (
-                    <option key={type}>{type}</option>
-                  ))}
-                </select>
-              </label>
+              </label> : <div className="text-sm font-semibold">Artist<div className="mt-2 flex h-10 items-center rounded-md border border-[#d9d3c7] bg-white px-3">{artists[0]?.display_name ?? "-"}</div></div>}
+            </div>
+            <div className="mt-4">
+              <p className="text-sm font-semibold">Project type {requiredMark}</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {projectTypeOptions.map((type) => (
+                  <button className={`min-h-20 rounded-md border px-4 py-3 text-left transition ${form.projectType === type ? "border-[#1f2428] bg-[#1f2428] text-white" : "border-[#cfc7b8] bg-white hover:bg-[#eee8dd]"}`} key={type} onClick={() => updateForm({ projectType: type })} type="button">
+                    <span className="block text-base font-black">{type}</span>
+                    <span className={`mt-1 block text-xs ${form.projectType === type ? "text-white/70" : "text-[#697178]"}`}>{type === "Multiple Session" ? "Several appointments" : type === "Walk-in" ? "Same-day client" : "Single appointment"}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -569,9 +579,11 @@ function NewProjectContent() {
               </label>
               <label className="block text-sm font-semibold">
                 Payment method
-                <div className="mt-2 flex h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm">
-                  Cash
-                </div>
+                <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm" disabled={form.depositNotCollected} onChange={(event) => updateForm({ depositPaymentMethod: event.target.value })} value={form.depositPaymentMethod}>
+                  <option value="cash">Cash</option>
+                  <option value="credit_card">Card</option>
+                  <option value="app">App</option>
+                </select>
               </label>
               <label className="flex min-h-10 items-center gap-2 self-end rounded-md border border-[#d9d3c7] bg-white px-3 py-2 text-sm font-semibold">
                 <input
@@ -606,6 +618,7 @@ function NewProjectContent() {
           >
             {saving ? "Creating..." : createdProjectId ? "Project created" : "Create project"}
           </button>
+          </> : null}
         </div>
       </section>
     </AppPage>

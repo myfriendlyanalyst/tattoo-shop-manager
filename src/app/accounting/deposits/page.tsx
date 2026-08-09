@@ -172,14 +172,6 @@ export default function DepositsPage() {
         .reduce((sum, d) => sum + Number(d.amount), 0),
     [deposits],
   );
-  const usedTotal = useMemo(
-    () =>
-      deposits
-        .filter((d) => depositDisposition(d) !== "available")
-        .reduce((sum, d) => sum + Number(d.amount), 0),
-    [deposits],
-  );
-
   async function markUsed(deposit: DepositRecord) {
     const confirmed = window.confirm(
       `Mark this deposit (${money(Number(deposit.amount))}) as applied/used?`,
@@ -317,7 +309,7 @@ export default function DepositsPage() {
             </p>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-md border-2 border-[#191b1f] bg-white px-5 py-4 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
                 Available (On Hold)
@@ -329,22 +321,11 @@ export default function DepositsPage() {
             </div>
             <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
-                Applied to Sessions
+                Deposit Records
               </p>
-              <p className="mt-2 text-2xl font-black text-[#4d555c]">{money(usedTotal)}</p>
+              <p className="mt-2 text-2xl font-black text-[#4d555c]">{deposits.length}</p>
               <p className="mt-1.5 text-xs font-bold text-[#697178]">
-                {deposits.filter((d) => !d.available).length} deposits
-              </p>
-            </div>
-            <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
-                All Time Total
-              </p>
-              <p className="mt-2 text-2xl font-black text-[#4d555c]">
-                {money(availableTotal + usedTotal)}
-              </p>
-              <p className="mt-1.5 text-xs font-bold text-[#697178]">
-                {deposits.length} deposits total
+                {deposits.filter((d) => !d.available).length} closed or applied
               </p>
             </div>
           </div>

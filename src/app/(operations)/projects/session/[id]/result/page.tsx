@@ -94,7 +94,6 @@ export default function SessionResultPage() {
   const [session, setSession] = useState<SessionResultRecord | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [depositApplied, setDepositApplied] = useState(0);
-  const [enteredBy, setEnteredBy] = useState("-");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -144,17 +143,6 @@ export default function SessionResultPage() {
         (depositResult.data ?? []).reduce((sum, application) => sum + Number(application.amount), 0),
       );
 
-      if (nextSession.created_by) {
-        const staffResult = await supabase
-          .from("staff")
-          .select("display_name")
-          .eq("profile_id", nextSession.created_by)
-          .maybeSingle();
-
-        if (!staffResult.error && staffResult.data?.display_name) {
-          setEnteredBy(staffResult.data.display_name);
-        }
-      }
       setLoading(false);
     }
 
@@ -370,45 +358,43 @@ export default function SessionResultPage() {
           }
         }
       `}</style>
-      <section className="receipt-sheet mx-auto w-full max-w-[520px] border-4 border-black bg-white px-8 py-8 shadow-sm print:shadow-none">
+      <section className="receipt-sheet mx-auto w-full max-w-[620px] border-2 border-black bg-white px-6 py-6 shadow-sm print:shadow-none">
         {loading ? <p className="text-sm font-semibold text-[#697178]">Loading...</p> : null}
         {error ? <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">{error}</p> : null}
 
         {session ? (
           <>
-            <div className="receipt-header border-b-4 border-[#176783] pb-5">
-              <p className="receipt-label text-lg uppercase tracking-normal text-black">Saved session</p>
-              <h2 className="receipt-artist mt-5 text-7xl font-black leading-none tracking-normal text-black">
+            <div className="receipt-header border-b-2 border-[#176783] pb-4">
+              <p className="receipt-label text-sm font-bold uppercase tracking-[0.1em] text-black">Session completed by</p>
+              <h2 className="receipt-artist mt-2 text-5xl font-black leading-none tracking-normal text-black">
                 {artistName}
               </h2>
-              <p className="receipt-entered mt-5 text-4xl leading-tight text-black">
+              <p className="receipt-entered mt-2 text-sm text-[#697178]">
                 Entered {displayDateTime(session.entered_at)}
-                <br />
-                By {enteredBy}
               </p>
             </div>
 
-            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+            <div className="receipt-section border-b-2 border-dashed border-[#176783] py-4">
               <p className="receipt-label text-lg uppercase text-black">Client</p>
-              <p className="receipt-value mt-2 text-5xl font-black leading-tight text-black">{customerName}</p>
+              <p className="receipt-value mt-1 text-3xl font-black leading-tight text-black">{customerName}</p>
               {contactLine ? (
                 <p className="receipt-contact mt-3 text-2xl text-[#176783]">{contactLine}</p>
               ) : null}
             </div>
 
-            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+            <div className="receipt-section border-b-2 border-dashed border-[#176783] py-4">
               <p className="receipt-label text-2xl text-black">Placement</p>
-              <p className="receipt-value mt-2 text-5xl font-black leading-tight text-black">{placement}</p>
+              <p className="receipt-value mt-1 text-3xl font-black leading-tight text-black">{placement}</p>
             </div>
 
-            <div className="receipt-section border-b-4 border-dashed border-[#176783] py-5">
+            <div className="receipt-section border-b-2 border-dashed border-[#176783] py-4">
               <p className="receipt-label text-lg uppercase text-black">Appointment</p>
-              <p className="receipt-value mt-2 text-4xl font-black leading-tight text-black">
+              <p className="receipt-value mt-1 text-2xl font-black leading-tight text-black">
                 {displayDateTime(appointment?.starts_at)}
               </p>
             </div>
 
-            <div className="receipt-payments pt-8">
+            <div className="receipt-payments pt-4">
               {payments.map((payment) => (
                 <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
                   <span className="receipt-payment-label text-4xl capitalize text-black">

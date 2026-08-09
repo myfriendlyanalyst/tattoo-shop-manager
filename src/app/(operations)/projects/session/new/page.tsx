@@ -603,7 +603,7 @@ export default function NewSessionPage() {
               saved={savedSessionLocked}
               saving={saving}
               sessionPayments={[] as SessionPaymentRecord[]}
-              submitLabel={createdSessionId ? "Update session" : "Save session"}
+              submitLabel={createdSessionId ? "Update session" : "Complete session"}
             />
           ) : (
             <p className="rounded-md border border-dashed border-[#d9d3c7] px-3 py-6 text-sm font-semibold text-[#697178]">

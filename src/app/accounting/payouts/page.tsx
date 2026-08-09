@@ -100,7 +100,7 @@ function localDateValue(value = new Date()) {
 }
 
 function statusLabel(status: string) {
-  return { draft: "Draft", ready: "Ready", paid: "Paid", void: "Void" }[status] ?? status;
+  return { draft: "Draft", ready: "Finalized", paid: "Paid", void: "Cancelled" }[status] ?? status;
 }
 
 function statusClasses(status: string) {
@@ -690,7 +690,7 @@ export default function PayoutsPage() {
       setFormError(
         `This period overlaps an existing ${statusLabel(conflict.status).toLowerCase()} payout (${formatDate(
           conflict.period_start,
-        )} - ${formatDate(conflict.period_end)}). Void it first or choose a different range.`,
+        )} - ${formatDate(conflict.period_end)}). Cancel it first or choose a different range.`,
       );
       setSaving(false);
       return;
@@ -1179,18 +1179,18 @@ export default function PayoutsPage() {
                                   <button
                                     className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50"
                                     disabled={saving}
-                                    onClick={() => updateStatus(payout, "ready", "Mark ready")}
+                                    onClick={() => updateStatus(payout, "ready", "Finalize payout")}
                                     type="button"
                                   >
-                                    Mark ready
+                                    Finalize
                                   </button>
                                   <button
                                     className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f5e8e8] disabled:opacity-50"
                                     disabled={saving}
-                                    onClick={() => updateStatus(payout, "void", "Void")}
+                                    onClick={() => updateStatus(payout, "void", "Cancel payout")}
                                     type="button"
                                   >
-                                    Void
+                                    Cancel payout
                                   </button>
                                   <button
                                     className="h-8 w-28 rounded border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f5e8e8] disabled:opacity-50"
@@ -1214,17 +1214,17 @@ export default function PayoutsPage() {
                                   <button
                                     className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f5e8e8] disabled:opacity-50"
                                     disabled={saving}
-                                    onClick={() => updateStatus(payout, "void", "Void")}
+                                    onClick={() => updateStatus(payout, "void", "Cancel payout")}
                                     type="button"
                                   >
-                                    Void
+                                    Cancel payout
                                   </button>
                                 </>
                               ) : (
                                 <p className="text-xs text-[#697178]">
                                   {payout.status === "paid"
                                     ? `Paid ${payout.paid_at ? formatDate(payout.paid_at) : ""}`
-                                    : "Void"}
+                                    : "Cancelled"}
                                 </p>
                               )}
 

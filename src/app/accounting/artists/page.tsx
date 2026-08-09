@@ -100,7 +100,7 @@ function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
     <!doctype html>
     <html>
       <head>
-        <title>Artist Summary - ${escapeHtml(summary.artist_name)}</title>
+        <title>Artist Sales Analysis - ${escapeHtml(summary.artist_name)}</title>
         <style>
           body { font-family: Arial, sans-serif; margin: 32px; color: #1f2428; }
           h1 { margin: 0 0 6px; font-size: 24px; }
@@ -343,11 +343,11 @@ export default function ArtistsPage() {
     <AccountingShell
       active="Artists"
       eyebrow="Revenue by artist"
-      title="Artist Summary"
+      title="Artist Sales Analysis"
     >
       {loading ? (
         <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-8 text-sm font-semibold text-[#697178] shadow-sm">
-          Loading artist summary...
+          Loading artist sales analysis...
         </div>
       ) : null}
 

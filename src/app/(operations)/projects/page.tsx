@@ -107,7 +107,6 @@ type SessionEntryRecord = {
 type DepositForm = {
   amount: string;
   paymentMethod: string;
-  exceptionReason: string;
   receivedAt: string;
   memo: string;
 };
@@ -315,7 +314,6 @@ function DepositEntryModal({
   project,
   deposit,
   appliedAmount,
-  canUseAppException,
   onClose,
   onSave,
 }: {
@@ -324,14 +322,12 @@ function DepositEntryModal({
   project: ProjectRecord;
   deposit?: DepositRecord | null;
   appliedAmount?: number;
-  canUseAppException: boolean;
   onClose: () => void;
   onSave: (form: DepositForm) => void;
 }) {
   const [form, setForm] = useState<DepositForm>({
     amount: numberInputValue(deposit?.amount),
     paymentMethod: deposit?.payment_method ?? "cash",
-    exceptionReason: memoField(deposit?.memo ?? null, "App deposit exception"),
     receivedAt: deposit ? localDateTimeInput(new Date(deposit.received_at)) : localDateTimeInput(),
     memo: deposit?.memo ?? "",
   });
@@ -383,54 +379,15 @@ function DepositEntryModal({
                 value={form.amount}
               />
             </label>
-            <div className="text-sm font-semibold">
+            <label className="text-sm font-semibold">
               Payment method
-              <div className="mt-2 flex h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3">
-                {form.paymentMethod === "app"
-                  ? "App (artist received)"
-                  : paymentLabel(form.paymentMethod)}
-              </div>
-              {canUseAppException && (!deposit || ["cash", "app"].includes(form.paymentMethod)) ? (
-                <button
-                  className="mt-2 text-xs font-semibold text-[#775f36] underline"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      exceptionReason: "",
-                      paymentMethod: current.paymentMethod === "app" ? "cash" : "app",
-                    }))
-                  }
-                  type="button"
-                >
-                  {form.paymentMethod === "app"
-                    ? "Use standard cash deposit"
-                    : "Record App exception"}
-                </button>
-              ) : null}
-              {deposit && !["cash", "app"].includes(form.paymentMethod) ? (
-                <p className="mt-2 text-xs font-normal text-[#8a5130]">
-                  Legacy payment method. Existing history is preserved.
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          {form.paymentMethod === "app" ? (
-            <label className="block text-sm font-semibold">
-              App exception reason
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, exceptionReason: event.target.value }))
-                }
-                placeholder="Why was the cash-only policy overridden?"
-                value={form.exceptionReason}
-              />
-              <span className="mt-1 block text-xs font-normal text-[#697178]">
-                The artist received and currently holds this deposit.
-              </span>
+              <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))} value={form.paymentMethod}>
+                <option value="cash">Cash</option>
+                <option value="credit_card">Card</option>
+                <option value="app">App (artist received)</option>
+              </select>
             </label>
-          ) : null}
+          </div>
 
           <label className="block text-sm font-semibold">
             Received at
@@ -1205,17 +1162,8 @@ export default function ProjectsPage() {
       return;
     }
 
-    if (!["cash", "app"].includes(form.paymentMethod)) {
-      setEntryError("New and updated deposits must use Cash or an approved App exception.");
-      return;
-    }
-
-    if (
-      form.paymentMethod === "app" &&
-      (!["owner", "admin"].includes(operationsContext?.role ?? "") ||
-        !form.exceptionReason.trim())
-    ) {
-      setEntryError("Owner/Admin approval and an exception reason are required for an App deposit.");
+    if (!["cash", "credit_card", "app"].includes(form.paymentMethod)) {
+      setEntryError("Deposits must use Cash, Card, or App.");
       return;
     }
 
@@ -1237,12 +1185,6 @@ export default function ProjectsPage() {
         : remainingAfterSave > 0
           ? "available"
           : "applied";
-    const memoLines = form.memo
-      .split(/\r?\n/)
-      .filter((line) => !line.trim().toLowerCase().startsWith("app deposit exception:"));
-    if (form.paymentMethod === "app") {
-      memoLines.push(`App deposit exception: ${form.exceptionReason.trim()}`);
-    }
     const payload = {
       amount,
       payment_method: form.paymentMethod,
@@ -1250,7 +1192,7 @@ export default function ProjectsPage() {
       available: disposition === "available",
       disposition,
       used_at: disposition === "available" ? null : new Date().toISOString(),
-      memo: memoLines.join("\n").trim() || null,
+      memo: form.memo.trim() || null,
     };
     const result = editingDeposit
       ? await supabase
@@ -2584,7 +2526,6 @@ export default function ProjectsPage() {
             editingDeposit ? depositAppliedTotal(editingDeposit.id, depositApplications) : 0
           }
           deposit={editingDeposit}
-          canUseAppException={["owner", "admin"].includes(operationsContext?.role ?? "")}
           error={entryError}
           onClose={() => {
             setEditingDeposit(null);

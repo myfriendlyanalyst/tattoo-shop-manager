@@ -1471,7 +1471,7 @@ export default function RequestsPage() {
   return (
     <AppPage
       eyebrow="Request intake"
-      title="Website and email requests"
+      title="Email requests from website"
       actions={
         isArtistUser ? null : (
         <>
@@ -1911,9 +1911,11 @@ export default function RequestsPage() {
                           </label>
                           <label className="text-sm font-semibold">
                             Payment method
-                            <div className="mt-2 flex h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm">
-                              Cash
-                            </div>
+                            <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm" disabled={saving} onChange={(event) => setBookingForm((current) => current ? { ...current, depositPaymentMethod: event.target.value } : current)} value={bookingForm.depositPaymentMethod}>
+                              <option value="cash">Cash</option>
+                              <option value="credit_card">Card</option>
+                              <option value="app">App</option>
+                            </select>
                           </label>
                         </div>
                         <textarea

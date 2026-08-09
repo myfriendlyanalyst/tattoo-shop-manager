@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AccountingShell } from "@/components/accounting-shell";
-import { BarChart, DonutChart, StackedBar, type ChartPoint, type ChartSlice } from "@/components/accounting-charts";
+import { BarChart, DonutChart, LineChart, StackedBar, type ChartPoint, type ChartSlice } from "@/components/accounting-charts";
 import { getSafeUser } from "@/lib/auth-session";
 import { hasAccountingAccess } from "@/lib/accounting-access";
 import { supabase } from "@/lib/supabase";
@@ -231,7 +231,6 @@ export default function AccountingDashboardPage() {
   const tattooTotal = paymentBreakdown.reduce((sum, item) => sum + item.tattoo, 0);
   const tipTotal = paymentBreakdown.reduce((sum, item) => sum + item.tip, 0);
   const merchTotal = paymentBreakdown.reduce((sum, item) => sum + item.merch, 0);
-  const forfeitedDepositTotal = paymentBreakdown.reduce((sum, item) => sum + item.deposit, 0);
   const availableDeposits = deposits
     .filter((deposit) => deposit.available)
     .reduce((sum, deposit) => sum + Number(deposit.amount), 0);
@@ -246,6 +245,18 @@ export default function AccountingDashboardPage() {
   const paymentBars: ChartPoint[] = paymentBreakdown
     .filter((item) => item.total > 0)
     .map((item) => ({ label: item.label, value: item.total }));
+
+  const monthlySales = useMemo<ChartPoint[]>(() => {
+    const totals = new Map<string, number>();
+    for (const entry of entries) {
+      const date = new Date(entry.entered_at);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      totals.set(key, (totals.get(key) ?? 0) + Number(entry.total_amount));
+    }
+    return [...totals.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({ label: new Date(`${key}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }), value }));
+  }, [entries]);
 
   const selectedArtist = artists.find((artist) => artist.id === artistId);
   const activePeriodLabel = `${dateFrom} to ${dateTo}`;
@@ -312,6 +323,7 @@ export default function AccountingDashboardPage() {
                   { label: "7D", ...presetRange(7) },
                   { label: "30D", ...presetRange(30) },
                   { label: "MTD", from: localDateValue(new Date(now.getFullYear(), now.getMonth(), 1)), to: localDateValue(now) },
+                  { label: "1Y", from: localDateValue(new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1)), to: localDateValue(now) },
                 ].map((preset) => (
                   <button
                     className="h-10 rounded-md border border-[#cfc7b8] px-3 text-xs font-bold hover:bg-[#eee8dd]"
@@ -371,14 +383,22 @@ export default function AccountingDashboardPage() {
               </div>
               <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
-                  Forfeited Deposits
+                  Deposits Received
                 </p>
-                <p className="mt-2 text-2xl font-black text-[#236c8f]">{money(forfeitedDepositTotal)}</p>
+                <p className="mt-2 text-2xl font-black text-[#236c8f]">{money(availableDeposits + usedDeposits)}</p>
                 <p className="mt-1.5 text-xs font-bold text-[#697178]">
                   {money(availableDeposits)} on hold / {money(usedDeposits)} closed
                 </p>
               </div>
             </div>
+          </section>
+
+          <section className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-base font-bold">Monthly Sales Trend</h3>
+              <p className="mt-0.5 text-sm text-[#697178]">Choose 1Y above to review the last twelve months.</p>
+            </div>
+            <LineChart data={monthlySales} height={210} color="#236c8f" />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">
@@ -412,7 +432,7 @@ export default function AccountingDashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+          <section className="hidden rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="border-b border-[#e5dfd4] px-5 py-4">
               <h3 className="text-base font-bold">Payment Method Detail</h3>
               <p className="mt-1 text-sm text-[#697178]">
@@ -457,7 +477,7 @@ export default function AccountingDashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+          <section className="hidden rounded-md border border-[#d9d3c7] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#e5dfd4] px-5 py-4">
               <div>
                 <h3 className="text-base font-bold">Recent Matching Transactions</h3>

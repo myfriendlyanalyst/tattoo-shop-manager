@@ -561,7 +561,7 @@ export function SessionEntryForm({
           onClick={confirmAndSave}
           type="button"
         >
-          {saving ? "Saving..." : submitLabel ?? (session ? "Update session" : "Save session")}
+          {saving ? "Saving..." : submitLabel ?? (session ? "Update session" : "Complete session")}
         </button>
       )}
     </div>

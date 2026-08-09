@@ -14,7 +14,7 @@ import {
 } from "@/lib/operations-access";
 
 const navItems = [
-  { label: "Requests", href: "/requests", note: "Start" },
+  { label: "Email Requests", href: "/requests", note: "Start" },
   {
     label: "Projects",
     href: "/projects",
@@ -27,10 +27,10 @@ const navItems = [
   { label: "Calendar", href: "/calendar" },
   { label: "Customers", href: "/customers" },
   { label: "Staff", href: "/staff" },
-  { label: "Settings", href: "/settings" },
+  { label: "Email Settings", href: "/settings" },
 ];
 
-const basicNavLabels = new Set(["Requests", "Projects", "Calendar", "Settings"]);
+const basicNavLabels = new Set(["Email Requests", "Projects", "Calendar", "Email Settings"]);
 
 type AppShellProps = {
   children: React.ReactNode;

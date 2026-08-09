@@ -256,12 +256,16 @@ export async function POST(request: NextRequest) {
   const projectName = payload.projectName?.trim() ?? "";
   const customerName = payload.customerName?.trim() ?? "";
   const depositAmount = Number(payload.depositAmount ?? 0);
+  const depositPaymentMethod = payload.depositPaymentMethod?.trim() || "cash";
 
   if (!projectName) return jsonError("Project name is required.", 400);
   if (!customerName) return jsonError("Customer name is required.", 400);
   if (!artistId) return jsonError("Select an artist.", 400);
   if (!Number.isFinite(depositAmount) || depositAmount < 0) {
     return jsonError("Deposit amount must be a valid number.", 400);
+  }
+  if (!["cash", "credit_card", "app"].includes(depositPaymentMethod)) {
+    return jsonError("Deposit payment method must be Cash, Card, or App.", 400);
   }
 
   const access = await requireProjectUser(token, artistId);
@@ -315,7 +319,7 @@ export async function POST(request: NextRequest) {
       available: true,
       customer_id: customer.id,
       memo: payload.depositMemo?.trim() || null,
-      payment_method: "cash",
+      payment_method: depositPaymentMethod,
       project_id: project.id,
       received_at: new Date().toISOString(),
     });

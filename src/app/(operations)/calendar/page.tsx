@@ -786,8 +786,6 @@ function NewAppointmentModal({
   });
   const defaultDurationMinutes = draft.defaultDurationMinutes || 120;
   const [customerSearch, setCustomerSearch] = useState(customerSearchLabel(initialCustomer));
-  const selectedProject = projects.find((project) => project.id === form.projectId) ?? firstProject;
-  const selectedProjectCustomer = relatedOne(selectedProject?.customer ?? null);
   const selectedCustomer = customers.find((customer) => customer.id === form.customerId) ?? null;
   const canUseExistingCustomer = customers.length > 0;
   const filteredCustomers = useMemo(() => {
@@ -943,14 +941,6 @@ function NewAppointmentModal({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="block text-sm font-semibold">
-                Customer
-                <input
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm"
-                  readOnly
-                  value={selectedProjectCustomer?.name ?? "Select a project"}
-                />
               </label>
             </>
           ) : (

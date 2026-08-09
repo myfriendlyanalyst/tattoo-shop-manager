@@ -114,7 +114,7 @@ export default function SettingsPage() {
     return (
       <AppPage
         eyebrow="Artist setup"
-        title="Settings"
+        title="Email Settings"
       >
         {message ? (
           <p className="mb-6 rounded-md bg-[#e4f1df] px-4 py-3 text-sm font-semibold text-[#476b33]">
@@ -129,7 +129,7 @@ export default function SettingsPage() {
 
         <section className="rounded-md border border-[#d9d3c7] bg-white shadow-sm">
           <div className="border-b border-[#e5dfd4] px-4 py-4">
-            <h3 className="text-base font-semibold">Client email default</h3>
+            <h3 className="text-base font-semibold">Default client email</h3>
           </div>
           <div className="px-4 py-4">
             {loadingArtistSettings ? (

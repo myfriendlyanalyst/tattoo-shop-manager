@@ -262,6 +262,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const endTime = payload.endTime?.trim() ?? "";
   const hasAppointmentDetails = Boolean(appointmentDate || startTime || endTime);
   const depositAmount = Number(payload.depositAmount ?? 0);
+  const depositPaymentMethod = payload.depositPaymentMethod?.trim() || "cash";
 
   if (!artistId) return jsonError("Select an artist before booking this project.", 400);
   if (!projectSubject) return jsonError("Project name is required.", 400);
@@ -281,6 +282,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   if (!Number.isFinite(depositAmount) || depositAmount < 0) {
     return jsonError("Deposit amount must be a valid number.", 400);
+  }
+  if (!["cash", "credit_card", "app"].includes(depositPaymentMethod)) {
+    return jsonError("Deposit payment method must be Cash, Card, or App.", 400);
   }
 
   const { data: requestRow, error: requestError } = await access.adminClient
@@ -420,7 +424,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       project_id: project.id,
       artist_id: artistId,
       amount: depositAmount,
-      payment_method: "cash",
+      payment_method: depositPaymentMethod,
       received_at: new Date().toISOString(),
       available: true,
       memo: payload.depositMemo?.trim() || null,

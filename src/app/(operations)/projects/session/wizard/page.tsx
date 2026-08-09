@@ -1014,13 +1014,13 @@ export default function SessionWizardPage() {
         </Link>
       }
       eyebrow="Projects"
-      title="New session beta"
+      title="New session"
     >
       <section className="mx-auto max-w-5xl rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold">Guided session entry</h3>
+              <h3 className="text-lg font-semibold">Session details</h3>
               <p className="mt-1 text-sm font-medium text-[#697178]">
                 Step {stepIndex} of {totalSteps}
               </p>
@@ -1368,8 +1368,8 @@ export default function SessionWizardPage() {
                         {[customer.name, customer.email, customer.phone].filter(Boolean).join(" / ")}
                       </button>
                     ))}
-                    {filteredCustomers.length === 0 ? (
-                      <p className="px-3 py-2 text-sm font-semibold text-[#697178]">No match found.</p>
+                    {customerSearch.trim() && filteredCustomers.length === 0 ? (
+                      <p className="px-3 py-2 text-sm font-semibold text-[#697178]">No customers match this search.</p>
                     ) : null}
                   </div>
                 </div>
@@ -1409,7 +1409,7 @@ export default function SessionWizardPage() {
               ) : null}
 
               <div className="grid gap-4 md:grid-cols-3">
-                <label className="block text-sm font-semibold">
+                {artists.length > 1 ? <label className="block text-sm font-semibold">
                   Artist <span className="text-[#8a3030]">*</span>
                   <select
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
@@ -1423,7 +1423,7 @@ export default function SessionWizardPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </label> : <div className="text-sm font-semibold">Artist<div className="mt-2 flex h-10 items-center rounded-md border border-[#d9d3c7] bg-[#f7f2e9] px-3">{artists[0]?.display_name ?? "-"}</div></div>}
                 <label className="block text-sm font-semibold">
                   Placement <span className="text-[#8a3030]">*</span>
                   <input
@@ -1572,7 +1572,7 @@ export default function SessionWizardPage() {
                   onClick={saveReviewedSession}
                   type="button"
                 >
-                  {saving ? "Saving..." : editingSavedSession ? "Update session" : "Save session"}
+                  {saving ? "Saving..." : editingSavedSession ? "Update session" : "Complete session"}
                 </button>
               </div>
             </section>

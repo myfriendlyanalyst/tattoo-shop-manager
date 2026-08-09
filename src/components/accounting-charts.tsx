@@ -324,7 +324,9 @@ export function DonutChart({
               style={{ background: s.color }}
             />
             <span className="text-[#697178]">{s.label}</span>
-            <span className="ml-auto font-bold text-[#1f2428]">{money(s.value)}</span>
+            <span className="ml-auto font-bold text-[#1f2428]">
+              {money(s.value)} <span className="text-xs text-[#697178]">({((s.value / total) * 100).toFixed(1)}%)</span>
+            </span>
           </li>
         ))}
       </ul>
