@@ -230,8 +230,9 @@ export default function SessionResultPage() {
 
           .receipt-entered {
             margin-top: 3mm !important;
-            font-size: 4.2mm !important;
-            line-height: 1.2 !important;
+            font-size: 3mm !important;
+            line-height: 1.1 !important;
+            white-space: nowrap !important;
           }
 
           .receipt-section {
@@ -382,8 +383,9 @@ export default function SessionResultPage() {
 
           .receipt-entered {
             margin-top: 3mm !important;
-            font-size: 4.2mm !important;
-            line-height: 1.2 !important;
+            font-size: 3mm !important;
+            line-height: 1.1 !important;
+            white-space: nowrap !important;
           }
 
           .receipt-section {
