@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const resend = process.env.RESEND_API_KEY;
 const from = process.env.EMAIL_FROM;
 
@@ -40,14 +39,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!url || !key || !service || !resend || !from) {
+  if (!url || !key || !resend || !from) {
     return NextResponse.json({ error: "Email service is not configured." }, { status: 500 });
   }
   const token = request.headers.get("authorization")?.replace("Bearer ", "");
   if (!token) return NextResponse.json({ error: "Missing login session." }, { status: 401 });
 
   const auth = createClient(url, key, { global: { headers: { Authorization: `Bearer ${token}` } } });
-  const admin = createClient(url, service, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: userData } = await auth.auth.getUser();
   if (!userData.user) return NextResponse.json({ error: "Invalid login session." }, { status: 401 });
   const { data: canAccess, error: accessError } = await auth.rpc("can_access_accounting");
@@ -56,7 +54,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { data: payout, error } = await admin
+  const { data: payout, error } = await auth
     .from("payouts")
     .select("period_start, period_end, status, settlement_amount, calculation_snapshot, artist:staff(display_name,email)")
     .eq("id", id)
