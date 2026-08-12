@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AccountingShell } from "@/components/accounting-shell";
-import { BarChart, DonutChart, LineChart, StackedBar, type ChartPoint, type ChartSlice } from "@/components/accounting-charts";
+import { BarChart, DonutChart, StackedBar, type ChartPoint, type ChartSlice } from "@/components/accounting-charts";
 import { getSafeUser } from "@/lib/auth-session";
 import { hasAccountingAccess } from "@/lib/accounting-access";
 import { supabase } from "@/lib/supabase";
@@ -231,13 +231,6 @@ export default function AccountingDashboardPage() {
   const tattooTotal = paymentBreakdown.reduce((sum, item) => sum + item.tattoo, 0);
   const tipTotal = paymentBreakdown.reduce((sum, item) => sum + item.tip, 0);
   const merchTotal = paymentBreakdown.reduce((sum, item) => sum + item.merch, 0);
-  const availableDeposits = deposits
-    .filter((deposit) => deposit.available)
-    .reduce((sum, deposit) => sum + Number(deposit.amount), 0);
-  const usedDeposits = deposits
-    .filter((deposit) => !deposit.available)
-    .reduce((sum, deposit) => sum + Number(deposit.amount), 0);
-
   const paymentSlices: ChartSlice[] = paymentBreakdown
     .filter((item) => item.total > 0)
     .map((item) => ({ label: item.label, value: item.total, color: item.color }));
@@ -385,9 +378,9 @@ export default function AccountingDashboardPage() {
                 <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
                   Deposits Received
                 </p>
-                <p className="mt-2 text-2xl font-black text-[#236c8f]">{money(availableDeposits + usedDeposits)}</p>
+                <p className="mt-2 text-2xl font-black text-[#236c8f]">{deposits.filter((deposit) => deposit.available).length}</p>
                 <p className="mt-1.5 text-xs font-bold text-[#697178]">
-                  {money(availableDeposits)} on hold / {money(usedDeposits)} closed
+                  deposits currently on hold
                 </p>
               </div>
             </div>
@@ -398,7 +391,7 @@ export default function AccountingDashboardPage() {
               <h3 className="text-base font-bold">Monthly Sales Trend</h3>
               <p className="mt-0.5 text-sm text-[#697178]">Choose 1Y above to review the last twelve months.</p>
             </div>
-            <LineChart data={monthlySales} height={210} color="#236c8f" />
+            <BarChart data={monthlySales} height={210} color="#236c8f" />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1fr_1.1fr]">

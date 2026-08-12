@@ -659,14 +659,8 @@ function AppointmentDetailModal({
               />
             </label>
             <label className="text-sm font-semibold">
-              End
-              <TimeSelect
-                endHour={dayEndHour}
-                interval={30}
-                onChange={(value) => setForm((current) => ({ ...current, end: value }))}
-                startHour={dayStartHour}
-                value={form.end}
-              />
+              Hours
+              <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event)=>setForm(current=>({...current,end:endTimeFromStart(current.start,Number(event.target.value)*60)}))} value={Math.max(1,Math.min(10,Math.round((minutesFromStart(form.end)-minutesFromStart(form.start))/60)||1))}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1} hour{i?"s":""}</option>)}</select>
             </label>
             <label className="text-sm font-semibold">
               Type
@@ -869,14 +863,8 @@ function NewAppointmentModal({
               />
             </label>
             <label className="text-sm font-semibold">
-              End
-              <TimeSelect
-                endHour={dayEndHour}
-                interval={30}
-                onChange={(value) => setForm((current) => ({ ...current, end: value }))}
-                startHour={dayStartHour}
-                value={form.end}
-              />
+              Hours
+              <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event)=>setForm(current=>({...current,end:endTimeFromStart(current.start,Number(event.target.value)*60)}))} value={Math.max(1,Math.min(10,Math.round((minutesFromStart(form.end)-minutesFromStart(form.start))/60)||1))}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1} hour{i?"s":""}</option>)}</select>
             </label>
           </div>
 
@@ -1223,7 +1211,7 @@ export default function CalendarPage() {
         supabase
           .from("projects")
           .select("id, customer_id, artist_id, subject, session_type, status, customer:customers(name, email)")
-          .neq("status", "cancelled")
+          .in("status", ["booked", "in_progress", "on_hold"])
           .order("created_at", { ascending: false }),
         supabase
           .from("appointments")
@@ -1232,6 +1220,7 @@ export default function CalendarPage() {
           )
           .gte("starts_at", dayRange.start)
           .lte("starts_at", dayRange.end)
+          .in("status", ["scheduled", "checked_in"])
           .order("starts_at", { ascending: true }),
       ]);
 

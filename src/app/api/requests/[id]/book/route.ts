@@ -283,8 +283,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!Number.isFinite(depositAmount) || depositAmount < 0) {
     return jsonError("Deposit amount must be a valid number.", 400);
   }
-  if (!["cash", "credit_card", "app"].includes(depositPaymentMethod)) {
-    return jsonError("Deposit payment method must be Cash, Card, or App.", 400);
+  if (!["cash", "app"].includes(depositPaymentMethod)) {
+    return jsonError("Deposit payment method must be Cash or App.", 400);
   }
 
   const { data: requestRow, error: requestError } = await access.adminClient

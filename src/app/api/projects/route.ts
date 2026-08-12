@@ -264,8 +264,8 @@ export async function POST(request: NextRequest) {
   if (!Number.isFinite(depositAmount) || depositAmount < 0) {
     return jsonError("Deposit amount must be a valid number.", 400);
   }
-  if (!["cash", "credit_card", "app"].includes(depositPaymentMethod)) {
-    return jsonError("Deposit payment method must be Cash, Card, or App.", 400);
+  if (!["cash", "app"].includes(depositPaymentMethod)) {
+    return jsonError("Deposit payment method must be Cash or App.", 400);
   }
 
   const access = await requireProjectUser(token, artistId);
@@ -312,8 +312,9 @@ export async function POST(request: NextRequest) {
 
   if (projectError) return databaseError(projectError.message);
 
+  let depositId: string | null = null;
   if (depositAmount > 0) {
-    const { error: depositError } = await access.adminClient.from("deposits").insert({
+    const { data: deposit, error: depositError } = await access.adminClient.from("deposits").insert({
       amount: depositAmount,
       artist_id: artistId,
       available: true,
@@ -322,9 +323,10 @@ export async function POST(request: NextRequest) {
       payment_method: depositPaymentMethod,
       project_id: project.id,
       received_at: new Date().toISOString(),
-    });
+    }).select("id").single();
 
     if (depositError) return databaseError(depositError.message);
+    depositId = deposit.id;
   }
 
   if (requestId) {
@@ -343,6 +345,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     customerId: customer.id,
+    depositId,
     projectId: project.id,
   });
 }

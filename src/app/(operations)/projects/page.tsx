@@ -383,7 +383,6 @@ function DepositEntryModal({
               Payment method
               <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))} value={form.paymentMethod}>
                 <option value="cash">Cash</option>
-                <option value="credit_card">Card</option>
                 <option value="app">App (artist received)</option>
               </select>
             </label>
@@ -1162,8 +1161,8 @@ export default function ProjectsPage() {
       return;
     }
 
-    if (!["cash", "credit_card", "app"].includes(form.paymentMethod)) {
-      setEntryError("Deposits must use Cash, Card, or App.");
+    if (!["cash", "app"].includes(form.paymentMethod)) {
+      setEntryError("Deposits must use Cash or App.");
       return;
     }
 
@@ -2220,7 +2219,7 @@ export default function ProjectsPage() {
                       }}
                       type="button"
                     >
-                      Add deposit
+                      Make another deposit
                     </button>
                   </div>
                   <div className="divide-y divide-[#eee8dd]">

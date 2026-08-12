@@ -157,6 +157,10 @@ export default function SessionResultPage() {
     () => payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
     [payments],
   );
+  const cashToDrop = useMemo(
+    () => payments.filter((payment) => payment.payment_method === "cash").reduce((sum, payment) => sum + Number(payment.amount), 0),
+    [payments],
+  );
   const artistName = artist?.display_name ?? "-";
   const customerName = customer?.name ?? "-";
   const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
@@ -484,12 +488,17 @@ export default function SessionResultPage() {
 
             <div className="receipt-section border-b-2 border-dashed border-[#176783] py-4">
               <p className="receipt-label text-lg uppercase text-black">Appointment</p>
-              <p className="receipt-value mt-1 text-2xl font-black leading-tight text-black">
+              <p className="receipt-payment-label mt-1 font-semibold leading-tight text-black">
                 {displayDateTime(appointment?.starts_at)}
               </p>
             </div>
 
             <div className="receipt-payments pt-4">
+              <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
+                <span className="receipt-payment-label text-black">Tattoo price</span>
+                <span className="receipt-payment-amount font-bold text-black">{receiptMoney(session.tattoo_amount)}</span>
+              </div>
+              {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]"><span className="receipt-payment-label">Deposit applied</span><span className="receipt-payment-amount font-bold">-{receiptMoney(depositApplied)}</span></div> : null}
               {payments.map((payment) => (
                 <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
                   <span className="receipt-payment-label text-4xl capitalize text-black">
@@ -500,20 +509,13 @@ export default function SessionResultPage() {
                   </span>
                 </div>
               ))}
-              {depositApplied > 0 ? (
-                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
-                  <span className="receipt-payment-label text-4xl text-black">Deposit applied</span>
-                  <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
-                    {receiptMoney(depositApplied)}
-                  </span>
-                </div>
-              ) : null}
               <div className="receipt-payment-line receipt-total mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t-4 border-[#176783] pt-5">
-                <span className="receipt-payment-label text-5xl text-black">Total</span>
+                <span className="receipt-payment-label text-5xl text-black">Total to drop</span>
                 <span className="receipt-payment-amount text-7xl font-bold leading-none text-black">
-                  {receiptMoney(paymentTotal + depositApplied)}
+                  {receiptMoney(cashToDrop)}
                 </span>
               </div>
+              {paymentTotal !== cashToDrop ? <p className="mt-2 text-xs text-[#697178]">Payments received today: {receiptMoney(paymentTotal)}</p> : null}
             </div>
 
             {session.memo ? <p className="mt-6 text-sm text-[#697178] print:hidden">{session.memo}</p> : null}

@@ -110,7 +110,7 @@ export default function DepositsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [deposits, setDeposits] = useState<DepositRecord[]>([]);
-  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "used">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "used">("available");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -165,13 +165,6 @@ export default function DepositsPage() {
     });
   }, [deposits, statusFilter, search]);
 
-  const availableTotal = useMemo(
-    () =>
-      deposits
-        .filter((d) => d.available)
-        .reduce((sum, d) => sum + Number(d.amount), 0),
-    [deposits],
-  );
   async function markUsed(deposit: DepositRecord) {
     const confirmed = window.confirm(
       `Mark this deposit (${money(Number(deposit.amount))}) as applied/used?`,
@@ -314,12 +307,12 @@ export default function DepositsPage() {
               <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
                 Available (On Hold)
               </p>
-              <p className="mt-2 text-3xl font-black text-[#236c8f]">{money(availableTotal)}</p>
+              <p className="mt-2 text-3xl font-black text-[#236c8f]">{deposits.filter((d) => d.available).length}</p>
               <p className="mt-1.5 text-xs font-bold text-[#697178]">
-                {deposits.filter((d) => d.available).length} deposits
+                deposits currently on hold
               </p>
             </div>
-            <div className="rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
+            <div className="hidden rounded-md border border-[#d9d3c7] bg-white px-5 py-4 shadow-sm">
               <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">
                 Deposit Records
               </p>

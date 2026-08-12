@@ -81,6 +81,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [entries, setEntries] = useState<AccountingEntry[]>([]);
+  const [sessionTypes, setSessionTypes] = useState<Record<string, string>>({});
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [search, setSearch] = useState("");
   const [artistFilter, setArtistFilter] = useState("all");
@@ -111,7 +112,7 @@ export default function TransactionsPage() {
       const fromTs = new Date(`${dateFrom}T00:00:00`).toISOString();
       const toTs = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
-      const [entryResult, staffResult] = await Promise.all([
+      const [entryResult, staffResult, sessionResult] = await Promise.all([
         supabase
           .from("accounting_entries")
           .select(entrySelect)
@@ -123,6 +124,11 @@ export default function TransactionsPage() {
           .select("id, display_name")
           .eq("active", true)
           .order("sort_order", { ascending: true }),
+        supabase
+          .from("session_entries")
+          .select("id, entered_at, appointment:appointments(appointment_type)")
+          .gte("entered_at", fromTs)
+          .lte("entered_at", toTs),
       ]);
 
       if (entryResult.error) {
@@ -138,6 +144,12 @@ export default function TransactionsPage() {
 
       setEntries((entryResult.data ?? []) as AccountingEntry[]);
       setArtists((staffResult.data ?? []) as StaffRecord[]);
+      const nextSessionTypes: Record<string, string> = {};
+      for (const row of sessionResult.data ?? []) {
+        const appointment = Array.isArray(row.appointment) ? row.appointment[0] : row.appointment;
+        if (appointment?.appointment_type) nextSessionTypes[row.id] = appointment.appointment_type;
+      }
+      setSessionTypes(nextSessionTypes);
       setLoading(false);
     }
 
@@ -329,14 +341,16 @@ export default function TransactionsPage() {
                         </td>
                         <td className="px-5 py-3">
                           <span className="rounded px-2 py-0.5 text-xs font-bold bg-[#f1eadc] text-[#775f36]">
-                            {entryTypeLabel(entry.entry_type)}
+                            {entry.entry_type === "session"
+                              ? sessionTypes[entry.id] ?? "Session"
+                              : entryTypeLabel(entry.entry_type)}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-right">
-                          {money(Number(entry.tattoo_amount))}
+                          {money(Number(entry.tattoo_amount))} {Number(entry.tattoo_amount) > 0 ? <span className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${paymentMethodClasses(entry.tattoo_payment_method)}`}>{paymentMethodLabel(entry.tattoo_payment_method)}</span> : null}
                         </td>
                         <td className="px-5 py-3 text-right text-[#697178]">
-                          {money(Number(entry.tip_amount))}
+                          {money(Number(entry.tip_amount))} {Number(entry.tip_amount) > 0 ? <span className={`ml-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${paymentMethodClasses(entry.tip_payment_method)}`}>{paymentMethodLabel(entry.tip_payment_method)}</span> : null}
                         </td>
                         <td className="px-5 py-3 text-right text-[#697178]">
                           {money(Number(entry.merch_amount))}
@@ -347,7 +361,7 @@ export default function TransactionsPage() {
                         <td className="px-5 py-3 text-right font-bold text-[#236c8f]">
                           {money(Number(entry.total_amount))}
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="hidden px-5 py-3">
                           {(() => {
                             const method =
                               entry.deposit_payment_method ??

@@ -42,6 +42,7 @@ type ProjectRecord = {
   artist_id: string | null;
   subject: string;
   size: string | null;
+  session_type: string | null;
   status: string;
   customer: CustomerRelation | CustomerRelation[] | null;
   artist: ArtistRelation | ArtistRelation[] | null;
@@ -131,7 +132,7 @@ type WalkInAppointment = {
 };
 
 const projectSelect =
-  "id, customer_id, artist_id, subject, size, status, customer:customers(name, email, phone), artist:staff(display_name, default_session_duration_minutes)";
+  "id, customer_id, artist_id, subject, size, session_type, status, customer:customers(name, email, phone), artist:staff(display_name, default_session_duration_minutes)";
 
 function relatedOne<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -233,6 +234,7 @@ function addMinutesToTime(date: string, time: string, minutesToAdd: number) {
     time: timeValue(next),
   };
 }
+function hoursBetween(start:string,end:string){const [sh,sm]=start.split(":").map(Number),[eh,em]=end.split(":").map(Number);return Math.max(1,Math.min(10,Math.round(((eh*60+em)-(sh*60+sm))/60)||1))}
 
 export default function SessionWizardPage() {
   const router = useRouter();
@@ -247,6 +249,7 @@ export default function SessionWizardPage() {
   const [projectId, setProjectId] = useState("");
   const [appointmentId, setAppointmentId] = useState("");
   const [appointmentMode, setAppointmentMode] = useState<"scheduled" | "manual">("scheduled");
+  const [sessionOutcome, setSessionOutcome] = useState<"ongoing" | "closing">("ongoing");
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("new");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -273,7 +276,7 @@ export default function SessionWizardPage() {
   const selectedAppointments = useMemo(
     () =>
       appointments.filter(
-        (appointment) => appointment.project_id === projectId && appointment.status !== "cancelled",
+        (appointment) => appointment.project_id === projectId && ["scheduled", "checked_in"].includes(appointment.status),
       ),
     [appointments, projectId],
   );
@@ -595,7 +598,7 @@ export default function SessionWizardPage() {
           customer_id: project.customer_id,
           ends_at: endsDate.toISOString(),
           notes: "Created from session wizard.",
-          appointment_type: project.status === "on_hold" ? "Walk-in" : "completed session",
+          appointment_type: project.session_type === "One Done" ? "One Done" : sessionOutcome === "closing" ? "Closing" : "Ongoing",
           project_id: project.id,
           starts_at: startsDate.toISOString(),
           status: "completed",
@@ -622,6 +625,12 @@ export default function SessionWizardPage() {
       if (appointmentResult.error) throw new Error(appointmentResult.error.message);
       sessionAppointment = appointmentResult.data as AppointmentRecord;
     }
+
+    const appointmentUpdate = await supabase.from("appointments").update({
+      appointment_type: project.session_type === "One Done" ? "One Done" : sessionOutcome === "closing" ? "Closing" : "Ongoing",
+      status: "completed",
+    }).eq("id", sessionAppointment.id);
+    if (appointmentUpdate.error) throw new Error(appointmentUpdate.error.message);
 
     const sessionPayload = {
         appointment_id: sessionAppointment.id,
@@ -754,7 +763,8 @@ export default function SessionWizardPage() {
       if (depositResult.error) throw new Error(depositResult.error.message);
     }
 
-    await supabase.from("projects").update({ status: "in_progress" }).eq("id", project.id);
+    const closesProject = ["One Done", "Walk-in"].includes(project.session_type ?? "") || sessionOutcome === "closing";
+    await supabase.from("projects").update({ status: closesProject ? "completed" : "in_progress" }).eq("id", project.id);
     setDepositApplications(nextDepositApplications);
 
     return {
@@ -824,6 +834,7 @@ export default function SessionWizardPage() {
       customer_id: payload.customerId,
       id: payload.projectId,
       size: walkInForm.tattooSize.trim() || null,
+      session_type: "Walk-in",
       status: "on_hold",
       subject: projectNameFromWalkIn(walkInForm),
     };
@@ -1079,6 +1090,7 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Client type</p>
                 <h4 className="mt-1 text-lg font-semibold">Has this client visited before?</h4>
               </div>
+              {selectedProject?.session_type === "Multiple Session" ? <label className="mb-4 block text-sm font-semibold">Session stage<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setSessionOutcome(event.target.value as "ongoing" | "closing")} value={sessionOutcome}><option value="ongoing">Ongoing — more sessions needed</option><option value="closing">Closing — finish this project</option></select></label> : <p className="mb-4 rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold">{selectedProject?.session_type === "One Done" ? "One Done — project completes with this session" : "Walk-in — project completes with this session"}</p>}
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 text-left hover:border-[#1f2428] hover:shadow-sm"
@@ -1246,14 +1258,8 @@ export default function SessionWizardPage() {
                     />
                   </label>
                   <label className="text-sm font-semibold">
-                    End
-                    <TimeSelect
-                      endHour={24}
-                      interval={30}
-                      onChange={(value) => setWalkInAppointment((current) => ({ ...current, endTime: value }))}
-                      startHour={8}
-                      value={walkInAppointment.endTime}
-                    />
+                    Hours
+                    <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event)=>{const end=addMinutesToTime(walkInAppointment.date,walkInAppointment.startTime,Number(event.target.value)*60);setWalkInAppointment(current=>({...current,endTime:end.time}))}} value={hoursBetween(walkInAppointment.startTime,walkInAppointment.endTime)}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1} hour{i?"s":""}</option>)}</select>
                   </label>
                 </div>
               )}
@@ -1316,6 +1322,7 @@ export default function SessionWizardPage() {
                     value={walkInAppointment.startTime}
                   />
                 </label>
+                <label className="text-sm font-semibold">Hours<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event)=>{const end=addMinutesToTime(walkInAppointment.date,walkInAppointment.startTime,Number(event.target.value)*60);setWalkInAppointment(current=>({...current,endTime:end.time}))}} value={hoursBetween(walkInAppointment.startTime,walkInAppointment.endTime)}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1} hour{i?"s":""}</option>)}</select></label>
               </div>
               <div className="mt-4 flex justify-between gap-2">
                 <button

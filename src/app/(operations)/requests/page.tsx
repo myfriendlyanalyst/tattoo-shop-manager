@@ -1913,7 +1913,6 @@ export default function RequestsPage() {
                             Payment method
                             <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm" disabled={saving} onChange={(event) => setBookingForm((current) => current ? { ...current, depositPaymentMethod: event.target.value } : current)} value={bookingForm.depositPaymentMethod}>
                               <option value="cash">Cash</option>
-                              <option value="credit_card">Card</option>
                               <option value="app">App</option>
                             </select>
                           </label>

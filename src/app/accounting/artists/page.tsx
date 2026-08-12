@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
+import { BarChart } from "@/components/accounting-charts";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
@@ -18,6 +19,7 @@ type EntryRow = {
   merch_amount: number;
   total_amount: number;
   tattoo_payment_method: string | null;
+  tip_payment_method: string | null;
 };
 
 type ArtistSummary = {
@@ -162,7 +164,7 @@ function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
 }
 
 const entrySelect =
-  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method";
+  "id, entered_at, entry_type, artist_id, artist_name, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method, tip_payment_method";
 
 export default function ArtistsPage() {
   const router = useRouter();
@@ -502,6 +504,7 @@ export default function ArtistsPage() {
 
                     {expanded ? (
                       <div className="border-t border-[#e5dfd4]">
+                        <div className="border-b border-[#e5dfd4] px-5 py-4"><h4 className="mb-3 text-sm font-bold">Monthly sales</h4><BarChart data={Array.from({length:12},(_,month)=>({label:new Date(2026,month,1).toLocaleDateString("en-US",{month:"short"}),value:artist.entries.filter((entry)=>new Date(entry.entered_at).getFullYear()===new Date(dateFrom).getFullYear()&&new Date(entry.entered_at).getMonth()===month).reduce((sum,entry)=>sum+Number(entry.total_amount),0)}))} height={180} /></div>
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[580px] text-left text-sm">
                             <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
@@ -532,10 +535,10 @@ export default function ArtistsPage() {
                                     </span>
                                   </td>
                                   <td className="px-5 py-2 text-right">
-                                    {money(Number(e.tattoo_amount))}
+                                    {money(Number(e.tattoo_amount))} {Number(e.tattoo_amount)>0?<span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${paymentMethodClasses(e.tattoo_payment_method)}`}>{paymentMethodLabel(e.tattoo_payment_method)}</span>:null}
                                   </td>
                                   <td className="px-5 py-2 text-right text-[#697178]">
-                                    {money(Number(e.tip_amount))}
+                                    {money(Number(e.tip_amount))} {Number(e.tip_amount)>0?<span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${paymentMethodClasses(e.tip_payment_method)}`}>{paymentMethodLabel(e.tip_payment_method)}</span>:null}
                                   </td>
                                   <td className="px-5 py-2 text-right font-bold text-[#236c8f]">
                                     {money(Number(e.total_amount))}

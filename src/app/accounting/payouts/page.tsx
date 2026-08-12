@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
-import { getSafeUser } from "@/lib/auth-session";
+import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
 import {
@@ -499,8 +499,7 @@ export default function PayoutsPage() {
     return () => { cancelled = true; };
   }, [artists, showModal, form.artist_id, form.period_start, form.period_end]);
 
-  const filtered =
-    statusFilter === "all" ? payouts : payouts.filter((p) => p.status === statusFilter);
+  const filtered = statusFilter === "all" ? payouts.filter((p) => p.status !== "void") : payouts.filter((p) => p.status === statusFilter);
 
   const counts = {
     draft: payouts.filter((p) => p.status === "draft").length,
@@ -605,6 +604,15 @@ export default function PayoutsPage() {
       ),
     );
     setMessage(`Payout marked as ${statusLabel(newStatus).toLowerCase()}.`);
+    setSaving(false);
+  }
+
+  async function emailPayout(payout: PayoutRow) {
+    setSaving(true); setError(""); setMessage("");
+    const session = await getSafeSession();
+    const response = await fetch(`/api/accounting/payouts/${payout.id}/email`, { method:"POST", headers:{ Authorization:`Bearer ${session?.access_token ?? ""}` } });
+    const payload = await response.json() as { error?:string; to?:string };
+    if (!response.ok) setError(payload.error ?? "Payout email failed."); else setMessage(`Payout statement emailed to ${payload.to}.`);
     setSaving(false);
   }
 
@@ -1173,6 +1181,7 @@ export default function PayoutsPage() {
                                   Print
                                 </button>
                               ) : null}
+                              {["ready", "paid"].includes(payout.status) ? <button className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50" disabled={saving} onClick={() => emailPayout(payout)} type="button">Email to artist</button> : null}
 
                               {payout.status === "draft" ? (
                                 <>

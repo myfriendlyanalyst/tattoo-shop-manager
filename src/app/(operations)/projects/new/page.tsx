@@ -103,6 +103,7 @@ function NewProjectContent() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [createdProjectId, setCreatedProjectId] = useState("");
+  const [createdDepositId, setCreatedDepositId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -330,6 +331,7 @@ function NewProjectContent() {
     });
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
+      depositId?: string | null;
       projectId?: string;
     };
 
@@ -340,6 +342,7 @@ function NewProjectContent() {
     }
 
     setCreatedProjectId(payload.projectId ?? "");
+    setCreatedDepositId(payload.depositId ?? "");
     setMessage("Project created.");
     setSaving(false);
   }
@@ -378,6 +381,7 @@ function NewProjectContent() {
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Customer</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.customerName}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Artist</dt><dd className="mt-1 font-semibold text-[#1f2428]">{artists.find((artist) => artist.id === form.artistId)?.display_name ?? "-"}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Project type</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.projectType}</dd></div>
+                <div><dt className="text-xs font-bold uppercase text-[#697178]">Deposit</dt><dd className="mt-1 font-semibold text-[#1f2428]">{Number(form.depositAmount) > 0 ? `$${Number(form.depositAmount).toFixed(2)} / ${form.depositPaymentMethod === "app" ? "App" : "Cash"}` : "Not collected"}</dd></div>
               </dl>
               {createdProjectId ? (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -394,6 +398,7 @@ function NewProjectContent() {
                   >
                     View or edit project
                   </Link>
+                  {createdDepositId ? <Link className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-bold text-[#30373d]" href={`/projects/deposit/${createdDepositId}/receipt`}>Print deposit receipt</Link> : null}
                   <Link
                     className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-bold text-[#30373d]"
                     href="/projects"
@@ -581,7 +586,6 @@ function NewProjectContent() {
                 Payment method
                 <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm" disabled={form.depositNotCollected} onChange={(event) => updateForm({ depositPaymentMethod: event.target.value })} value={form.depositPaymentMethod}>
                   <option value="cash">Cash</option>
-                  <option value="credit_card">Card</option>
                   <option value="app">App</option>
                 </select>
               </label>
