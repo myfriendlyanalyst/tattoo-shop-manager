@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
@@ -324,7 +323,6 @@ export default function TransactionsPage() {
                       <th className="px-5 py-3 text-right">Merch</th>
                       <th className="px-5 py-3 text-right">Deposit</th>
                       <th className="px-5 py-3 text-right">Total</th>
-                      <th className="px-5 py-3">Receipt</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eee8dd]">
@@ -362,18 +360,6 @@ export default function TransactionsPage() {
                         <td className="px-5 py-3 text-right font-bold text-[#236c8f]">
                           {money(Number(entry.total_amount))}
                         </td>
-                        <td className="px-5 py-3">
-                          {entry.entry_type === "session" || entry.entry_type === "deposit" ? (
-                            <Link
-                              className="whitespace-nowrap text-xs font-bold text-[#236c8f] hover:underline"
-                              href={entry.entry_type === "session"
-                                ? `/projects/session/${entry.id}/result?reprint=1&from=accounting`
-                                : `/projects/deposit/${entry.id}/receipt?reprint=1&from=accounting`}
-                            >
-                              View / Print
-                            </Link>
-                          ) : "-"}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -398,7 +384,6 @@ export default function TransactionsPage() {
                       <td className="px-5 py-3 text-right text-[#236c8f]">
                         {money(totals.total)}
                       </td>
-                      <td className="px-5 py-3" />
                     </tr>
                   </tfoot>
                 </table>

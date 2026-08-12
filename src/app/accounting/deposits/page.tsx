@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { getSafeUser } from "@/lib/auth-session";
@@ -406,12 +405,6 @@ export default function DepositsPage() {
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex flex-wrap gap-2">
-                              <Link
-                                className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
-                                href={`/projects/deposit/${deposit.id}/receipt?reprint=1&from=accounting`}
-                              >
-                                View / Print receipt
-                              </Link>
                             {depositDisposition(deposit) === "available" ? (
                               <button
                                 className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"

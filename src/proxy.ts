@@ -15,10 +15,6 @@ const ARTIST_ALLOWED_PREFIX_PATHS = ["/requests", "/projects", "/calendar"];
 const ARTIST_ALLOWED_EXACT_PATHS = ["/settings"];
 const MANAGER_HOST = "manager.oyabuntattoo.com";
 const ACCOUNTING_HOST = "accounting.oyabuntattoo.com";
-const ACCOUNTING_RECEIPT_PATHS = [
-  /^\/projects\/session\/[^/]+\/result$/,
-  /^\/projects\/deposit\/[^/]+\/receipt$/,
-];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
@@ -39,10 +35,6 @@ function isArtistAllowedPath(pathname: string) {
     ARTIST_ALLOWED_EXACT_PATHS.includes(pathname) ||
     ARTIST_ALLOWED_PREFIX_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
   );
-}
-
-function isAccountingReceiptPath(pathname: string) {
-  return ACCOUNTING_RECEIPT_PATHS.some((pattern) => pattern.test(pathname));
 }
 
 export async function proxy(request: NextRequest) {
@@ -75,7 +67,6 @@ export async function proxy(request: NextRequest) {
   if (
     host === ACCOUNTING_HOST &&
     !pathname.startsWith("/accounting") &&
-    !isAccountingReceiptPath(pathname) &&
     !isPublicPath(pathname)
   ) {
     return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
@@ -124,12 +115,6 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith("/accounting")) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (host === ACCOUNTING_HOST && isAccountingReceiptPath(pathname)) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(loginUrl);
     }
 
@@ -198,8 +183,7 @@ export async function proxy(request: NextRequest) {
   if (
     isDedicatedAccountingUser &&
     !isOperationsUser &&
-    !pathname.startsWith("/accounting") &&
-    !isAccountingReceiptPath(pathname)
+    !pathname.startsWith("/accounting")
   ) {
     return NextResponse.redirect(new URL("/accounting/dashboard", request.url));
   }
@@ -222,15 +206,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-
-  if (
-    host === ACCOUNTING_HOST &&
-    isAccountingReceiptPath(pathname) &&
-    profile?.role !== "owner" &&
-    !isDedicatedAccountingUser
-  ) {
-    return NextResponse.redirect(operationsUrl("/requests", request));
-  }
 
   return response;
 }
