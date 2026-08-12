@@ -2180,6 +2180,12 @@ export default function ProjectsPage() {
                           <p className="text-[#4d555c]">{session.memo || "-"}</p>
                         </div>
                         <div className="flex gap-2 md:justify-end">
+                          <Link
+                            className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
+                            href={`/projects/session/${session.id}/result?reprint=1&from=projects`}
+                          >
+                            Receipt
+                          </Link>
                           <button
                             className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                             disabled={saving}
@@ -2277,6 +2283,12 @@ export default function ProjectsPage() {
                                 </p>
                                 {row.type === "deposit" ? (
                                   <div className="flex gap-2">
+                                    <Link
+                                      className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
+                                      href={`/projects/deposit/${row.deposit!.id}/receipt?reprint=1&from=projects`}
+                                    >
+                                      Receipt
+                                    </Link>
                                     <button
                                       className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                                       disabled={saving}
@@ -2326,6 +2338,12 @@ export default function ProjectsPage() {
                                       <span>
                                         {row.type === "deposit" ? (
                                           <>
+                                            <Link
+                                              className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
+                                              href={`/projects/deposit/${row.deposit!.id}/receipt?reprint=1&from=projects`}
+                                            >
+                                              Receipt
+                                            </Link>
                                             <span className={`font-semibold ${depositHistoryClasses(row.deposit)}`}>
                                               {depositHistoryLabel(row.deposit)}
                                             </span>

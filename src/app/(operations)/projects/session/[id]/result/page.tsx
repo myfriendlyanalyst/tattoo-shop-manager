@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
 import { supabase } from "@/lib/supabase";
 
@@ -90,6 +90,9 @@ function placementLabel(projectSubject: string | null | undefined, customerName:
 export default function SessionResultPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isReprint = searchParams.get("reprint") === "1";
+  const returnHref = searchParams.get("from") === "accounting" ? "/accounting/transactions" : "/projects";
   const sessionId = params.id;
   const [session, setSession] = useState<SessionResultRecord | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -464,12 +467,13 @@ export default function SessionResultPage() {
         {session ? (
           <>
             <div className="receipt-header border-b-2 border-[#176783] pb-4">
+              {isReprint ? <p className="mb-2 text-center text-lg font-black tracking-[0.2em] text-black">REPRINT</p> : null}
               <p className="receipt-label text-sm font-bold uppercase tracking-[0.1em] text-black">Session completed by</p>
               <h2 className="receipt-artist mt-2 text-5xl font-black leading-none tracking-normal text-black">
                 {artistName}
               </h2>
               <p className="receipt-entered mt-2 text-sm text-[#697178]">
-                Entered {displayDateTime(session.entered_at)}
+                {isReprint ? "Originally entered" : "Entered"} {displayDateTime(session.entered_at)}
               </p>
             </div>
 
@@ -526,6 +530,7 @@ export default function SessionResultPage() {
       {session ? (
         <div className="mx-auto mt-4 flex w-full max-w-[620px] flex-wrap justify-center gap-2 print:hidden">
           <button className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white" onClick={() => window.print()} type="button">Print</button>
+          {isReprint ? <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={returnHref}>Back</Link> : null}
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={`/projects/session/wizard?editSessionId=${session.id}`}>Edit</Link>
           <button className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] disabled:opacity-60" disabled={deleting} onClick={deleteSession} type="button">{deleting ? "Deleting..." : "Delete"}</button>
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href="/projects/session/wizard">Next session</Link>
