@@ -54,6 +54,7 @@ export async function POST(
   }
 
   const { id } = await params;
+  const payload = (await request.json().catch(() => ({}))) as { to?: string; subject?: string; message?: string };
   const { data: payout, error } = await auth
     .from("payouts")
     .select("period_start, period_end, status, settlement_amount, calculation_snapshot, artist:staff(display_name,email)")
@@ -65,7 +66,8 @@ export async function POST(
   }
 
   const artist = Array.isArray(payout.artist) ? payout.artist[0] : payout.artist;
-  if (!artist?.email) return NextResponse.json({ error: "This artist has no email address." }, { status: 400 });
+  const recipient = payload.to?.trim() || artist?.email?.trim();
+  if (!recipient || !/^\S+@\S+\.\S+$/.test(recipient)) return NextResponse.json({ error: "Enter a valid recipient email address." }, { status: 400 });
   const amount = Number(payout.settlement_amount ?? 0);
   const snapshot = (payout.calculation_snapshot ?? {}) as Record<string, unknown>;
   const detailLines = [
@@ -89,9 +91,9 @@ export async function POST(
     headers: { Authorization: `Bearer ${resend}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from,
-      to: [artist.email],
-      subject: `Payout statement: ${payout.period_start} - ${payout.period_end}`,
-      html: `<p>Hi ${artist.display_name},</p><p>Thank you for your work during this payout period.</p><p>Your statement for <strong>${payout.period_start} through ${payout.period_end}</strong> is attached. The settlement amount is <strong>$${Math.abs(amount).toFixed(2)}</strong> (${amount < 0 ? "artist pays shop" : "shop pays artist"}).</p><p>Please review it and let us know if you have any questions.</p><p>Thank you,<br>Oyabun Tattoo</p>`,
+      to: [recipient],
+      subject: payload.subject?.trim() || `Payout statement: ${payout.period_start} - ${payout.period_end}`,
+      text: payload.message?.trim() || `Hi ${artist.display_name},\n\nYour payout statement is attached.\n\nThank you,\nOyabun Tattoo`,
       attachments: [{ filename: `payout-${payout.period_start}-${payout.period_end}.pdf`, content: makePdf(lines).toString("base64") }],
     }),
   });
@@ -99,5 +101,5 @@ export async function POST(
   if (!response.ok) {
     return NextResponse.json({ error: (body as { message?: string }).message ?? "Payout email failed." }, { status: 502 });
   }
-  return NextResponse.json({ sent: true, to: artist.email });
+  return NextResponse.json({ sent: true, to: recipient });
 }

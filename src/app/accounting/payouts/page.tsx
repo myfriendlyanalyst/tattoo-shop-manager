@@ -32,7 +32,7 @@ type PayoutRow = {
   artist_earnings: number | null;
   settlement_amount: number | null;
   created_at: string;
-  artist: { display_name: string; payout_rate?: number | null } | { display_name: string; payout_rate?: number | null }[] | null;
+  artist: { display_name: string; email?: string | null; payout_rate?: number | null } | { display_name: string; email?: string | null; payout_rate?: number | null }[] | null;
 };
 
 type EntryRow = {
@@ -145,10 +145,10 @@ function escapeHtml(value: string | number | null | undefined) {
 }
 
 const payoutSelect =
-  "id, artist_id, period_start, period_end, status, paid_at, notes, adjustment_amount, adjustment_note, calculation_snapshot, snapshot_at, artist_earnings, settlement_amount, created_at, artist:staff(display_name, payout_rate)";
+  "id, artist_id, period_start, period_end, status, paid_at, notes, adjustment_amount, adjustment_note, calculation_snapshot, snapshot_at, artist_earnings, settlement_amount, created_at, artist:staff(display_name, email, payout_rate)";
 
 const basePayoutSelect =
-  "id, artist_id, period_start, period_end, status, paid_at, notes, created_at, artist:staff(display_name, payout_rate)";
+  "id, artist_id, period_start, period_end, status, paid_at, notes, created_at, artist:staff(display_name, email, payout_rate)";
 
 const entrySelect =
   "id, entered_at, entry_type, customer_name, project_subject, tattoo_amount, tip_amount, merch_amount, total_amount, tattoo_payment_method, tip_payment_method";
@@ -387,6 +387,10 @@ export default function PayoutsPage() {
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
+  const [emailPayoutDraft, setEmailPayoutDraft] = useState<PayoutRow | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
 
   // New payout modal
   const [showModal, setShowModal] = useState(false);
@@ -607,12 +611,25 @@ export default function PayoutsPage() {
     setSaving(false);
   }
 
-  async function emailPayout(payout: PayoutRow) {
+  function openEmailPayout(payout: PayoutRow) {
+    const artist = relatedOne(payout.artist);
+    const amount = Number(payout.settlement_amount ?? 0);
+    setEmailPayoutDraft(payout);
+    setEmailTo(artist?.email ?? "");
+    setEmailSubject(`Payout statement: ${payout.period_start} - ${payout.period_end}`);
+    setEmailBody(`Hi ${artist?.display_name ?? "Artist"},\n\nThank you for your work during this payout period.\n\nYour payout statement for ${payout.period_start} through ${payout.period_end} is attached. The settlement amount is ${money(Math.abs(amount))} (${amount < 0 ? "artist pays shop" : "shop pays artist"}).\n\nPlease review it and let us know if you have any questions.\n\nThank you,\nOyabun Tattoo`);
+  }
+
+  async function emailPayout() {
+    if (!emailPayoutDraft || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()) {
+      setError("Recipient, subject, and message are required.");
+      return;
+    }
     setSaving(true); setError(""); setMessage("");
     const session = await getSafeSession();
-    const response = await fetch(`/api/accounting/payouts/${payout.id}/email`, { method:"POST", headers:{ Authorization:`Bearer ${session?.access_token ?? ""}` } });
+    const response = await fetch(`/api/accounting/payouts/${emailPayoutDraft.id}/email`, { method:"POST", headers:{ Authorization:`Bearer ${session?.access_token ?? ""}`, "Content-Type":"application/json" }, body: JSON.stringify({ to: emailTo.trim(), subject: emailSubject.trim(), message: emailBody.trim() }) });
     const payload = await response.json() as { error?:string; to?:string };
-    if (!response.ok) setError(payload.error ?? "Payout email failed."); else setMessage(`Payout statement emailed to ${payload.to}.`);
+    if (!response.ok) setError(payload.error ?? "Payout email failed."); else { setMessage(`Payout statement emailed to ${payload.to}.`); setEmailPayoutDraft(null); }
     setSaving(false);
   }
 
@@ -1181,7 +1198,7 @@ export default function PayoutsPage() {
                                   Print
                                 </button>
                               ) : null}
-                              {["ready", "paid"].includes(payout.status) ? <button className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50" disabled={saving} onClick={() => emailPayout(payout)} type="button">Email to artist</button> : null}
+                              {["ready", "paid"].includes(payout.status) ? <button className="h-8 w-28 rounded border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50" disabled={saving} onClick={() => openEmailPayout(payout)} type="button">Email to artist</button> : null}
 
                               {payout.status === "draft" ? (
                                 <>
@@ -1256,6 +1273,32 @@ export default function PayoutsPage() {
       ) : null}
 
       {/* New payout modal */}
+      {emailPayoutDraft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-2xl rounded-md border border-[#d9d3c7] bg-white shadow-xl">
+            <div className="border-b border-[#e5dfd4] px-5 py-4">
+              <h2 className="text-lg font-black">Email payout statement</h2>
+              <p className="mt-1 text-sm text-[#697178]">The payout PDF will be attached automatically.</p>
+            </div>
+            <div className="space-y-4 px-5 py-5">
+              <label className="block text-sm font-bold">To
+                <input className="mt-1.5 h-10 w-full rounded-md border border-[#cfc7b8] px-3 font-normal" onChange={(event) => setEmailTo(event.target.value)} type="email" value={emailTo} />
+              </label>
+              <label className="block text-sm font-bold">Subject
+                <input className="mt-1.5 h-10 w-full rounded-md border border-[#cfc7b8] px-3 font-normal" onChange={(event) => setEmailSubject(event.target.value)} value={emailSubject} />
+              </label>
+              <label className="block text-sm font-bold">Message
+                <textarea className="mt-1.5 min-h-64 w-full rounded-md border border-[#cfc7b8] px-3 py-2 font-normal" onChange={(event) => setEmailBody(event.target.value)} value={emailBody} />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#e5dfd4] px-5 py-4">
+              <button className="h-9 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" disabled={saving} onClick={() => setEmailPayoutDraft(null)} type="button">Cancel</button>
+              <button className="h-9 rounded-md bg-[#191b1f] px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()} onClick={emailPayout} type="button">{saving ? "Sending..." : "Send with PDF"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showModal ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-16">
           <div className="w-full max-w-lg rounded-lg border border-[#d9d3c7] bg-white shadow-xl">
