@@ -168,6 +168,8 @@ export default function SessionResultPage() {
   const customerName = customer?.name ?? "-";
   const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
   const placement = placementLabel(project?.subject, customer?.name ?? null);
+  const sessionType = appointment?.appointment_type || project?.session_type || "Session";
+  const tattooBalanceAfterDeposit = Math.max(Number(session?.tattoo_amount ?? 0) - depositApplied, 0);
 
   async function deleteSession() {
     if (!session || !window.confirm("Delete this session?")) return;
@@ -270,6 +272,19 @@ export default function SessionResultPage() {
 
           .receipt-payments {
             padding-top: 4mm !important;
+          }
+
+          .receipt-group-title {
+            margin-bottom: 1mm !important;
+            font-size: 2.8mm !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.08em !important;
+          }
+
+          .receipt-payment-group + .receipt-payment-group {
+            margin-top: 3mm !important;
+            padding-top: 3mm !important;
+            border-top: 0.45mm dashed #176783 !important;
           }
 
           .receipt-payment-line {
@@ -425,6 +440,19 @@ export default function SessionResultPage() {
             padding-top: 4mm !important;
           }
 
+          .receipt-group-title {
+            margin-bottom: 1mm !important;
+            font-size: 2.8mm !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.08em !important;
+          }
+
+          .receipt-payment-group + .receipt-payment-group {
+            margin-top: 3mm !important;
+            padding-top: 3mm !important;
+            border-top: 0.45mm dashed #176783 !important;
+          }
+
           .receipt-payment-line {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
@@ -491,35 +519,47 @@ export default function SessionResultPage() {
             </div>
 
             <div className="receipt-section border-b-2 border-dashed border-[#176783] py-4">
-              <p className="receipt-label text-lg uppercase text-black">Appointment</p>
+              <p className="receipt-label text-lg uppercase text-black">Session type</p>
+              <p className="receipt-value mt-1 font-black text-black">{sessionType}</p>
+              <p className="receipt-label mt-3 text-lg uppercase text-black">Appointment</p>
               <p className="receipt-payment-label mt-1 font-semibold leading-tight text-black">
                 {displayDateTime(appointment?.starts_at)}
               </p>
             </div>
 
             <div className="receipt-payments pt-4">
-              <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
-                <span className="receipt-payment-label text-black">Tattoo price</span>
-                <span className="receipt-payment-amount font-bold text-black">{receiptMoney(session.tattoo_amount)}</span>
-              </div>
-              {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]"><span className="receipt-payment-label">Deposit applied</span><span className="receipt-payment-amount font-bold">-{receiptMoney(depositApplied)}</span></div> : null}
-              {payments.map((payment) => (
-                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
-                  <span className="receipt-payment-label text-4xl capitalize text-black">
-                    {payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}
-                  </span>
-                  <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
-                    {receiptMoney(payment.amount)}
-                  </span>
+              <div className="receipt-payment-group">
+                <p className="receipt-group-title uppercase text-[#697178]">Service value</p>
+                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
+                  <span className="receipt-payment-label text-black">Tattoo price</span>
+                  <span className="receipt-payment-amount font-bold text-black">{receiptMoney(session.tattoo_amount)}</span>
                 </div>
-              ))}
+                {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]"><span className="receipt-payment-label">Deposit applied</span><span className="receipt-payment-amount font-bold">-{receiptMoney(depositApplied)}</span></div> : null}
+                {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2"><span className="receipt-payment-label text-black">Tattoo balance</span><span className="receipt-payment-amount font-bold text-black">{receiptMoney(tattooBalanceAfterDeposit)}</span></div> : null}
+              </div>
+              <div className="receipt-payment-group">
+                <p className="receipt-group-title uppercase text-[#697178]">Received today</p>
+                {payments.map((payment) => (
+                  <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
+                    <span className="receipt-payment-label text-4xl capitalize text-black">
+                      {payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}
+                    </span>
+                    <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
+                      {receiptMoney(payment.amount)}
+                    </span>
+                  </div>
+                ))}
+                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t border-[#176783] py-2">
+                  <span className="receipt-payment-label text-black">Total received</span>
+                  <span className="receipt-payment-amount font-bold text-black">{receiptMoney(paymentTotal)}</span>
+                </div>
+              </div>
               <div className="receipt-payment-line receipt-total mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t-4 border-[#176783] pt-5">
-                <span className="receipt-payment-label text-5xl text-black">Total to drop</span>
+                <span className="receipt-payment-label text-5xl text-black">Cash to drop</span>
                 <span className="receipt-payment-amount text-7xl font-bold leading-none text-black">
                   {receiptMoney(cashToDrop)}
                 </span>
               </div>
-              {paymentTotal !== cashToDrop ? <p className="mt-2 text-xs text-[#697178]">Payments received today: {receiptMoney(paymentTotal)}</p> : null}
             </div>
 
             {session.memo ? <p className="mt-6 text-sm text-[#697178] print:hidden">{session.memo}</p> : null}

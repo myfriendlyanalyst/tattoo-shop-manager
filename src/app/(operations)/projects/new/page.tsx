@@ -95,7 +95,6 @@ function NewProjectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestId = searchParams.get("requestId") ?? "";
-  const [artists, setArtists] = useState<StaffRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -176,7 +175,6 @@ function NewProjectContent() {
           : artistRows.filter((artist) => ["Artist", "Owner"].includes(artist.role));
       const request = requestResult.data as RequestRecord | null;
 
-      setArtists(visibleArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
 
       if (request?.project_id) {
@@ -379,7 +377,6 @@ function NewProjectContent() {
               <h3 className="mt-2 text-xl font-black text-[#1f2428]">{projectNameFromForm(form)}</h3>
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Customer</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.customerName}</dd></div>
-                <div><dt className="text-xs font-bold uppercase text-[#697178]">Artist</dt><dd className="mt-1 font-semibold text-[#1f2428]">{artists.find((artist) => artist.id === form.artistId)?.display_name ?? "-"}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Project type</dt><dd className="mt-1 font-semibold text-[#1f2428]">{form.projectType}</dd></div>
                 <div><dt className="text-xs font-bold uppercase text-[#697178]">Deposit</dt><dd className="mt-1 font-semibold text-[#1f2428]">{Number(form.depositAmount) > 0 ? `$${Number(form.depositAmount).toFixed(2)} / ${form.depositPaymentMethod === "app" ? "App" : "Cash"}` : "Not collected"}</dd></div>
               </dl>
@@ -411,35 +408,14 @@ function NewProjectContent() {
           ) : null}
 
           {!createdProjectId ? <><section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
-            <h4 className="text-sm font-semibold text-[#6f7275]">Project info</h4>
-            <div className="mt-3 grid gap-4">
-              {artists.length > 1 ? <label className="block text-sm font-semibold">
-                Artist {requiredMark}
-                <select
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => updateForm({ artistId: event.target.value })}
-                  required
-                  value={form.artistId}
-                >
-                  <option value="">Select artist</option>
-                  {artists.map((artist) => (
-                    <option key={artist.id} value={artist.id}>
-                      {artist.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label> : <div className="text-sm font-semibold">Artist<div className="mt-2 flex h-10 items-center rounded-md border border-[#d9d3c7] bg-white px-3">{artists[0]?.display_name ?? "-"}</div></div>}
-            </div>
-            <div className="mt-4">
-              <p className="text-sm font-semibold">Project type {requiredMark}</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <h4 className="text-sm font-semibold text-[#6f7275]">Project type {requiredMark}</h4>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {projectTypeOptions.map((type) => (
                   <button className={`min-h-20 rounded-md border px-4 py-3 text-left transition ${form.projectType === type ? "border-[#1f2428] bg-[#1f2428] text-white" : "border-[#cfc7b8] bg-white hover:bg-[#eee8dd]"}`} key={type} onClick={() => updateForm({ projectType: type })} type="button">
                     <span className="block text-base font-black">{type}</span>
                     <span className={`mt-1 block text-xs ${form.projectType === type ? "text-white/70" : "text-[#697178]"}`}>{type === "Multiple Session" ? "Several appointments" : type === "Walk-in" ? "Same-day client" : "Single appointment"}</span>
                   </button>
                 ))}
-              </div>
             </div>
           </section>
 
