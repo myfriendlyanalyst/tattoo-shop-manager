@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AccountingShell } from "@/components/accounting-shell";
+import { DatePicker } from "@/components/date-picker";
 import { BarChart, DonutChart, StackedBar, type ChartPoint, type ChartSlice } from "@/components/accounting-charts";
 import { getSafeUser } from "@/lib/auth-session";
 import { hasAccountingAccess } from "@/lib/accounting-access";
@@ -274,28 +275,6 @@ export default function AccountingDashboardPage() {
             <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
               <div>
                 <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
-                  From
-                </label>
-                <input
-                  className="mt-1.5 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setDateFrom(event.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
-                  To
-                </label>
-                <input
-                  className="mt-1.5 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => setDateTo(event.target.value)}
-                  type="date"
-                  value={dateTo}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   Artist
                 </label>
                 <select
@@ -310,6 +289,18 @@ export default function AccountingDashboardPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
+                  From
+                </label>
+                <DatePicker onChange={setDateFrom} value={dateFrom} />
+              </div>
+              <div>
+                <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
+                  To
+                </label>
+                <DatePicker onChange={setDateTo} value={dateTo} />
               </div>
               <div className="flex flex-wrap items-end gap-2">
                 {[
