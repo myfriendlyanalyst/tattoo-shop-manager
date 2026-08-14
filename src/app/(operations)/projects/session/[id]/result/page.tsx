@@ -298,8 +298,21 @@ export default function SessionResultPage() {
 
           .receipt-payment-type {
             margin: 2mm 0 0.5mm !important;
-            font-size: 3.6mm !important;
+            font-size: 6mm !important;
             font-weight: 900 !important;
+            line-height: 1 !important;
+          }
+
+          .receipt-payment-type-amount {
+            font-size: 7mm !important;
+          }
+
+          .receipt-method-line .receipt-payment-label {
+            font-size: 4.2mm !important;
+          }
+
+          .receipt-method-line .receipt-payment-amount {
+            font-size: 5mm !important;
           }
 
           .receipt-payment-type-row {
@@ -480,8 +493,21 @@ export default function SessionResultPage() {
 
           .receipt-payment-type {
             margin: 2mm 0 0.5mm !important;
-            font-size: 3.6mm !important;
+            font-size: 6mm !important;
             font-weight: 900 !important;
+            line-height: 1 !important;
+          }
+
+          .receipt-payment-type-amount {
+            font-size: 7mm !important;
+          }
+
+          .receipt-method-line .receipt-payment-label {
+            font-size: 4.2mm !important;
+          }
+
+          .receipt-method-line .receipt-payment-amount {
+            font-size: 5mm !important;
           }
 
           .receipt-payment-type-row {
@@ -575,7 +601,7 @@ export default function SessionResultPage() {
                   <div key={type}>
                     <div className="receipt-payment-type-row">
                       <p className="receipt-payment-type capitalize text-black">{type}</p>
-                      <p className="receipt-payment-type text-black">
+                      <p className="receipt-payment-type receipt-payment-type-amount text-black">
                         {receiptMoney(Object.values(receivedByType[type]).reduce((sum, amount) => sum + amount, 0))}
                       </p>
                     </div>
@@ -588,7 +614,7 @@ export default function SessionResultPage() {
                     {(["cash", "credit_card", "app"] as const).filter((method) =>
                       receivedByType[type][method] > 0,
                     ).map((method) => (
-                      <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={`${type}-${method}`}>
+                      <div className="receipt-payment-line receipt-method-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={`${type}-${method}`}>
                         <span className="receipt-payment-label text-black">{paymentLabel(method)}</span>
                         <span className="receipt-payment-amount font-bold leading-none text-black">{receiptMoney(receivedByType[type][method])}</span>
                       </div>
