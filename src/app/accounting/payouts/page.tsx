@@ -1138,33 +1138,43 @@ export default function PayoutsPage() {
                             <div className="space-y-2 text-sm">
                               {calculation ? (
                                 <>
-                                  <div className="grid grid-cols-[9rem_6rem_6rem] gap-3 text-xs">
-                                    <span className="font-semibold text-[#697178]">Cash tattoo</span>
-                                    <span className="text-right">{money(calculation.tattoo.cash)}</span>
-                                    <span className="text-right font-bold">
-                                      +{money(calculation.tattoo.cash * calculation.artistRate / 100)}
-                                    </span>
-                                    <span className="font-semibold text-[#697178]">Card tattoo</span>
-                                    <span className="text-right">{money(calculation.tattoo.credit_card)}</span>
-                                    <span className="text-right font-bold">
-                                      +{money(calculation.tattoo.credit_card * calculation.artistRate / 100)}
-                                    </span>
-                                    <span className="font-semibold text-[#697178]">App tattoo</span>
-                                    <span className="text-right">{money(calculation.tattoo.app)}</span>
-                                    <span className="text-right font-bold text-[#8a3030]">
-                                      -{money(calculation.tattoo.app * (100 - calculation.artistRate) / 100)}
-                                    </span>
-                                    <span className="font-semibold text-[#697178]">Cash tips</span>
-                                    <span className="text-right">{money(calculation.tip.cash)}</span>
-                                    <span className="text-right font-bold">+{money(calculation.tip.cash)}</span>
-                                    <span className="font-semibold text-[#697178]">Card tips</span>
-                                    <span className="text-right">{money(calculation.tip.credit_card)}</span>
-                                    <span className="text-right font-bold">
-                                      +{money(calculation.tip.credit_card - calculation.cardTipFee)}
-                                    </span>
-                                    <span className="font-semibold text-[#697178]">App tips</span>
-                                    <span className="text-right">{money(calculation.tip.app)}</span>
-                                    <span className="text-right text-[#697178]">Already held</span>
+                                  <div className="w-fit min-w-[21rem] space-y-3 text-xs">
+                                    <section>
+                                      <div className="mb-1 grid grid-cols-[9rem_6rem_6rem] gap-3">
+                                        <span className="text-sm font-black text-[#1f2428]">Tattoo</span>
+                                        <span className="text-right text-[10px] font-bold uppercase tracking-wide text-[#8a8d90]">Received</span>
+                                        <span className="text-right text-[10px] font-bold uppercase tracking-wide text-[#8a8d90]">Settlement</span>
+                                      </div>
+                                      <div className="grid grid-cols-[9rem_6rem_6rem] gap-x-3 gap-y-2">
+                                        <span className="font-semibold text-[#697178]">Cash</span>
+                                        <span className="text-right">{money(calculation.tattoo.cash)}</span>
+                                        <span className="text-right font-bold">+{money(calculation.tattoo.cash * calculation.artistRate / 100)}</span>
+                                        <span className="font-semibold text-[#697178]">Card</span>
+                                        <span className="text-right">{money(calculation.tattoo.credit_card)}</span>
+                                        <span className="text-right font-bold">+{money(calculation.tattoo.credit_card * calculation.artistRate / 100)}</span>
+                                        <span className="font-semibold text-[#697178]">App</span>
+                                        <span className="text-right">{money(calculation.tattoo.app)}</span>
+                                        <span className="text-right font-bold text-[#8a3030]">-{money(calculation.tattoo.app * (100 - calculation.artistRate) / 100)}</span>
+                                      </div>
+                                    </section>
+                                    <section className="border-t border-[#d9d3c7] pt-3">
+                                      <div className="mb-1 grid grid-cols-[9rem_6rem_6rem] gap-3">
+                                        <span className="text-sm font-black text-[#1f2428]">Tips</span>
+                                        <span className="text-right text-[10px] font-bold uppercase tracking-wide text-[#8a8d90]">Received</span>
+                                        <span className="text-right text-[10px] font-bold uppercase tracking-wide text-[#8a8d90]">Settlement</span>
+                                      </div>
+                                      <div className="grid grid-cols-[9rem_6rem_6rem] gap-x-3 gap-y-2">
+                                        <span className="font-semibold text-[#697178]">Cash</span>
+                                        <span className="text-right">{money(calculation.tip.cash)}</span>
+                                        <span className="text-right font-bold">+{money(calculation.tip.cash)}</span>
+                                        <span className="font-semibold text-[#697178]">Card</span>
+                                        <span className="text-right">{money(calculation.tip.credit_card)}</span>
+                                        <span className="text-right font-bold">+{money(calculation.tip.credit_card - calculation.cardTipFee)}</span>
+                                        <span className="font-semibold text-[#697178]">App</span>
+                                        <span className="text-right">{money(calculation.tip.app)}</span>
+                                        <span className="text-right text-[#697178]">Already held</span>
+                                      </div>
+                                    </section>
                                   </div>
                                   <div className="flex items-center gap-8 border-t border-[#d9d3c7] pt-2">
                                     <span className="w-32 font-semibold text-[#697178]">Artist earnings</span>
