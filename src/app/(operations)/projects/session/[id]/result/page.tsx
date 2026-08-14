@@ -138,14 +138,12 @@ export default function SessionResultPage() {
         setLoading(false);
         return;
       }
-
       const nextSession = sessionResult.data as unknown as SessionResultRecord;
       setSession(nextSession);
       setPayments((paymentResult.data ?? []) as PaymentRecord[]);
       setDepositApplied(
         (depositResult.data ?? []).reduce((sum, application) => sum + Number(application.amount), 0),
       );
-
       setLoading(false);
     }
 
@@ -164,12 +162,23 @@ export default function SessionResultPage() {
     () => payments.filter((payment) => payment.payment_method === "cash").reduce((sum, payment) => sum + Number(payment.amount), 0),
     [payments],
   );
+  const receivedByType = useMemo(() => {
+    const totals: Record<"tattoo" | "tip", Record<string, number>> = {
+      tattoo: { app: 0, cash: 0, credit_card: 0 },
+      tip: { app: 0, cash: 0, credit_card: 0 },
+    };
+    for (const payment of payments) {
+      const type = payment.payment_type === "tip" ? "tip" : "tattoo";
+      totals[type][payment.payment_method] =
+        (totals[type][payment.payment_method] ?? 0) + Number(payment.amount);
+    }
+    return totals;
+  }, [payments]);
   const artistName = artist?.display_name ?? "-";
   const customerName = customer?.name ?? "-";
   const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
   const placement = placementLabel(project?.subject, customer?.name ?? null);
   const sessionType = appointment?.appointment_type || project?.session_type || "Session";
-  const tattooBalanceAfterDeposit = Math.max(Number(session?.tattoo_amount ?? 0) - depositApplied, 0);
 
   async function deleteSession() {
     if (!session || !window.confirm("Delete this session?")) return;
@@ -287,6 +296,19 @@ export default function SessionResultPage() {
             border-top: 0.45mm dashed #176783 !important;
           }
 
+          .receipt-payment-type {
+            margin: 2mm 0 0.5mm !important;
+            font-size: 3.6mm !important;
+            font-weight: 900 !important;
+          }
+
+          .receipt-payment-type-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            align-items: baseline !important;
+            gap: 1mm !important;
+          }
+
           .receipt-payment-line {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
@@ -314,9 +336,12 @@ export default function SessionResultPage() {
             border-top: 0.5mm solid #176783 !important;
           }
 
-          .receipt-total .receipt-payment-label,
+          .receipt-total .receipt-payment-label {
+            font-size: 4.6mm !important;
+          }
+
           .receipt-total .receipt-payment-amount {
-            font-size: 7.8mm !important;
+            font-size: 6.5mm !important;
           }
         }
 
@@ -453,6 +478,19 @@ export default function SessionResultPage() {
             border-top: 0.45mm dashed #176783 !important;
           }
 
+          .receipt-payment-type {
+            margin: 2mm 0 0.5mm !important;
+            font-size: 3.6mm !important;
+            font-weight: 900 !important;
+          }
+
+          .receipt-payment-type-row {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            align-items: baseline !important;
+            gap: 1mm !important;
+          }
+
           .receipt-payment-line {
             display: grid !important;
             grid-template-columns: minmax(0, 1fr) auto !important;
@@ -482,9 +520,12 @@ export default function SessionResultPage() {
             background: white !important;
           }
 
-          .receipt-total .receipt-payment-label,
+          .receipt-total .receipt-payment-label {
+            font-size: 4.6mm !important;
+          }
+
           .receipt-total .receipt-payment-amount {
-            font-size: 7.8mm !important;
+            font-size: 6.5mm !important;
           }
         }
       `}</style>
@@ -529,24 +570,29 @@ export default function SessionResultPage() {
 
             <div className="receipt-payments pt-4">
               <div className="receipt-payment-group">
-                <p className="receipt-group-title uppercase text-[#697178]">Service value</p>
-                <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
-                  <span className="receipt-payment-label text-black">Tattoo price</span>
-                  <span className="receipt-payment-amount font-bold text-black">{receiptMoney(session.tattoo_amount)}</span>
-                </div>
-                {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]"><span className="receipt-payment-label">Deposit applied</span><span className="receipt-payment-amount font-bold">-{receiptMoney(depositApplied)}</span></div> : null}
-                {depositApplied > 0 ? <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2"><span className="receipt-payment-label text-black">Tattoo balance</span><span className="receipt-payment-amount font-bold text-black">{receiptMoney(tattooBalanceAfterDeposit)}</span></div> : null}
-              </div>
-              <div className="receipt-payment-group">
                 <p className="receipt-group-title uppercase text-[#697178]">Received today</p>
-                {payments.map((payment) => (
-                  <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={payment.id}>
-                    <span className="receipt-payment-label text-4xl capitalize text-black">
-                      {payment.payment_type ?? "tattoo"} / {paymentLabel(payment.payment_method)}
-                    </span>
-                    <span className="receipt-payment-amount text-6xl font-bold leading-none text-black">
-                      {receiptMoney(payment.amount)}
-                    </span>
+                {(["tattoo", "tip"] as const).map((type) => (
+                  <div key={type}>
+                    <div className="receipt-payment-type-row">
+                      <p className="receipt-payment-type capitalize text-black">{type}</p>
+                      <p className="receipt-payment-type text-black">
+                        {receiptMoney(Object.values(receivedByType[type]).reduce((sum, amount) => sum + amount, 0))}
+                      </p>
+                    </div>
+                    {type === "tattoo" && depositApplied > 0 ? (
+                      <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]">
+                        <span className="receipt-payment-label">Deposit applied</span>
+                        <span className="receipt-payment-amount font-bold">{receiptMoney(depositApplied)}</span>
+                      </div>
+                    ) : null}
+                    {(["cash", "credit_card", "app"] as const).filter((method) =>
+                      receivedByType[type][method] > 0,
+                    ).map((method) => (
+                      <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2" key={`${type}-${method}`}>
+                        <span className="receipt-payment-label text-black">{paymentLabel(method)}</span>
+                        <span className="receipt-payment-amount font-bold leading-none text-black">{receiptMoney(receivedByType[type][method])}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
                 <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t border-[#176783] py-2">
