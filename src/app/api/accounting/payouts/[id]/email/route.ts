@@ -1,47 +1,169 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const resend = process.env.RESEND_API_KEY;
 const from = process.env.EMAIL_FROM;
 
-function escapePdf(value: string) {
-  return value.replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7E]/g, "?");
-}
-
-function pdfText(value: unknown, maxLength = 42) {
-  const text = String(value ?? "-").replace(/\s+/g, " ").trim() || "-";
-  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
-}
-
 function dollars(value: unknown) {
-  return `$${Number(value ?? 0).toFixed(2)}`;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value ?? 0));
 }
 
-function makePdf(lines: string[]) {
-  const stream = `BT /F1 12 Tf 50 750 Td ${lines
-    .map((line, index) => `${index ? "0 -22 Td " : ""}(${escapePdf(line)}) Tj`)
-    .join(" ")} ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+type PdfStatementRow = {
+  artistPayout: number;
+  customerName: unknown;
+  enteredAt: unknown;
+  projectSubject: unknown;
+};
+
+function fitText(value: unknown, font: PDFFont, size: number, maxWidth: number) {
+  const text = String(value ?? "-").replace(/\s+/g, " ").trim() || "-";
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+  let shortened = text;
+  while (shortened.length > 1 && font.widthOfTextAtSize(`${shortened}...`, size) > maxWidth) {
+    shortened = shortened.slice(0, -1);
+  }
+  return `${shortened}...`;
+}
+
+function statementDate(value: unknown) {
+  const date = new Date(String(value ?? ""));
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(date);
+}
+
+async function makePdf({
+  adjustment,
+  appTattoo,
+  appTip,
+  artistName,
+  periodEnd,
+  periodStart,
+  rows,
+  settlementAmount,
+  status,
+  tattooEarnings,
+  tipEarnings,
+  totalEarnings,
+}: {
+  adjustment: number;
+  appTattoo: number;
+  appTip: number;
+  artistName: string;
+  periodEnd: string;
+  periodStart: string;
+  rows: PdfStatementRow[];
+  settlementAmount: number;
+  status: string;
+  tattooEarnings: number;
+  tipEarnings: number;
+  totalEarnings: number;
+}) {
+  const document = await PDFDocument.create();
+  const regular = await document.embedFont(StandardFonts.Helvetica);
+  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const margin = 42;
+  const contentWidth = pageWidth - margin * 2;
+  const ink = rgb(0.12, 0.14, 0.16);
+  const muted = rgb(0.39, 0.44, 0.47);
+  const blue = rgb(0.14, 0.42, 0.56);
+  const cream = rgb(0.97, 0.95, 0.91);
+  const line = rgb(0.87, 0.84, 0.78);
+  const pages: PDFPage[] = [];
+
+  function addPage(includeStatementHeader: boolean) {
+    const page = document.addPage([pageWidth, pageHeight]);
+    pages.push(page);
+    page.drawRectangle({ x: 0, y: pageHeight - 9, width: pageWidth, height: 9, color: ink });
+    page.drawText("OYABUN TATTOO", { x: margin, y: pageHeight - 55, size: 18, font: bold, color: ink });
+    page.drawText("PAYOUT STATEMENT", { x: pageWidth - margin - 152, y: pageHeight - 54, size: 12, font: bold, color: blue });
+    if (includeStatementHeader) {
+      page.drawText(`Artist  ${artistName}`, { x: margin, y: pageHeight - 92, size: 12, font: bold, color: ink });
+      page.drawText(`Period  ${statementDate(periodStart)} - ${statementDate(periodEnd)}`, { x: margin, y: pageHeight - 114, size: 10, font: regular, color: muted });
+      const statusText = status.toUpperCase();
+      const statusWidth = bold.widthOfTextAtSize(statusText, 9) + 20;
+      page.drawRectangle({ x: pageWidth - margin - statusWidth, y: pageHeight - 116, width: statusWidth, height: 20, color: cream });
+      page.drawText(statusText, { x: pageWidth - margin - statusWidth + 10, y: pageHeight - 109, size: 9, font: bold, color: ink });
+    }
+    return page;
+  }
+
+  function drawTableHeader(page: PDFPage, y: number) {
+    page.drawRectangle({ x: margin, y: y - 25, width: contentWidth, height: 25, color: ink });
+    page.drawText("DATE", { x: margin + 10, y: y - 17, size: 8, font: bold, color: rgb(1, 1, 1) });
+    page.drawText("CLIENT / PROJECT", { x: margin + 112, y: y - 17, size: 8, font: bold, color: rgb(1, 1, 1) });
+    const payoutHeader = "ARTIST PAYOUT";
+    page.drawText(payoutHeader, { x: pageWidth - margin - 10 - bold.widthOfTextAtSize(payoutHeader, 8), y: y - 17, size: 8, font: bold, color: rgb(1, 1, 1) });
+    return y - 25;
+  }
+
+  let page = addPage(true);
+  let y = drawTableHeader(page, pageHeight - 145);
+  const displayedRows = rows.length ? rows : [{ artistPayout: 0, customerName: "No sessions", enteredAt: "", projectSubject: "" }];
+  for (const [index, row] of displayedRows.entries()) {
+    if (y < 105) {
+      page = addPage(false);
+      y = drawTableHeader(page, pageHeight - 78);
+    }
+    const rowHeight = 46;
+    if (index % 2 === 1) page.drawRectangle({ x: margin, y: y - rowHeight, width: contentWidth, height: rowHeight, color: rgb(0.99, 0.98, 0.96) });
+    page.drawText(statementDate(row.enteredAt), { x: margin + 10, y: y - 20, size: 9, font: regular, color: muted });
+    page.drawText(fitText(row.customerName, bold, 10, 285), { x: margin + 112, y: y - 17, size: 10, font: bold, color: ink });
+    page.drawText(fitText(row.projectSubject, regular, 8.5, 285), { x: margin + 112, y: y - 32, size: 8.5, font: regular, color: muted });
+    const payoutText = dollars(row.artistPayout);
+    page.drawText(payoutText, { x: pageWidth - margin - 10 - bold.widthOfTextAtSize(payoutText, 10), y: y - 23, size: 10, font: bold, color: ink });
+    page.drawLine({ start: { x: margin, y: y - rowHeight }, end: { x: pageWidth - margin, y: y - rowHeight }, thickness: 0.5, color: line });
+    y -= rowHeight;
+  }
+
+  const summaryRows = [
+    ["Session payout total", dollars(totalEarnings)],
+    ["Tattoo earnings", dollars(tattooEarnings)],
+    ["Tip earnings", dollars(tipEarnings)],
+    ...(appTattoo ? [["App tattoo already held", `-${dollars(appTattoo)}`]] : []),
+    ...(appTip ? [["App tips already held", `-${dollars(appTip)}`]] : []),
+    ["Adjustment", dollars(adjustment)],
   ];
-  let output = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(output.length);
-    output += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  const summaryHeight = summaryRows.length * 22 + 64;
+  if (y - summaryHeight < 65) {
+    page = addPage(false);
+    y = pageHeight - 82;
+  } else {
+    y -= 26;
+  }
+  const cardWidth = 310;
+  const cardX = pageWidth - margin - cardWidth;
+  page.drawRectangle({ x: cardX, y: y - summaryHeight, width: cardWidth, height: summaryHeight, color: cream, borderColor: line, borderWidth: 0.8 });
+  page.drawText("SETTLEMENT SUMMARY", { x: cardX + 18, y: y - 23, size: 9, font: bold, color: muted });
+  let summaryY = y - 47;
+  for (const [label, value] of summaryRows) {
+    page.drawText(label, { x: cardX + 18, y: summaryY, size: 9, font: regular, color: muted });
+    page.drawText(value, { x: cardX + cardWidth - 18 - bold.widthOfTextAtSize(value, 9), y: summaryY, size: 9, font: bold, color: ink });
+    summaryY -= 22;
+  }
+  page.drawLine({ start: { x: cardX + 18, y: summaryY + 8 }, end: { x: cardX + cardWidth - 18, y: summaryY + 8 }, thickness: 1.2, color: ink });
+  const finalLabel = settlementAmount < 0 ? "ARTIST PAYS SHOP" : "SHOP PAYS ARTIST";
+  const finalAmount = dollars(Math.abs(settlementAmount));
+  page.drawText(finalLabel, { x: cardX + 18, y: summaryY - 14, size: 11, font: bold, color: ink });
+  page.drawText(finalAmount, { x: cardX + cardWidth - 18 - bold.widthOfTextAtSize(finalAmount, 14), y: summaryY - 16, size: 14, font: bold, color: blue });
+
+  pages.forEach((currentPage, index) => {
+    currentPage.drawLine({ start: { x: margin, y: 38 }, end: { x: pageWidth - margin, y: 38 }, thickness: 0.5, color: line });
+    currentPage.drawText("Thank you for your work. Please contact Oyabun Tattoo with any questions.", { x: margin, y: 22, size: 7.5, font: regular, color: muted });
+    const pageNumber = `${index + 1} / ${pages.length}`;
+    currentPage.drawText(pageNumber, { x: pageWidth - margin - regular.widthOfTextAtSize(pageNumber, 7.5), y: 22, size: 7.5, font: regular, color: muted });
   });
-  const xref = output.length;
-  output += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets
-    .slice(1)
-    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n `)
-    .join("\n")}\ntrailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return Buffer.from(output, "binary");
+
+  return Buffer.from(await document.save());
 }
 
 export async function POST(
@@ -103,35 +225,28 @@ export async function POST(
     statementRows[statementRows.length - 1].artistPayout =
       Number(statementRows[statementRows.length - 1].artistPayout ?? 0) + difference;
   }
-  const sessionLines = statementRows.map((row) => {
-    const date = pdfText(row.enteredAt, 10);
-    const clientProject = pdfText(
-      [row.customerName, row.projectSubject].filter(Boolean).join(" / "),
-      48,
-    );
-    return `${date}  ${clientProject}  ${dollars(row.artistPayout)}`;
-  });
   const adjustment = Number(snapshot.adjustmentAmount ?? 0);
   const appTattoo = Number(tattoo.app ?? 0);
   const appTip = Number(tip.app ?? 0);
-  const lines = [
-    "OYABUN TATTOO - PAYOUT STATEMENT",
-    `Artist: ${artist.display_name}`,
-    `Period: ${payout.period_start} to ${payout.period_end}`,
-    "",
-    "DATE        CLIENT / PROJECT                                  ARTIST PAYOUT",
-    ...(sessionLines.length ? sessionLines : ["No session details available"]),
-    "",
-    `Session payout total: ${dollars(snapshot.artistEarnings)}`,
-    `  Tattoo earnings: ${dollars(snapshot.tattooArtistEarnings)}`,
-    `  Tip earnings: ${dollars(snapshot.tipArtistEarnings)}`,
-    ...(appTattoo ? [`App tattoo already held: -${dollars(appTattoo)}`] : []),
-    ...(appTip ? [`App tips already held: -${dollars(appTip)}`] : []),
-    `Adjustment: ${dollars(adjustment)}`,
-    `${amount < 0 ? "Artist pays shop" : "Shop pays artist"}: $${Math.abs(amount).toFixed(2)}`,
-    `Status: ${payout.status}`,
-  ];
-  const pdf = makePdf(lines);
+  const pdf = await makePdf({
+    adjustment,
+    appTattoo,
+    appTip,
+    artistName: artist?.display_name ?? "Artist",
+    periodEnd: payout.period_end,
+    periodStart: payout.period_start,
+    rows: statementRows.map((row) => ({
+      artistPayout: Number(row.artistPayout ?? 0),
+      customerName: row.customerName,
+      enteredAt: row.enteredAt,
+      projectSubject: row.projectSubject,
+    })),
+    settlementAmount: amount,
+    status: payout.status,
+    tattooEarnings: Number(snapshot.tattooArtistEarnings ?? 0),
+    tipEarnings: Number(snapshot.tipArtistEarnings ?? 0),
+    totalEarnings: Number(snapshot.artistEarnings ?? 0),
+  });
   if (payload.preview) {
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
@@ -153,7 +268,7 @@ export async function POST(
       from,
       to: [recipient],
       subject: payload.subject?.trim() || `Payout statement: ${payout.period_start} - ${payout.period_end}`,
-      text: payload.message?.trim() || `Hi ${artist.display_name},\n\nYour payout statement is attached.\n\nThank you,\nOyabun Tattoo`,
+      text: payload.message?.trim() || `Hi ${artist?.display_name ?? "Artist"},\n\nYour payout statement is attached.\n\nThank you,\nOyabun Tattoo`,
       attachments: [{ filename: `payout-${payout.period_start}-${payout.period_end}.pdf`, content: pdf.toString("base64") }],
     }),
   });
