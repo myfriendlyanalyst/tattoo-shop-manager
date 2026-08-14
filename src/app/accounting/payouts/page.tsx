@@ -23,16 +23,27 @@ type PayoutRow = {
   // Requires migration: supabase_accounting_migration.sql section 5
   adjustment_amount: number;
   adjustment_note: string | null;
-  calculation_snapshot: (PayoutCalculation & {
-    adjustmentAmount?: number;
-    entries?: EntryRow[];
-    sessionIds?: string[];
-  }) | null;
+  calculation_snapshot: PayoutCalculationSnapshot | null;
   snapshot_at: string | null;
   artist_earnings: number | null;
   settlement_amount: number | null;
   created_at: string;
   artist: { display_name: string; email?: string | null; payout_rate?: number | null } | { display_name: string; email?: string | null; payout_rate?: number | null }[] | null;
+};
+
+type PayoutStatementRow = {
+  sessionId: string;
+  enteredAt: string;
+  customerName: string | null;
+  projectSubject: string | null;
+  artistPayout: number;
+};
+
+type PayoutCalculationSnapshot = PayoutCalculation & {
+    adjustmentAmount?: number;
+    entries?: EntryRow[];
+    sessionIds?: string[];
+    statementRows?: PayoutStatementRow[];
 };
 
 type EntryRow = {
@@ -63,7 +74,7 @@ type DepositApplicationRow = {
 };
 
 type PayoutBundle = {
-  calculation: PayoutCalculation;
+  calculation: PayoutCalculationSnapshot;
   entries: EntryRow[];
 };
 
@@ -258,8 +269,28 @@ async function fetchPayoutBundle(
     tipPaymentMethod: entry.tip_payment_method,
   }));
 
+  const calculation = calculatePayout(sessions, artistRate);
+  const statementRows = entries.map((entry, index) => {
+    const sessionCalculation = calculatePayout([sessions[index]], artistRate);
+    return {
+      artistPayout: sessionCalculation.artistEarnings,
+      customerName: entry.customer_name,
+      enteredAt: entry.entered_at,
+      projectSubject: entry.project_subject,
+      sessionId: entry.id,
+    };
+  });
+  const rowDifference = Math.round(
+    (calculation.artistEarnings - statementRows.reduce((sum, row) => sum + row.artistPayout, 0)) * 100,
+  ) / 100;
+  if (statementRows.length && rowDifference) {
+    statementRows[statementRows.length - 1].artistPayout = Math.round(
+      (statementRows[statementRows.length - 1].artistPayout + rowDifference) * 100,
+    ) / 100;
+  }
+
   return {
-    data: { calculation: calculatePayout(sessions, artistRate), entries },
+    data: { calculation: { ...calculation, statementRows }, entries },
     error: null,
   };
 }
@@ -267,7 +298,7 @@ async function fetchPayoutBundle(
 function printPayout(
   payout: PayoutRow,
   entries: EntryRow[],
-  calculation: PayoutCalculation,
+  calculation: PayoutCalculationSnapshot,
   adjustmentAmount: number,
   finalPayout: number,
   adjustmentNote: string | null,
@@ -279,16 +310,25 @@ function printPayout(
     return;
   }
 
-  const rows = entries
+  const statementRows = calculation.statementRows ? [...calculation.statementRows] : entries.map((entry) => ({
+    artistPayout: Number(entry.tattoo_amount) * calculation.artistRate / 100 + Number(entry.tip_amount),
+    customerName: entry.customer_name,
+    enteredAt: entry.entered_at,
+    projectSubject: entry.project_subject,
+    sessionId: entry.id,
+  }));
+  if (!calculation.statementRows?.length && statementRows.length) {
+    const difference = Math.round(
+      (calculation.artistEarnings - statementRows.reduce((sum, row) => sum + row.artistPayout, 0)) * 100,
+    ) / 100;
+    statementRows[statementRows.length - 1].artistPayout += difference;
+  }
+  const rows = statementRows
     .map(
-      (e) => `<tr>
-      <td>${formatDate(e.entered_at)}</td>
-      <td>${escapeHtml(e.customer_name || "-")}</td>
-      <td>${escapeHtml(e.project_subject || "-")}</td>
-      <td>${escapeHtml(entryTypeLabel(e.entry_type))}</td>
-      <td style="text-align:right">${money(Number(e.tattoo_amount))}</td>
-      <td style="text-align:right">${money(Number(e.tip_amount))}</td>
-      <td style="text-align:right"><strong>${money(Number(e.total_amount))}</strong></td>
+      (row) => `<tr>
+      <td>${formatDate(row.enteredAt)}</td>
+      <td>${escapeHtml(row.customerName || "-")}<div class="project">${escapeHtml(row.projectSubject || "-")}</div></td>
+      <td style="text-align:right"><strong>${money(Number(row.artistPayout))}</strong></td>
     </tr>`,
     )
     .join("");
@@ -311,6 +351,7 @@ function printPayout(
     table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 16px 0; }
     th { text-align: left; border-bottom: 2px solid #1f2428; padding: 6px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #697178; }
     td { padding: 6px 8px; border-bottom: 1px solid #e5dfd4; vertical-align: top; }
+    .project { margin-top: 2px; color: #697178; font-size: 11px; }
     .totals-wrap { margin-top: 20px; display: flex; justify-content: flex-end; }
     .totals-table { width: 300px; }
     .totals-table td { border-bottom: none; }
@@ -335,29 +376,22 @@ function printPayout(
     <thead>
       <tr>
         <th>Date</th>
-        <th>Client</th>
-        <th>Project</th>
-        <th>Type</th>
-        <th style="text-align:right">Tattoo</th>
-        <th style="text-align:right">Tip</th>
-        <th style="text-align:right">Total</th>
+        <th>Client / Project</th>
+        <th style="text-align:right">Artist payout</th>
       </tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="7" style="text-align:center;color:#697178;padding:20px">No entries for this period</td></tr>`}
+      ${rows || `<tr><td colspan="3" style="text-align:center;color:#697178;padding:20px">No sessions for this period</td></tr>`}
     </tbody>
   </table>
 
   <div class="totals-wrap">
     <table class="totals-table">
-      <tr><td>Cash tattoo × ${calculation.artistRate}%</td><td>${money(calculation.tattoo.cash * calculation.artistRate / 100)}</td></tr>
-      <tr><td>Card tattoo × ${calculation.artistRate}%</td><td>${money(calculation.tattoo.credit_card * calculation.artistRate / 100)}</td></tr>
-      <tr><td>App tattoo × shop ${100 - calculation.artistRate}%</td><td>-${money(calculation.tattoo.app * (100 - calculation.artistRate) / 100)}</td></tr>
-      <tr><td>Cash tips</td><td>${money(calculation.tip.cash)}</td></tr>
-      <tr><td>Card tips</td><td>${money(calculation.tip.credit_card)}</td></tr>
-      <tr><td>Card tip fee (${calculation.cardTipFeeRate}%)</td><td>-${money(calculation.cardTipFee)}</td></tr>
-      <tr><td>App tips (already held)</td><td>${money(0)}</td></tr>
-      <tr><td>Artist earnings</td><td>${money(calculation.artistEarnings)}</td></tr>
+      <tr><td>Session payout total</td><td>${money(calculation.artistEarnings)}</td></tr>
+      <tr><td>Includes tattoo earnings</td><td>${money(calculation.tattooArtistEarnings)}</td></tr>
+      <tr><td>Includes tip earnings</td><td>${money(calculation.tipArtistEarnings)}</td></tr>
+      ${calculation.tattoo.app ? `<tr><td>App tattoo already held</td><td>-${money(calculation.tattoo.app)}</td></tr>` : ""}
+      ${calculation.tip.app ? `<tr><td>App tips already held</td><td>-${money(calculation.tip.app)}</td></tr>` : ""}
       <tr><td>Adjustment${adjNote}</td><td>${money(adjustmentAmount)}</td></tr>
       <tr class="total-row"><td>${finalPayout < 0 ? "Artist pays shop" : "Shop pays artist"}</td><td>${money(Math.abs(finalPayout))}</td></tr>
     </table>
@@ -382,6 +416,7 @@ export default function PayoutsPage() {
   // Page state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewingPdf, setPreviewingPdf] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
@@ -408,7 +443,7 @@ export default function PayoutsPage() {
   // Expanded detail
   const [expandedPayoutId, setExpandedPayoutId] = useState<string | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Record<string, EntryRow[]>>({});
-  const [expandedCalculations, setExpandedCalculations] = useState<Record<string, PayoutCalculation>>({});
+  const [expandedCalculations, setExpandedCalculations] = useState<Record<string, PayoutCalculationSnapshot>>({});
   const [expandedLoading, setExpandedLoading] = useState<Record<string, boolean>>({});
   const [adjustmentForm, setAdjustmentForm] = useState<Record<string, AdjFormEntry>>({});
   const [adjustmentSaving, setAdjustmentSaving] = useState<string | null>(null);
@@ -631,6 +666,38 @@ export default function PayoutsPage() {
     const payload = await response.json() as { error?:string; to?:string };
     if (!response.ok) setError(payload.error ?? "Payout email failed."); else { setMessage(`Payout statement emailed to ${payload.to}.`); setEmailPayoutDraft(null); }
     setSaving(false);
+  }
+
+  async function previewPayoutPdf() {
+    if (!emailPayoutDraft) return;
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      setError("Pop-up blocked. Please allow pop-ups to preview the PDF.");
+      return;
+    }
+    previewWindow.document.write("<p style='font-family:sans-serif;padding:24px'>Loading payout PDF...</p>");
+    setPreviewingPdf(true);
+    setError("");
+    const session = await getSafeSession();
+    const response = await fetch(`/api/accounting/payouts/${emailPayoutDraft.id}/email`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session?.access_token ?? ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ preview: true }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      previewWindow.close();
+      setError(payload.error ?? "Payout PDF preview failed.");
+      setPreviewingPdf(false);
+      return;
+    }
+    const pdfUrl = URL.createObjectURL(await response.blob());
+    previewWindow.location.href = pdfUrl;
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    setPreviewingPdf(false);
   }
 
   async function deleteDraftPayout(payout: PayoutRow) {
@@ -1291,8 +1358,9 @@ export default function PayoutsPage() {
                 <textarea className="mt-1.5 min-h-64 w-full rounded-md border border-[#cfc7b8] px-3 py-2 font-normal" onChange={(event) => setEmailBody(event.target.value)} value={emailBody} />
               </label>
             </div>
-            <div className="flex justify-end gap-2 border-t border-[#e5dfd4] px-5 py-4">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5dfd4] px-5 py-4">
               <button className="h-9 rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" disabled={saving} onClick={() => setEmailPayoutDraft(null)} type="button">Cancel</button>
+              <button className="h-9 rounded-md border border-[#236c8f] px-4 text-sm font-semibold text-[#236c8f] disabled:opacity-50" disabled={saving || previewingPdf} onClick={previewPayoutPdf} type="button">{previewingPdf ? "Opening PDF..." : "Preview PDF"}</button>
               <button className="h-9 rounded-md bg-[#191b1f] px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={saving || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()} onClick={emailPayout} type="button">{saving ? "Sending..." : "Send with PDF"}</button>
             </div>
           </div>

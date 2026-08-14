@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
+import { CustomerSearch, customerSearchLabel } from "@/components/customer-search";
 import { SessionEntryForm, type PaymentGrid, type SessionForm } from "@/components/session-entry-form";
 import { TimeSelect } from "@/components/time-select";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
@@ -285,18 +286,6 @@ export default function SessionWizardPage() {
     () => selectedAppointments.find((appointment) => appointment.id === effectiveAppointmentId) ?? null,
     [effectiveAppointmentId, selectedAppointments],
   );
-  const filteredCustomers = useMemo(() => {
-    const term = customerSearch.trim().toLowerCase();
-    if (!term) return customers.slice(0, 6);
-
-    return customers
-      .filter((customer) =>
-        [customer.name, customer.email, customer.phone]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(term)),
-      )
-      .slice(0, 6);
-  }, [customerSearch, customers]);
   const selectedDeposits = useMemo(
     () => deposits.filter((deposit) => deposit.project_id === projectId),
     [deposits, projectId],
@@ -452,7 +441,7 @@ export default function SessionWizardPage() {
   function selectCustomer(customer: CustomerRecord) {
     setCustomerMode("existing");
     setSelectedCustomerId(customer.id);
-    setCustomerSearch([customer.name, customer.email, customer.phone].filter(Boolean).join(" / "));
+    setCustomerSearch(customerSearchLabel(customer));
     setWalkInForm((current) => ({
       ...current,
       customerEmail: customer.email ?? "",
@@ -1353,36 +1342,17 @@ export default function SessionWizardPage() {
               </div>
 
               {customerMode === "existing" ? (
-                <div className="relative rounded-md border border-[#d9d3c7] bg-white px-3 py-3">
-                  <label className="block text-sm font-semibold">
-                    Find existing customer
-                    <input
-                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) => {
+                <div className="rounded-md border border-[#d9d3c7] bg-white px-3 py-3">
+                  <CustomerSearch
+                    customers={customers}
+                    onChange={(value) => {
                         setSelectedCustomerId("");
-                        setCustomerSearch(event.target.value);
+                        setCustomerSearch(value);
                       }}
-                      placeholder="Search name, email, or phone"
-                      value={customerSearch}
-                    />
-                  </label>
-                  {customerSearch.trim() && !selectedCustomerId ? <div className="absolute left-3 right-3 top-[76px] z-30 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white p-1 shadow-lg">
-                    {filteredCustomers.map((customer) => (
-                      <button
-                        className={`rounded-md px-3 py-2 text-left text-sm hover:bg-[#eee8dd] ${
-                          selectedCustomerId === customer.id ? "bg-[#f7f2e9] font-semibold" : ""
-                        }`}
-                        key={customer.id}
-                        onClick={() => selectCustomer(customer)}
-                        type="button"
-                      >
-                        {[customer.name, customer.email, customer.phone].filter(Boolean).join(" / ")}
-                      </button>
-                    ))}
-                    {customerSearch.trim() && filteredCustomers.length === 0 ? (
-                      <p className="px-3 py-2 text-sm font-semibold text-[#697178]">No customers match this search.</p>
-                    ) : null}
-                  </div> : null}
+                    onSelect={selectCustomer}
+                    selectedCustomerId={selectedCustomerId}
+                    value={customerSearch}
+                  />
                 </div>
               ) : null}
 

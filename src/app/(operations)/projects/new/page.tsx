@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
+import { CustomerSearch, customerSearchLabel } from "@/components/customer-search";
 import { getSafeSession } from "@/lib/auth-session";
 import { getOperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
@@ -72,11 +73,6 @@ function emptyForm(): FormState {
   };
 }
 
-function customerLabel(customer: CustomerRecord | null | undefined) {
-  if (!customer) return "";
-  return [customer.name, customer.email, customer.phone].filter(Boolean).join(" / ");
-}
-
 function projectNameFromRequest(request: RequestRecord) {
   if (request.subject?.trim()) return request.subject.trim();
   const placement = request.placement?.trim();
@@ -97,8 +93,6 @@ function NewProjectContent() {
   const requestId = searchParams.get("requestId") ?? "";
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
-  const [activeCustomerIndex, setActiveCustomerIndex] = useState(0);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const [createdProjectId, setCreatedProjectId] = useState("");
@@ -107,24 +101,6 @@ function NewProjectContent() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  const filteredCustomers = useMemo(() => {
-    const term = customerSearch.trim().toLowerCase();
-    if (!term) return customers.slice(0, 8);
-
-    return customers
-      .filter((customer) =>
-        [customer.name, customer.email, customer.phone]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(term)),
-      )
-      .slice(0, 8);
-  }, [customerSearch, customers]);
-
-  const activeCustomerOptionIndex = Math.min(
-    activeCustomerIndex,
-    Math.max(filteredCustomers.length - 1, 0),
-  );
 
   useEffect(() => {
     async function load() {
@@ -205,44 +181,12 @@ function NewProjectContent() {
 
   function selectCustomer(customer: CustomerRecord) {
     setSelectedCustomerId(customer.id);
-    setCustomerSearch(customerLabel(customer));
-    setCustomerSearchOpen(false);
-    setActiveCustomerIndex(0);
+    setCustomerSearch(customerSearchLabel(customer));
     updateForm({
       customerEmail: customer.email ?? "",
       customerName: customer.name,
       customerPhone: customer.phone ?? "",
     });
-  }
-
-  function handleCustomerSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (!customerSearchOpen && ["ArrowDown", "ArrowUp"].includes(event.key)) {
-      setCustomerSearchOpen(true);
-    }
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActiveCustomerIndex((current) =>
-        filteredCustomers.length === 0 ? 0 : Math.min(current + 1, filteredCustomers.length - 1),
-      );
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActiveCustomerIndex((current) => Math.max(current - 1, 0));
-      return;
-    }
-
-    if (event.key === "Enter" && customerSearchOpen && filteredCustomers[activeCustomerOptionIndex]) {
-      event.preventDefault();
-      selectCustomer(filteredCustomers[activeCustomerOptionIndex]);
-      return;
-    }
-
-    if (event.key === "Escape") {
-      setCustomerSearchOpen(false);
-    }
   }
 
   async function saveProject() {
@@ -422,56 +366,17 @@ function NewProjectContent() {
           <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold text-[#6f7275]">Customer info</h4>
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              <div className="relative block text-sm font-semibold lg:col-span-2">
-                Find existing customer
-                <input
-                  autoComplete="off"
-                  className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(event) => {
+              <div className="lg:col-span-2">
+                <CustomerSearch
+                  customers={customers}
+                  onChange={(value) => {
                     setSelectedCustomerId("");
-                    setCustomerSearch(event.target.value);
-                    setCustomerSearchOpen(true);
-                    setActiveCustomerIndex(0);
+                    setCustomerSearch(value);
                   }}
-                  onBlur={() => {
-                    window.setTimeout(() => setCustomerSearchOpen(false), 120);
-                  }}
-                  onFocus={() => setCustomerSearchOpen(true)}
-                  onKeyDown={handleCustomerSearchKeyDown}
-                  placeholder="Type name, email, or phone"
+                  onSelect={selectCustomer}
+                  selectedCustomerId={selectedCustomerId}
                   value={customerSearch}
                 />
-                {customerSearchOpen && customerSearch.trim() && !selectedCustomerId ? (
-                  <div
-                    className="absolute left-0 right-0 top-[72px] z-20 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white shadow-lg"
-                    onMouseDown={(event) => event.preventDefault()}
-                  >
-                    {filteredCustomers.length > 0 ? (
-                      filteredCustomers.map((customer, index) => (
-                        <button
-                          className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#f7f2e9] ${
-                            index === activeCustomerOptionIndex ? "bg-[#f1eadc] font-semibold" : ""
-                          }`}
-                          key={customer.id}
-                          onClick={() => selectCustomer(customer)}
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            selectCustomer(customer);
-                          }}
-                          onMouseEnter={() => setActiveCustomerIndex(index)}
-                          type="button"
-                        >
-                          <span className="block font-semibold">{customer.name}</span>
-                          <span className="mt-0.5 block text-xs font-normal text-[#697178]">
-                            {[customer.email, customer.phone].filter(Boolean).join(" / ") || "No contact info"}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm font-normal text-[#697178]">No matching customers</div>
-                    )}
-                  </div>
-                ) : null}
               </div>
               <label className="block text-sm font-semibold">
                 Name {requiredMark}

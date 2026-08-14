@@ -1863,9 +1863,6 @@ export default function ProjectsPage() {
                 <section className="shrink-0 border-b border-[#d9d3c7] bg-white shadow-sm md:rounded-t-md">
                   <div className="flex flex-col gap-4 border-b border-[#e5dfd4] px-4 py-4 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <p className="text-xs font-semibold text-[#8a6f4d]">
-                        {selectedProject.id.slice(0, 8)}
-                      </p>
                       <h3 className="mt-1 text-xl font-semibold">{customerName(selectedProject)}</h3>
                       <p className="mt-1 text-sm text-[#4d555c]">Placement: {selectedProject.subject}</p>
                       <p className="mt-1 text-sm text-[#697178]">
@@ -2278,7 +2275,7 @@ export default function ProjectsPage() {
                         </div>
 
                         <div className="hidden overflow-hidden rounded-md border border-[#e4dccf] md:block">
-                          <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] bg-[#f7f2e9] px-3 py-2 text-xs font-bold uppercase text-[#6f7275]">
+                          <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_1.25fr] bg-[#f7f2e9] px-3 py-2 text-xs font-bold uppercase text-[#6f7275]">
                             <span>Date</span>
                             <span>History</span>
                             <span className="text-right">Change</span>
@@ -2289,18 +2286,12 @@ export default function ProjectsPage() {
                                 {selectedDepositWalletRows.map((row) => (
                                     <div
                                       key={`${row.type}-${row.id}`}
-                                      className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] border-t border-[#eee8dd] px-3 py-2"
+                                      className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_1.25fr] border-t border-[#eee8dd] px-3 py-2"
                                     >
                                       <span>{displayDate(row.date)}</span>
                                       <span>
                                         {row.type === "deposit" ? (
                                           <>
-                                            <Link
-                                              className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
-                                              href={`/projects/deposit/${row.deposit!.id}/receipt?reprint=1&from=projects`}
-                                            >
-                                              Receipt
-                                            </Link>
                                             <span className={`font-semibold ${depositHistoryClasses(row.deposit)}`}>
                                               {depositHistoryLabel(row.deposit)}
                                             </span>
@@ -2332,6 +2323,12 @@ export default function ProjectsPage() {
                                       <span className="flex justify-end gap-2">
                                         {row.type === "deposit" ? (
                                           <>
+                                            <Link
+                                              className="inline-flex h-8 items-center rounded-md border border-[#236c8f] px-2 text-xs font-semibold text-[#236c8f] hover:bg-[#e8f3f7]"
+                                              href={`/projects/deposit/${row.deposit!.id}/receipt?reprint=1&from=projects`}
+                                            >
+                                              Receipt
+                                            </Link>
                                             <button
                                               className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                                               disabled={saving}
@@ -2361,7 +2358,7 @@ export default function ProjectsPage() {
                                       </span>
                                     </div>
                                 ))}
-                                <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_0.8fr] border-t border-[#e4dccf] bg-[#fdfbf7] px-3 py-2 font-semibold">
+                                <div className="grid grid-cols-[0.85fr_1.2fr_0.7fr_0.7fr_1.25fr] border-t border-[#e4dccf] bg-[#fdfbf7] px-3 py-2 font-semibold">
                                   <span />
                                   <span>Remaining balance</span>
                                   <span />
