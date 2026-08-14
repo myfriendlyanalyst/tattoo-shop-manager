@@ -194,7 +194,7 @@ function appointmentLabel(appointment: AppointmentRecord | null | undefined) {
 
 function projectLabel(project: ProjectRecord) {
   const customer = relatedOne(project.customer);
-  return `${project.subject} / ${customer?.name ?? "No client"}`;
+  return `${customer?.name ?? "No client"} / ${project.subject} / ${project.session_type ?? "Project"}`;
 }
 
 function projectNameFromWalkIn(form: WalkInForm) {
@@ -1185,9 +1185,10 @@ export default function SessionWizardPage() {
             <section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4">
               <div className="mb-4">
                 <p className="text-sm font-semibold text-[#697178]">Appointment</p>
-                <h4 className="mt-1 text-base font-semibold">{selectedProject?.subject}</h4>
+                <h4 className="mt-1 text-base font-semibold">{relatedOne(selectedProject?.customer ?? null)?.name ?? "Client"}</h4>
+                <p className="mt-1 text-sm text-[#697178]">Placement: {selectedProject?.subject ?? "-"} / {selectedProject?.session_type ?? "Project"}</p>
               </div>
-              <div className="mb-4 grid gap-2 sm:grid-cols-2">
+              <div className="mb-4 grid gap-2">
                 <button
                   className={`rounded-md border px-4 py-3 text-left text-sm ${appointmentMode === "scheduled" ? "border-[#1f2428] bg-white shadow-sm" : "border-[#d9d3c7] bg-white"}`}
                   disabled={selectedAppointments.length === 0}
@@ -1234,7 +1235,7 @@ export default function SessionWizardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
+                <div className="grid max-w-xl gap-3">
                   <label className="text-sm font-semibold">
                     Date
                     <input
@@ -1289,7 +1290,7 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Appointment</p>
                 <h4 className="mt-1 text-base font-semibold">{projectNameFromWalkIn(walkInForm)}</h4>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid max-w-xl gap-3">
                 <label className="text-sm font-semibold">
                   Date
                   <input
@@ -1352,17 +1353,20 @@ export default function SessionWizardPage() {
               </div>
 
               {customerMode === "existing" ? (
-                <div className="rounded-md border border-[#d9d3c7] bg-white px-3 py-3">
+                <div className="relative rounded-md border border-[#d9d3c7] bg-white px-3 py-3">
                   <label className="block text-sm font-semibold">
                     Find existing customer
                     <input
                       className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) => setCustomerSearch(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedCustomerId("");
+                        setCustomerSearch(event.target.value);
+                      }}
                       placeholder="Search name, email, or phone"
                       value={customerSearch}
                     />
                   </label>
-                  <div className="mt-2 grid gap-1">
+                  {customerSearch.trim() && !selectedCustomerId ? <div className="absolute left-3 right-3 top-[76px] z-30 max-h-52 overflow-y-auto rounded-md border border-[#d9d3c7] bg-white p-1 shadow-lg">
                     {filteredCustomers.map((customer) => (
                       <button
                         className={`rounded-md px-3 py-2 text-left text-sm hover:bg-[#eee8dd] ${
@@ -1378,12 +1382,12 @@ export default function SessionWizardPage() {
                     {customerSearch.trim() && filteredCustomers.length === 0 ? (
                       <p className="px-3 py-2 text-sm font-semibold text-[#697178]">No customers match this search.</p>
                     ) : null}
-                  </div>
+                  </div> : null}
                 </div>
               ) : null}
 
               {customerMode === "new" || selectedCustomerId ? (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid max-w-xl gap-4">
                 <label className="block text-sm font-semibold">
                   Client name <span className="text-[#8a3030]">*</span>
                   <input
@@ -1479,20 +1483,12 @@ export default function SessionWizardPage() {
 
           {step === "payments" ? (
             <section className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-4">
                 <div>
                   <p className="text-sm font-semibold text-[#697178]">Payment entry</p>
-                  <h4 className="mt-1 text-base font-semibold">
-                    {kind === "walk_in" ? projectNameFromWalkIn(walkInForm) : selectedProject?.subject}
-                  </h4>
+                  <h4 className="mt-1 text-base font-semibold">{kind === "walk_in" ? walkInForm.customerName : relatedOne(selectedProject?.customer ?? null)?.name}</h4>
+                  <p className="mt-1 text-sm text-[#697178]">Placement: {kind === "walk_in" ? walkInForm.tattooPlacement : selectedProject?.subject}</p>
                 </div>
-                <button
-                  className="h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd]"
-                  onClick={() => setStep("appointment")}
-                  type="button"
-                >
-                  Back
-                </button>
               </div>
               <SessionEntryForm
                 appointments={kind === "existing" && selectedAppointment ? [selectedAppointment] : []}
@@ -1512,6 +1508,7 @@ export default function SessionWizardPage() {
                 initialStartTime={kind === "walk_in" || appointmentMode === "manual" ? walkInAppointment.startTime : undefined}
                 key={`${kind}-${projectId}-${effectiveAppointmentId}-${walkInAppointment.date}-${walkInAppointment.startTime}-${walkInAppointment.endTime}-${saveResult?.sessionId ?? "new"}-${editingSavedSession ? "edit" : "new"}`}
                 onNextAppointment={() => undefined}
+                onBack={() => setStep("appointment")}
                 confirmBeforeSave={false}
                 onSave={handlePaymentContinue}
                 saving={saving}
@@ -1529,10 +1526,9 @@ export default function SessionWizardPage() {
               </div>
               <div className="mt-4 grid gap-3">
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                  <p className="text-xs font-bold uppercase text-[#697178]">Project</p>
-                  <p className="mt-1 font-semibold">
-                    {kind === "walk_in" ? projectNameFromWalkIn(walkInForm) : selectedProject?.subject}
-                  </p>
+                  <p className="text-xs font-bold uppercase text-[#697178]">Client / Placement / Type</p>
+                  <p className="mt-1 font-semibold">{kind === "walk_in" ? walkInForm.customerName : relatedOne(selectedProject?.customer ?? null)?.name}</p>
+                  <p className="mt-1 text-sm text-[#697178]">{kind === "walk_in" ? walkInForm.tattooPlacement : selectedProject?.subject} / {kind === "walk_in" ? "Walk-in" : selectedProject?.session_type}</p>
                 </div>
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                   <p className="text-xs font-bold uppercase text-[#697178]">Date / Start</p>

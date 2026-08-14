@@ -210,6 +210,7 @@ export function SessionEntryForm({
   onSave,
   onEdit,
   onNextAppointment,
+  onBack,
   saved = false,
   saving,
   session,
@@ -235,6 +236,7 @@ export function SessionEntryForm({
   onSave: (form: SessionForm) => void;
   onEdit?: () => void;
   onNextAppointment?: () => void;
+  onBack?: () => void;
   saved?: boolean;
   saving: boolean;
   session?: SessionEntryRecordForForm | null;
@@ -555,14 +557,17 @@ export function SessionEntryForm({
           ) : null}
         </div>
       ) : (
+        <div className="flex items-center justify-between gap-3">
+        {onBack ? <button className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]" disabled={saving} onClick={onBack} type="button">Back</button> : <span />}
         <button
-          className="h-10 w-full rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
           disabled={saving}
           onClick={confirmAndSave}
           type="button"
         >
           {saving ? "Saving..." : submitLabel ?? (session ? "Update session" : "Complete session")}
         </button>
+        </div>
       )}
     </div>
   );

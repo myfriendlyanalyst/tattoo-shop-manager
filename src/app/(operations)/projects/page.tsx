@@ -509,8 +509,6 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [entryError, setEntryError] = useState("");
-  const [editingProjectName, setEditingProjectName] = useState(false);
-  const [projectNameDraft, setProjectNameDraft] = useState("");
   const [editingProjectType, setEditingProjectType] = useState(false);
   const [projectTypeDraft, setProjectTypeDraft] = useState("");
   const [showDepositEntry, setShowDepositEntry] = useState(false);
@@ -850,43 +848,6 @@ export default function ProjectsPage() {
     loadProjects();
   }, []);
 
-  async function saveProjectName() {
-    if (!selectedProject) {
-      return;
-    }
-
-    const subject = projectNameDraft.trim();
-
-    if (!subject) {
-      setError("Project name is required.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setMessage("");
-
-    const result = await supabase
-      .from("projects")
-      .update({ subject })
-      .eq("id", selectedProject.id);
-
-    if (result.error) {
-      setError(result.error.message);
-      setSaving(false);
-      return;
-    }
-
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === selectedProject.id ? { ...project, subject } : project,
-      ),
-    );
-    setEditingProjectName(false);
-    setMessage("Project name updated.");
-    setSaving(false);
-  }
-
   async function markWaiverSigned(project: ProjectRecord) {
     setSaving(true);
     setError("");
@@ -1059,6 +1020,50 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
+  async function useDepositEarlyAndCloseProject() {
+    if (!selectedProject) return;
+    const availableDeposits = selectedDeposits.filter((deposit) => deposit.available);
+    if (availableDeposits.length === 0) {
+      setError("There is no deposit on hold for this project.");
+      return;
+    }
+    const reason = window.prompt(
+      "Why is the deposit being used before a session?\n\nA memo is required. This will close the project.",
+    )?.trim();
+    if (!reason) {
+      setError("A memo is required to use a deposit early.");
+      return;
+    }
+    if (!window.confirm("Use the deposit early and mark this project completed?")) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+    const usedAt = new Date().toISOString();
+    for (const deposit of availableDeposits) {
+      const memo = [deposit.memo, `Used early to close project: ${reason}`].filter(Boolean).join(" / ");
+      const result = await supabase
+        .from("deposits")
+        .update({ available: false, disposition: "forfeited", used_at: usedAt, used_session_entry_id: null, memo })
+        .eq("id", deposit.id);
+      if (result.error) {
+        setError(result.error.message);
+        setSaving(false);
+        return;
+      }
+    }
+    const projectResult = await supabase.from("projects").update({ status: "completed" }).eq("id", selectedProject.id);
+    if (projectResult.error) {
+      setError(projectResult.error.message);
+      setSaving(false);
+      return;
+    }
+    setDeposits((current) => current.map((deposit) => availableDeposits.some((item) => item.id === deposit.id) ? { ...deposit, available: false, disposition: "forfeited", used_at: usedAt, memo: [deposit.memo, `Used early to close project: ${reason}`].filter(Boolean).join(" / ") } : deposit));
+    setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, status: "completed" } : project));
+    setMessage("Deposit used early and project marked completed.");
+    setSaving(false);
+  }
+
   async function returnCancelledDepositsToHold() {
     if (!selectedProject || selectedDeposits.length === 0) {
       return;
@@ -1109,8 +1114,6 @@ export default function ProjectsPage() {
 
   function closeProjectDetail() {
     setMobileDetailOpen(false);
-    setEditingProjectName(false);
-    setProjectNameDraft("");
     setEditingProjectType(false);
     setProjectTypeDraft("");
     setMessage("");
@@ -1810,8 +1813,6 @@ export default function ProjectsPage() {
                           }`}
                           onClick={() => {
                             setSelectedProjectId(project.id);
-                            setEditingProjectName(false);
-                            setProjectNameDraft("");
                             setEditingProjectType(false);
                             setProjectTypeDraft("");
                             setMessage("");
@@ -1823,10 +1824,9 @@ export default function ProjectsPage() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="truncate font-semibold">{project.subject}</p>
-                              <p className="mt-1 truncate text-sm text-[#697178]">
-                                {customerName(project)}
-                              </p>
+                              <p className="truncate font-semibold">{customerName(project)}</p>
+                              <p className="mt-1 truncate text-sm text-[#697178]">Placement: {project.subject}</p>
+                              <p className="mt-1 text-xs text-[#8a8174]">{project.session_type ?? "Project"} / Created {displayDate(project.created_at)}</p>
                             </div>
                             <span
                               className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
@@ -1866,51 +1866,8 @@ export default function ProjectsPage() {
                       <p className="text-xs font-semibold text-[#8a6f4d]">
                         {selectedProject.id.slice(0, 8)}
                       </p>
-                      {editingProjectName ? (
-                        <div className="mt-2 flex max-w-2xl flex-col gap-2 sm:flex-row">
-                          <input
-                            className="h-10 min-w-0 flex-1 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
-                            disabled={saving}
-                            onChange={(event) => setProjectNameDraft(event.target.value)}
-                            value={projectNameDraft}
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              className="h-10 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={saving}
-                              onClick={saveProjectName}
-                              type="button"
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={saving}
-                              onClick={() => {
-                                setProjectNameDraft(selectedProject.subject);
-                                setEditingProjectName(false);
-                              }}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <h3 className="text-xl font-semibold">{selectedProject.subject}</h3>
-                          <button
-                            className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
-                            onClick={() => {
-                              setProjectNameDraft(selectedProject.subject);
-                              setEditingProjectName(true);
-                            }}
-                            type="button"
-                          >
-                            Edit name
-                          </button>
-                        </div>
-                      )}
+                      <h3 className="mt-1 text-xl font-semibold">{customerName(selectedProject)}</h3>
+                      <p className="mt-1 text-sm text-[#4d555c]">Placement: {selectedProject.subject}</p>
                       <p className="mt-1 text-sm text-[#697178]">
                         Created {displayDate(selectedProject.created_at)}
                       </p>
@@ -2429,6 +2386,14 @@ export default function ProjectsPage() {
                 <div className="order-4 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
                   <p className="text-sm font-semibold">Project status actions</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <button
+                      className="h-10 rounded-md border border-[#8a5130] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={saving || selectedProject.status === "completed" || selectedDeposits.every((deposit) => !deposit.available)}
+                      onClick={useDepositEarlyAndCloseProject}
+                      type="button"
+                    >
+                      Use deposit & close project
+                    </button>
                     <button
                       className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving || selectedProject.status === "completed"}

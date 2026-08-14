@@ -48,26 +48,12 @@ function formatDate(value: string) {
   );
 }
 
-function paymentMethodLabel(method: string | null) {
-  return (
-    { cash: "Cash", credit_card: "Card", app: "App", other: "Other" }[method ?? ""] ??
-    method ??
-    "-"
-  );
-}
-
-function paymentMethodClasses(method: string | null) {
-  return (
-    {
-      cash: "bg-[#e8f3e8] text-[#2d6a2d]",
-      credit_card: "bg-[#e8eef7] text-[#2a4a7f]",
-      app: "bg-[#f6efe3] text-[#7a5420]",
-    }[method ?? ""] ?? "bg-[#eee8dd] text-[#4d555c]"
-  );
-}
-
 function payoutTotal(summary: ArtistSummary) {
   return summary.payout_rate === null ? null : summary.total * (summary.payout_rate / 100);
+}
+
+function sessionPayout(entry: EntryRow, rate: number | null) {
+  return rate === null ? null : Number(entry.total_amount) * (rate / 100);
 }
 
 function escapeHtml(value: string) {
@@ -282,6 +268,13 @@ export default function ArtistsPage() {
     setDateTo(localDateValue(end));
   }
 
+  function shiftMonth(direction: -1 | 1) {
+    const current = new Date(`${dateFrom}T12:00:00`);
+    const target = new Date(current.getFullYear(), current.getMonth() + direction, 1);
+    setDateFrom(localDateValue(target));
+    setDateTo(localDateValue(new Date(target.getFullYear(), target.getMonth() + 1, 0)));
+  }
+
   async function savePayoutRate(artistId: string) {
     if (artistId === "__unassigned__") return;
 
@@ -369,6 +362,7 @@ export default function ArtistsPage() {
 
           <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-3">
+              <button aria-label="Previous month" className="h-9 w-9 rounded-md border border-[#cfc7b8] text-lg font-black hover:bg-[#eee8dd]" onClick={() => shiftMonth(-1)} type="button">‹</button>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   From
@@ -380,6 +374,7 @@ export default function ArtistsPage() {
                   value={dateFrom}
                 />
               </div>
+              <button aria-label="Next month" className="h-9 w-9 rounded-md border border-[#cfc7b8] text-lg font-black hover:bg-[#eee8dd]" onClick={() => shiftMonth(1)} type="button">›</button>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   To
@@ -512,15 +507,11 @@ export default function ArtistsPage() {
                                 <th className="px-5 py-2">Date</th>
                                 <th className="px-5 py-2">Client</th>
                                 <th className="px-5 py-2">Project</th>
-                                <th className="px-5 py-2">Type</th>
-                                <th className="px-5 py-2 text-right">Tattoo</th>
-                                <th className="px-5 py-2 text-right">Tip</th>
-                                <th className="px-5 py-2 text-right">Total</th>
-                                <th className="px-5 py-2">Payment</th>
+                                <th className="px-5 py-2 text-right">Artist payout</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#eee8dd]">
-                              {artist.entries.map((e) => (
+                              {artist.entries.filter((entry) => entry.entry_type === "session").map((e) => (
                                 <tr key={e.id} className="hover:bg-[#fffaf1]">
                                   <td className="px-5 py-2 text-xs text-[#4d555c]">
                                     {formatDate(e.entered_at)}
@@ -529,26 +520,8 @@ export default function ArtistsPage() {
                                   <td className="px-5 py-2 text-[#697178]">
                                     {e.project_subject ?? "-"}
                                   </td>
-                                  <td className="px-5 py-2">
-                                    <span className="rounded px-1.5 py-0.5 text-xs font-bold bg-[#f1eadc] text-[#775f36]">
-                                      {e.entry_type}
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-2 text-right">
-                                    {money(Number(e.tattoo_amount))} {Number(e.tattoo_amount)>0?<span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${paymentMethodClasses(e.tattoo_payment_method)}`}>{paymentMethodLabel(e.tattoo_payment_method)}</span>:null}
-                                  </td>
-                                  <td className="px-5 py-2 text-right text-[#697178]">
-                                    {money(Number(e.tip_amount))} {Number(e.tip_amount)>0?<span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${paymentMethodClasses(e.tip_payment_method)}`}>{paymentMethodLabel(e.tip_payment_method)}</span>:null}
-                                  </td>
                                   <td className="px-5 py-2 text-right font-bold text-[#236c8f]">
-                                    {money(Number(e.total_amount))}
-                                  </td>
-                                  <td className="px-5 py-2">
-                                    <span
-                                      className={`rounded px-1.5 py-0.5 text-xs font-bold ${paymentMethodClasses(e.tattoo_payment_method)}`}
-                                    >
-                                      {paymentMethodLabel(e.tattoo_payment_method)}
-                                    </span>
+                                    {artist.payout_rate === null ? "Rate not set" : money(sessionPayout(e, artist.payout_rate) ?? 0)}
                                   </td>
                                 </tr>
                               ))}
@@ -557,20 +530,13 @@ export default function ArtistsPage() {
                               <tr className="bg-[#f7f2e9] font-bold">
                                 <td
                                   className="px-5 py-2 text-xs uppercase tracking-[0.06em] text-[#697178]"
-                                  colSpan={4}
+                                  colSpan={3}
                                 >
                                   Subtotal
                                 </td>
-                                <td className="px-5 py-2 text-right">
-                                  {money(artist.tattoo_total)}
-                                </td>
-                                <td className="px-5 py-2 text-right text-[#697178]">
-                                  {money(artist.tip_total)}
-                                </td>
                                 <td className="px-5 py-2 text-right text-[#236c8f]">
-                                  {money(artist.total)}
+                                  {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
                                 </td>
-                                <td className="px-5 py-2" />
                               </tr>
                             </tfoot>
                           </table>
@@ -578,10 +544,6 @@ export default function ArtistsPage() {
 
                         <div className="flex flex-col gap-3 border-t border-[#e5dfd4] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="grid gap-1 text-sm">
-                            <p>
-                              <span className="font-semibold text-[#697178]">Gross total:</span>{" "}
-                              <span className="font-bold text-[#236c8f]">{money(artist.total)}</span>
-                            </p>
                             <p>
                               <span className="font-semibold text-[#697178]">Payout total:</span>{" "}
                               <span className="font-black text-[#1f2428]">

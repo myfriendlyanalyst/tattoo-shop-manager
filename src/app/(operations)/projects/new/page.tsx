@@ -412,13 +412,7 @@ function NewProjectContent() {
 
           {!createdProjectId ? <><section className="rounded-md border border-[#d9d3c7] bg-[#fdfbf7] px-4 py-4 shadow-sm">
             <h4 className="text-sm font-semibold text-[#6f7275]">Project info</h4>
-            <div className="mt-3 grid gap-4 lg:grid-cols-2">
-              <div className="block text-sm font-semibold">
-                Project name {requiredMark}
-                <div className="mt-2 flex min-h-10 items-center rounded-md border border-[#cfc7b8] bg-[#f7f2e9] px-3 text-sm font-semibold text-[#4d555c]">
-                  {projectNameFromForm(form)}
-                </div>
-              </div>
+            <div className="mt-3 grid gap-4">
               {artists.length > 1 ? <label className="block text-sm font-semibold">
                 Artist {requiredMark}
                 <select
