@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { AppPage } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
 import { TimeSelect, useTimeInterval } from "@/components/time-select";
 import {
   cancelAppointmentReminder,
@@ -839,10 +840,8 @@ function NewAppointmentModal({
             </label>
             <label className="text-sm font-semibold">
               Date
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
-                type="date"
+              <DatePicker
+                onChange={(value) => setForm((current) => ({ ...current, date: value }))}
                 value={form.date}
               />
             </label>
@@ -1978,18 +1977,6 @@ export default function CalendarPage() {
                       selectedDate={selectedDate}
                     />
                   </div>
-                  <input
-                    className="sr-only"
-                    onChange={(event) => {
-                      setSelectedDate(event.target.value);
-                      setSelectedAppointment(null);
-                      setDraftAppointment(null);
-                      setModalError("");
-                      setMessage("");
-                    }}
-                    type="date"
-                    value={selectedDate}
-                  />
                 </div>
                 {!isArtistUser ? (
                 <label className="block text-sm font-semibold">

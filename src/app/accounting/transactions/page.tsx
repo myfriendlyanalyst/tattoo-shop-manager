@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
+import { DatePicker } from "@/components/date-picker";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
@@ -251,23 +252,13 @@ export default function TransactionsPage() {
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   From
                 </p>
-                <input
-                  className="mt-1.5 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
+                <DatePicker onChange={setDateFrom} value={dateFrom} />
               </div>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   To
                 </p>
-                <input
-                  className="mt-1.5 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(e) => setDateTo(e.target.value)}
-                  type="date"
-                  value={dateTo}
-                />
+                <DatePicker onChange={setDateTo} value={dateTo} />
               </div>
             </div>
           </div>

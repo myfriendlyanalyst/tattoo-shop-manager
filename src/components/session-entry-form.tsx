@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { TimeSelect } from "@/components/time-select";
 
 export type SessionAppointmentRecord = {
@@ -404,11 +405,9 @@ export function SessionEntryForm({
         <div className="grid gap-3 sm:grid-cols-[1.2fr_1fr_1fr]">
           <label className="text-sm font-semibold">
             Date
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            <DatePicker
               disabled={locked}
-              onChange={(event) => updateDate(event.target.value)}
-              type="date"
+              onChange={updateDate}
               value={form.sessionDate}
             />
           </label>

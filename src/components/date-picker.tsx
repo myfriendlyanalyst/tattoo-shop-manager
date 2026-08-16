@@ -15,7 +15,7 @@ function sameDay(left: Date, right: Date) {
   return dateValue(left) === dateValue(right);
 }
 
-export function DatePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function DatePicker({ disabled, value, onChange }: { disabled?: boolean; value: string; onChange: (value: string) => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => {
@@ -51,6 +51,7 @@ export function DatePicker({ value, onChange }: { value: string; onChange: (valu
       <button
         aria-expanded={open}
         className="mt-1.5 flex h-10 w-full items-center justify-between rounded-md border border-[#cfc7b8] bg-white px-3 text-left text-sm"
+        disabled={disabled}
         onClick={() => {
           const current = parseDate(value);
           setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
@@ -59,7 +60,7 @@ export function DatePicker({ value, onChange }: { value: string; onChange: (valu
         type="button"
       >
         <span>{value}</span>
-        <span aria-hidden="true" className="text-base">▣</span>
+        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24"><path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.8" /></svg>
       </button>
       {open ? (
         <div className="absolute left-0 top-[3.25rem] z-40 w-[19rem] rounded-md border border-[#cfc7b8] bg-white p-3 shadow-xl">

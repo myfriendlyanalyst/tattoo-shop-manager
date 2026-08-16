@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
+import { DatePicker } from "@/components/date-picker";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
@@ -1425,10 +1426,8 @@ export default function PayoutsPage() {
                   <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                     Period Start
                   </label>
-                  <input
-                    className="mt-1.5 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(e) => setForm((f) => ({ ...f, period_start: e.target.value }))}
-                    type="date"
+                  <DatePicker
+                    onChange={(value) => setForm((f) => ({ ...f, period_start: value }))}
                     value={form.period_start}
                   />
                 </div>
@@ -1436,10 +1435,8 @@ export default function PayoutsPage() {
                   <label className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                     Period End
                   </label>
-                  <input
-                    className="mt-1.5 h-9 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(e) => setForm((f) => ({ ...f, period_end: e.target.value }))}
-                    type="date"
+                  <DatePicker
+                    onChange={(value) => setForm((f) => ({ ...f, period_end: value }))}
                     value={form.period_end}
                   />
                 </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
 import { CustomerSearch, customerSearchLabel } from "@/components/customer-search";
+import { DatePicker } from "@/components/date-picker";
 import { SessionEntryForm, type PaymentGrid, type SessionForm } from "@/components/session-entry-form";
 import { TimeSelect } from "@/components/time-select";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
@@ -191,6 +192,12 @@ function displayDateTime(value: string | null | undefined) {
 function appointmentLabel(appointment: AppointmentRecord | null | undefined) {
   if (!appointment) return "-";
   return `${displayDateTime(appointment.starts_at)} / ${appointment.appointment_type}`;
+}
+
+function completedSessionType(projectType: string | null, outcome: "ongoing" | "closing") {
+  if (projectType === "Walk-in") return "Walk-in";
+  if (projectType === "One Done") return "One Done";
+  return outcome === "closing" ? "Closing" : "Ongoing";
 }
 
 function projectLabel(project: ProjectRecord) {
@@ -410,7 +417,13 @@ export default function SessionWizardPage() {
           walkInForm?: WalkInForm;
         };
         setKind(restored.kind ?? "existing");
-        setProjectId(restored.projectId ?? visibleProjects[0]?.id ?? "");
+        const requestedProjectId = new URLSearchParams(window.location.search).get("projectId");
+        setProjectId(
+          restored.projectId ??
+            visibleProjects.find((project) => project.id === requestedProjectId)?.id ??
+            visibleProjects[0]?.id ??
+            "",
+        );
         setAppointmentId(restored.appointmentId ?? "");
         setAppointmentMode(restored.appointmentMode ?? "scheduled");
         setSaveResult(restored.saveResult ?? null);
@@ -569,6 +582,15 @@ export default function SessionWizardPage() {
     if (depositAppliedAmount > tattooAmount) {
       throw new Error("Applied deposit cannot exceed tattoo amount.");
     }
+    if (
+      project.session_type === "Multiple Session" &&
+      sessionOutcome === "closing" &&
+      Math.abs(availableDepositForSession - depositAppliedAmount) >= 0.01
+    ) {
+      throw new Error(
+        `Closing must use the full remaining deposit (${money(availableDepositForSession)}).`,
+      );
+    }
     if (Math.abs(tattooAmount - depositAppliedAmount - tattooPaymentTotal) >= 0.01) {
       throw new Error("Tattoo payments must equal tattoo total minus applied deposit.");
     }
@@ -587,7 +609,7 @@ export default function SessionWizardPage() {
           customer_id: project.customer_id,
           ends_at: endsDate.toISOString(),
           notes: "Created from session wizard.",
-          appointment_type: project.session_type === "One Done" ? "One Done" : sessionOutcome === "closing" ? "Closing" : "Ongoing",
+          appointment_type: completedSessionType(project.session_type, sessionOutcome),
           project_id: project.id,
           starts_at: startsDate.toISOString(),
           status: "completed",
@@ -616,7 +638,7 @@ export default function SessionWizardPage() {
     }
 
     const appointmentUpdate = await supabase.from("appointments").update({
-      appointment_type: project.session_type === "One Done" ? "One Done" : sessionOutcome === "closing" ? "Closing" : "Ongoing",
+      appointment_type: completedSessionType(project.session_type, sessionOutcome),
       status: "completed",
     }).eq("id", sessionAppointment.id);
     if (appointmentUpdate.error) throw new Error(appointmentUpdate.error.message);
@@ -1079,7 +1101,6 @@ export default function SessionWizardPage() {
                 <p className="text-sm font-semibold text-[#697178]">Client type</p>
                 <h4 className="mt-1 text-lg font-semibold">Has this client visited before?</h4>
               </div>
-              {selectedProject?.session_type === "Multiple Session" ? <label className="mb-4 block text-sm font-semibold">Session stage<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setSessionOutcome(event.target.value as "ongoing" | "closing")} value={sessionOutcome}><option value="ongoing">Ongoing — more sessions needed</option><option value="closing">Closing — finish this project</option></select></label> : <p className="mb-4 rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold">{selectedProject?.session_type === "One Done" ? "One Done — project completes with this session" : "Walk-in — project completes with this session"}</p>}
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 text-left hover:border-[#1f2428] hover:shadow-sm"
@@ -1177,60 +1198,57 @@ export default function SessionWizardPage() {
                 <h4 className="mt-1 text-base font-semibold">{relatedOne(selectedProject?.customer ?? null)?.name ?? "Client"}</h4>
                 <p className="mt-1 text-sm text-[#697178]">Placement: {selectedProject?.subject ?? "-"} / {selectedProject?.session_type ?? "Project"}</p>
               </div>
-              <div className="mb-4 grid gap-2">
-                <button
-                  className={`rounded-md border px-4 py-3 text-left text-sm ${appointmentMode === "scheduled" ? "border-[#1f2428] bg-white shadow-sm" : "border-[#d9d3c7] bg-white"}`}
-                  disabled={selectedAppointments.length === 0}
-                  onClick={() => setAppointmentMode("scheduled")}
-                  type="button"
-                >
-                  <span className="font-semibold">Select scheduled appointment</span>
-                </button>
-                <button
-                  className={`rounded-md border px-4 py-3 text-left text-sm ${appointmentMode === "manual" ? "border-[#1f2428] bg-white shadow-sm" : "border-[#d9d3c7] bg-white"}`}
-                  onClick={() => setAppointmentMode("manual")}
-                  type="button"
-                >
-                  <span className="font-semibold">No appointment / record completed session</span>
-                </button>
-              </div>
-              {appointmentMode === "scheduled" && selectedAppointments.length === 0 ? (
-                <div className="rounded-md border border-dashed border-[#d9d3c7] bg-white px-3 py-5 text-sm font-semibold text-[#697178]">
-                  <p>No appointment exists for this project.</p>
-                  <button
-                    className="mt-3 h-9 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold text-[#30373d] hover:bg-[#eee8dd]"
-                    onClick={() => setAppointmentMode("manual")}
-                    type="button"
-                  >
-                    Record this session now
-                  </button>
-                </div>
-              ) : appointmentMode === "scheduled" ? (
-                <div className="grid gap-2">
+              {selectedProject?.session_type === "Multiple Session" ? (
+                <label className="mb-4 block max-w-xl text-sm font-semibold">
+                  Session stage
+                  <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setSessionOutcome(event.target.value as "ongoing" | "closing")} value={sessionOutcome}>
+                    <option value="ongoing">Ongoing — more sessions needed</option>
+                    <option value="closing">Closing — use remaining deposit and finish project</option>
+                  </select>
+                </label>
+              ) : (
+                <p className="mb-4 rounded-md bg-[#f7f2e9] px-3 py-2 text-sm font-semibold">
+                  {selectedProject?.session_type} — project completes with this session
+                </p>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   {selectedAppointments.map((appointment) => (
                     <button
-                      className={`rounded-md border px-4 py-3 text-left text-sm ${
-                        effectiveAppointmentId === appointment.id
-                          ? "border-[#1f2428] bg-white shadow-sm"
-                          : "border-[#d9d3c7] bg-white hover:border-[#9c8260]"
+                      className={`min-h-40 rounded-md border-2 px-4 py-4 text-left text-sm transition ${
+                        appointmentMode === "scheduled" && effectiveAppointmentId === appointment.id
+                          ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm"
+                          : "border-[#d9d3c7] bg-white hover:border-[#4f91b0] hover:bg-[#eef7fb]"
                       }`}
                       key={appointment.id}
-                      onClick={() => setAppointmentId(appointment.id)}
+                      onClick={() => { setAppointmentMode("scheduled"); setAppointmentId(appointment.id); }}
                       type="button"
                     >
-                      <span className="font-semibold">{appointmentLabel(appointment)}</span>
-                      <span className="ml-2 text-[#697178]">{appointment.status}</span>
+                      <span className="block text-lg font-black">{displayDateTime(appointment.starts_at)}</span>
+                      <span className="mt-5 block font-semibold text-[#4d555c]">Scheduled appointment</span>
+                      <span className="mt-1 block text-xs capitalize text-[#697178]">{appointment.status}</span>
                     </button>
                   ))}
-                </div>
-              ) : (
+                  {Array.from({ length: Math.max(0, 4 - selectedAppointments.length) }, (_, index) => (
+                    <div className="flex min-h-40 items-center justify-center rounded-md border-2 border-dashed border-[#d9d3c7] bg-white text-3xl font-light text-[#b0b2b4]" key={`empty-appointment-${index}`}>
+                      N/A
+                    </div>
+                  ))}
+                  <button
+                    className={`min-h-40 rounded-md border-2 px-4 py-4 text-left transition ${appointmentMode === "manual" ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm" : "border-dashed border-[#9ab6c3] bg-white hover:border-[#236c8f] hover:bg-[#eef7fb]"}`}
+                    onClick={() => { setAppointmentMode("manual"); setAppointmentId(""); }}
+                    type="button"
+                  >
+                    <span className="block text-sm font-bold text-[#697178]">No appointment</span>
+                    <span className="mt-4 block text-xl font-black">Record session</span>
+                    <span className="mt-2 block text-xs text-[#697178]">Enter a completed session without a scheduled appointment.</span>
+                  </button>
+              </div>
+              {appointmentMode === "manual" ? (
                 <div className="grid max-w-xl gap-3">
                   <label className="text-sm font-semibold">
                     Date
-                    <input
-                      className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                      onChange={(event) => setWalkInAppointment((current) => ({ ...current, date: event.target.value }))}
-                      type="date"
+                    <DatePicker
+                      onChange={(value) => setWalkInAppointment((current) => ({ ...current, date: value }))}
                       value={walkInAppointment.date}
                     />
                   </label>
@@ -1252,7 +1270,7 @@ export default function SessionWizardPage() {
                     <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event)=>{const end=addMinutesToTime(walkInAppointment.date,walkInAppointment.startTime,Number(event.target.value)*60);setWalkInAppointment(current=>({...current,endTime:end.time}))}} value={hoursBetween(walkInAppointment.startTime,walkInAppointment.endTime)}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1} hour{i?"s":""}</option>)}</select>
                   </label>
                 </div>
-              )}
+              ) : null}
               <div className="mt-4 flex justify-between gap-2">
                 <button
                   className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
@@ -1263,7 +1281,6 @@ export default function SessionWizardPage() {
                 </button>
                 <button
                   className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={appointmentMode === "scheduled" && selectedAppointments.length === 0}
                   onClick={continueAppointmentToPayments}
                   type="button"
                 >
@@ -1282,12 +1299,8 @@ export default function SessionWizardPage() {
               <div className="grid max-w-xl gap-3">
                 <label className="text-sm font-semibold">
                   Date
-                  <input
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) =>
-                      setWalkInAppointment((current) => ({ ...current, date: event.target.value }))
-                    }
-                    type="date"
+                  <DatePicker
+                    onChange={(value) => setWalkInAppointment((current) => ({ ...current, date: value }))}
                     value={walkInAppointment.date}
                   />
                 </label>
@@ -1498,7 +1511,7 @@ export default function SessionWizardPage() {
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                   <p className="text-xs font-bold uppercase text-[#697178]">Client / Placement / Type</p>
                   <p className="mt-1 font-semibold">{kind === "walk_in" ? walkInForm.customerName : relatedOne(selectedProject?.customer ?? null)?.name}</p>
-                  <p className="mt-1 text-sm text-[#697178]">{kind === "walk_in" ? walkInForm.tattooPlacement : selectedProject?.subject} / {kind === "walk_in" ? "Walk-in" : selectedProject?.session_type}</p>
+                  <p className="mt-1 text-sm text-[#697178]">{kind === "walk_in" ? walkInForm.tattooPlacement : selectedProject?.subject} / {kind === "walk_in" ? "Walk-in" : completedSessionType(selectedProject?.session_type ?? null, sessionOutcome)}</p>
                 </div>
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
                   <p className="text-xs font-bold uppercase text-[#697178]">Date / Start</p>
@@ -1526,9 +1539,11 @@ export default function SessionWizardPage() {
                 </div>
               </div>
               {kind === "existing" ? (
-                <div className="mt-3 rounded-md border border-[#d9d3c7] px-3 py-3 text-sm">
-                  <span className="font-semibold text-[#697178]">Deposit applied</span>
-                  <span className="float-right font-bold">{money(Number(pendingForm.depositAppliedAmount || 0))}</span>
+                <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${selectedProject?.session_type === "Multiple Session" && sessionOutcome === "closing" ? "border-[#2f6658] bg-[#eef8ea]" : "border-[#d9d3c7]"}`}>
+                  <div><span className="font-semibold text-[#697178]">Deposit applied</span><span className="float-right font-bold">{money(Number(pendingForm.depositAppliedAmount || 0))}</span></div>
+                  {selectedProject?.session_type === "Multiple Session" && sessionOutcome === "closing" ? (
+                    <div className="mt-2 border-t border-[#b8d5ae] pt-2"><span className="font-black text-[#355b27]">Balance after closing</span><span className="float-right font-black text-[#355b27]">{money(Math.max(availableDeposit - Number(pendingForm.depositAppliedAmount || 0), 0))}</span></div>
+                  ) : null}
                 </div>
               ) : null}
               <div className="mt-5 flex justify-between gap-2">

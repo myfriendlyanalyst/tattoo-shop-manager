@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppPage } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
 import { TimeSelect } from "@/components/time-select";
 import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
@@ -376,12 +377,8 @@ function CreateStaffModal({
           </label>
             <label className="text-sm font-semibold">
               Start date
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, startDate: event.target.value }))
-                }
-                type="date"
+              <DatePicker
+                onChange={(value) => setForm((current) => ({ ...current, startDate: value }))}
                 value={form.startDate}
               />
             </label>
@@ -1210,14 +1207,12 @@ export default function StaffPage() {
                 </label>
                 <label className="text-sm font-semibold">
                   Start date
-                  <input
-                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    onChange={(event) =>
+                  <DatePicker
+                    onChange={(value) =>
                       setForm((current) =>
-                        current ? { ...current, startDate: event.target.value } : current,
+                        current ? { ...current, startDate: value } : current,
                       )
                     }
-                    type="date"
                     value={form.startDate}
                   />
                 </label>

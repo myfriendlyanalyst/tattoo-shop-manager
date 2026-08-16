@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { BarChart } from "@/components/accounting-charts";
+import { DatePicker } from "@/components/date-picker";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
@@ -367,24 +368,14 @@ export default function ArtistsPage() {
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   From
                 </p>
-                <input
-                  className="mt-1.5 h-9 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
+                <DatePicker onChange={setDateFrom} value={dateFrom} />
               </div>
               <button aria-label="Next month" className="h-9 w-9 rounded-md border border-[#cfc7b8] text-lg font-black hover:bg-[#eee8dd]" onClick={() => shiftMonth(1)} type="button">›</button>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
                   To
                 </p>
-                <input
-                  className="mt-1.5 h-9 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                  onChange={(e) => setDateTo(e.target.value)}
-                  type="date"
-                  value={dateTo}
-                />
+                <DatePicker onChange={setDateTo} value={dateTo} />
               </div>
               {[
                 { label: "This month", fn: () => setPreset(0, true) },

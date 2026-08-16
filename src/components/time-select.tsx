@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/date-picker";
 import { readTimeInterval } from "@/lib/time-settings";
 
 function normalizeHour(hour: number) {
@@ -121,11 +122,9 @@ export function DateTimeSelect({
 
   return (
     <div className="grid gap-2 sm:grid-cols-[1.1fr_0.9fr]">
-      <input
-        className="h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+      <DatePicker
         disabled={disabled}
-        onChange={(event) => updateDate(event.target.value)}
-        type="date"
+        onChange={updateDate}
         value={datePart}
       />
       <TimeSelect

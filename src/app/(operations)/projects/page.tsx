@@ -665,6 +665,14 @@ export default function ProjectsPage() {
       (sum, deposit) => sum + Number(deposit.amount),
       0,
     );
+    const depositApplied = selectedDepositApplications.reduce(
+      (sum, application) => sum + Number(application.amount),
+      0,
+    );
+    const depositRemainingTotal = selectedDeposits.reduce(
+      (sum, deposit) => sum + depositRemaining(deposit, depositApplications),
+      0,
+    );
 
     return {
       customer,
@@ -679,12 +687,14 @@ export default function ProjectsPage() {
       referenceImage: memoField(selectedProject.memo, "Reference image"),
       requestedArtist: memoField(selectedProject.memo, "Requested artist"),
       notes: plainProjectNotes(selectedProject.memo),
+      depositApplied,
+      depositRemaining: depositRemainingTotal,
       depositTotal,
       latestDeposit: [...selectedDeposits].sort(
         (a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime(),
       )[0],
     };
-  }, [selectedDeposits, selectedProject]);
+  }, [depositApplications, selectedDepositApplications, selectedDeposits, selectedProject]);
 
   const unenteredSelectedAppointments = useMemo(() => {
     const enteredAppointmentIds = new Set(
@@ -1996,64 +2006,47 @@ export default function ProjectsPage() {
 
                 <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto p-4">
                   <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-                    <div className="border-b border-[#e5dfd4] px-4 py-4">
-                      <h3 className="text-base font-semibold">Project details</h3>
+                    <div className="border-b border-[#e5dfd4] px-4 py-3">
+                      <h3 className="text-sm font-semibold">Client & tattoo details</h3>
                     </div>
-                    <div className="space-y-4 p-4">
-                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
-                        <p className="text-xs font-bold uppercase text-[#8a8174]">Client info</p>
-                        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Name</p>
-                            <p className="mt-1 font-semibold">{customerName(selectedProject)}</p>
+                    <div className="grid gap-x-4 gap-y-2 bg-[#fdfbf7] px-4 py-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
+                          <div>
+                            <p className="text-[#697178]">Name</p>
+                            <p className="font-semibold">{customerName(selectedProject)}</p>
                           </div>
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Email</p>
-                            <p className="mt-1 font-semibold">
+                          <div>
+                            <p className="text-[#697178]">Email</p>
+                            <p className="truncate font-semibold">
                               {selectedProjectDetail?.customer?.email || "-"}
                             </p>
                           </div>
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Phone</p>
-                            <p className="mt-1 font-semibold">
+                          <div>
+                            <p className="text-[#697178]">Phone</p>
+                            <p className="font-semibold">
                               {selectedProjectDetail?.customer?.phone || "-"}
                             </p>
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4">
-                        <p className="text-xs font-bold uppercase text-[#8a8174]">Tattoo description</p>
-                        <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Size</p>
-                            <p className="mt-1 font-semibold">{selectedProject.size || "-"}</p>
+                          <div>
+                            <p className="text-[#697178]">Size</p>
+                            <p className="font-semibold">{selectedProject.size || "-"}</p>
                           </div>
-                          <div className="rounded-md bg-white px-3 py-3">
-                            <p className="text-sm text-[#697178]">Placement</p>
-                            <p className="mt-1 font-semibold">
+                          <div>
+                            <p className="text-[#697178]">Placement</p>
+                            <p className="font-semibold">
                               {selectedProjectDetail?.placement || "-"}
                             </p>
                           </div>
-                          {selectedProjectDetail?.timingPreference ? (
-                            <div className="rounded-md bg-white px-3 py-3">
-                              <p className="text-sm text-[#697178]">Timing preference</p>
-                              <p className="mt-1 font-semibold">
-                                {selectedProjectDetail.timingPreference}
-                              </p>
-                            </div>
-                          ) : null}
-                          <div className="rounded-md bg-white px-3 py-3 sm:col-span-2 lg:col-span-3">
-                            <p className="text-sm text-[#697178]">Description</p>
-                            <p className="mt-1 whitespace-pre-wrap font-semibold">
+                          <div>
+                            <p className="text-[#697178]">Description</p>
+                            <p className="line-clamp-2 font-semibold">
                               {selectedProjectDetail?.tattooDescription || "-"}
                             </p>
                           </div>
                           {selectedProjectDetail?.referenceImage ? (
-                            <div className="rounded-md bg-white px-3 py-3">
-                              <p className="text-sm text-[#697178]">Reference image</p>
+                            <div>
+                              <p className="text-[#697178]">Reference image</p>
                               <a
-                                className="mt-1 inline-flex font-semibold text-[#315f82] underline"
+                                className="inline-flex font-semibold text-[#315f82] underline"
                                 href={selectedProjectDetail.referenceImage}
                                 rel="noreferrer"
                                 target="_blank"
@@ -2062,26 +2055,18 @@ export default function ProjectsPage() {
                               </a>
                             </div>
                           ) : null}
-                        </div>
-                      </div>
                     </div>
                   </section>
 
                   <section className="order-3 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
-                    <button
+                    <Link
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
-                      onClick={() => {
-                        setEntryError("");
-                        setEditingSession(null);
-                        setSavedSessionId("");
-                        setShowSessionEntry(true);
-                      }}
-                      type="button"
+                      href={`/projects/session/wizard?projectId=${selectedProject.id}`}
                     >
                       Add session
-                    </button>
+                    </Link>
                   </div>
                   <div className="divide-y divide-[#eee8dd]">
                     {selectedSessions.length === 0 ? (
@@ -2167,9 +2152,19 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                  <section className="order-2 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
-                  <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
-                    <h3 className="text-base font-semibold">Deposits</h3>
+                  <section className={`order-2 overflow-hidden rounded-md border-2 bg-white shadow-sm ${(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "border-[#2f6658]" : "border-[#9b9fa2]"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5dfd4] bg-[#f7f2e9] px-4 py-4">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">Deposit balance</p>
+                      <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <h3 className={`text-3xl font-black ${(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "text-[#2f6658]" : "text-[#697178]"}`}>{money(selectedProjectDetail?.depositRemaining ?? 0)}</h3>
+                        <span className="text-sm font-bold text-[#697178]">remaining</span>
+                        <span className={`rounded px-2 py-0.5 text-xs font-black ${(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "bg-[#dfeee8] text-[#2f6658]" : (selectedProjectDetail?.depositTotal ?? 0) > 0 ? "bg-[#eee8dd] text-[#697178]" : "bg-[#f3e1e1] text-[#8a3030]"}`}>
+                          {(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "Deposit available" : (selectedProjectDetail?.depositTotal ?? 0) > 0 ? "Fully applied" : "No deposit"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[#697178]">Received {money(selectedProjectDetail?.depositTotal ?? 0)} · Applied {money(selectedProjectDetail?.depositApplied ?? 0)}</p>
+                    </div>
                     <button
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
                       onClick={() => {
@@ -2179,7 +2174,7 @@ export default function ProjectsPage() {
                       }}
                       type="button"
                     >
-                      Make another deposit
+                      Add deposit
                     </button>
                   </div>
                   <div className="divide-y divide-[#eee8dd]">

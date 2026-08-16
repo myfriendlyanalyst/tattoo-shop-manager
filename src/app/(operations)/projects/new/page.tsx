@@ -339,7 +339,7 @@ function NewProjectContent() {
                   >
                     View or edit project
                   </Link>
-                  {createdDepositId ? <Link className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-bold text-[#30373d]" href={`/projects/deposit/${createdDepositId}/receipt`}>Print deposit receipt</Link> : null}
+                  {createdDepositId ? <Link className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-bold text-[#30373d]" href={`/projects/deposit/${createdDepositId}/receipt`} target="_blank">Print deposit receipt</Link> : null}
                   <Link
                     className="inline-flex h-9 items-center rounded-md border border-[#cfc7b8] px-3 text-sm font-bold text-[#30373d]"
                     href="/projects"
