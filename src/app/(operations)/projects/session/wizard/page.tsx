@@ -8,6 +8,7 @@ import { CustomerSearch, customerSearchLabel } from "@/components/customer-searc
 import { DatePicker } from "@/components/date-picker";
 import { SessionEntryForm, type PaymentGrid, type SessionForm } from "@/components/session-entry-form";
 import { TimeSelect } from "@/components/time-select";
+import { scheduleAppointmentReminder, sendAppointmentConfirmation } from "@/lib/appointment-email";
 import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { getOperationsContext } from "@/lib/operations-access";
 import { supabase } from "@/lib/supabase";
@@ -133,6 +134,8 @@ type WalkInAppointment = {
   endTime: string;
 };
 
+type FutureAppointmentDraft = WalkInAppointment;
+
 const projectSelect =
   "id, customer_id, artist_id, subject, size, session_type, status, customer:customers(name, email, phone), artist:staff(display_name, default_session_duration_minutes)";
 
@@ -257,6 +260,16 @@ export default function SessionWizardPage() {
   const [projectId, setProjectId] = useState("");
   const [appointmentId, setAppointmentId] = useState("");
   const [appointmentMode, setAppointmentMode] = useState<"scheduled" | "manual">("scheduled");
+  const [futureAppointmentOpen, setFutureAppointmentOpen] = useState(false);
+  const [futureAppointmentMode, setFutureAppointmentMode] = useState<"new" | "existing">("new");
+  const [futureAppointmentId, setFutureAppointmentId] = useState("");
+  const [futureAppointmentSaving, setFutureAppointmentSaving] = useState(false);
+  const [futureAppointment, setFutureAppointment] = useState<FutureAppointmentDraft>(() => {
+    const date = localDateValue();
+    const startTime = timeValue();
+    const end = addMinutesToTime(date, startTime, 120);
+    return { date, endTime: end.time, startTime };
+  });
   const [sessionOutcome, setSessionOutcome] = useState<"ongoing" | "closing">("ongoing");
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("new");
@@ -285,8 +298,20 @@ export default function SessionWizardPage() {
     () =>
       appointments.filter(
         (appointment) => appointment.project_id === projectId && ["scheduled", "checked_in"].includes(appointment.status),
-      ),
+      ).sort((left, right) => left.starts_at.localeCompare(right.starts_at)),
     [appointments, projectId],
+  );
+  const linkableAppointments = useMemo(
+    () =>
+      appointments
+        .filter(
+          (appointment) =>
+            !appointment.project_id &&
+            appointment.customer_id === selectedProject?.customer_id &&
+            ["scheduled", "checked_in"].includes(appointment.status),
+        )
+        .sort((left, right) => left.starts_at.localeCompare(right.starts_at)),
+    [appointments, selectedProject?.customer_id],
   );
   const effectiveAppointmentId = appointmentId || selectedAppointments[0]?.id || "";
   const selectedAppointment = useMemo(
@@ -391,7 +416,12 @@ export default function SessionWizardPage() {
       setArtists(visibleArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setProjects(visibleProjects);
-      setProjectId(visibleProjects[0]?.id ?? "");
+      const requestedProjectId = new URLSearchParams(window.location.search).get("projectId");
+      setProjectId(
+        visibleProjects.find((project) => project.id === requestedProjectId)?.id ??
+          visibleProjects[0]?.id ??
+          "",
+      );
       setWalkInForm((current) => ({
         ...current,
         artistId: context?.staffId ?? visibleArtists[0]?.id ?? "",
@@ -417,7 +447,6 @@ export default function SessionWizardPage() {
           walkInForm?: WalkInForm;
         };
         setKind(restored.kind ?? "existing");
-        const requestedProjectId = new URLSearchParams(window.location.search).get("projectId");
         setProjectId(
           restored.projectId ??
             visibleProjects.find((project) => project.id === requestedProjectId)?.id ??
@@ -449,6 +478,120 @@ export default function SessionWizardPage() {
 
   function patchWalkIn(patch: Partial<WalkInForm>) {
     setWalkInForm((current) => ({ ...current, ...patch }));
+  }
+
+  async function syncAppointmentToGoogle(appointmentIdToSync: string) {
+    const session = await getSafeSession();
+    if (!session?.access_token) return { status: "skipped" as const };
+    try {
+      const response = await fetch("/api/google-calendar/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upsert", appointmentId: appointmentIdToSync }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; status?: string };
+      return response.ok
+        ? { status: "synced" as const }
+        : { error: payload.error ?? "Google Calendar sync failed.", status: "failed" as const };
+    } catch (syncError) {
+      return {
+        error: syncError instanceof Error ? syncError.message : "Google Calendar sync failed.",
+        status: "failed" as const,
+      };
+    }
+  }
+
+  function openFutureAppointment() {
+    const date = localDateValue();
+    const startTime = timeValue();
+    const end = addMinutesToTime(date, startTime, selectedArtistDuration);
+    setFutureAppointment({ date, endTime: end.time, startTime });
+    setFutureAppointmentId(linkableAppointments[0]?.id ?? "");
+    setFutureAppointmentMode(linkableAppointments.length ? "existing" : "new");
+    setFutureAppointmentOpen(true);
+    setError("");
+    setMessage("");
+  }
+
+  async function saveFutureAppointment() {
+    if (!selectedProject || !selectedProject.artist_id) return;
+    setFutureAppointmentSaving(true);
+    setError("");
+    setMessage("");
+
+    if (futureAppointmentMode === "existing") {
+      const linked = linkableAppointments.find((appointment) => appointment.id === futureAppointmentId);
+      if (!linked) {
+        setError("Select an existing appointment to connect.");
+        setFutureAppointmentSaving(false);
+        return;
+      }
+      const result = await supabase
+        .from("appointments")
+        .update({ artist_id: selectedProject.artist_id, project_id: selectedProject.id })
+        .eq("id", linked.id);
+      if (result.error) {
+        setError(result.error.message);
+        setFutureAppointmentSaving(false);
+        return;
+      }
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === linked.id
+            ? { ...appointment, artist_id: selectedProject.artist_id, project_id: selectedProject.id }
+            : appointment,
+        ),
+      );
+      const googleResult = await syncAppointmentToGoogle(linked.id);
+      setMessage("Existing appointment connected to this project.");
+      if (googleResult.status === "failed") setError(`Appointment connected. ${googleResult.error}`);
+      setFutureAppointmentOpen(false);
+      setFutureAppointmentSaving(false);
+      return;
+    }
+
+    const startsAt = new Date(`${futureAppointment.date}T${futureAppointment.startTime}:00`);
+    const endsAt = new Date(`${futureAppointment.date}T${futureAppointment.endTime}:00`);
+    if (!futureAppointment.date || endsAt <= startsAt) {
+      setError("End time must be later than start time.");
+      setFutureAppointmentSaving(false);
+      return;
+    }
+    const result = await supabase
+      .from("appointments")
+      .insert({
+        appointment_type: "Session",
+        artist_id: selectedProject.artist_id,
+        customer_id: selectedProject.customer_id,
+        ends_at: endsAt.toISOString(),
+        notes: "Scheduled from session entry.",
+        project_id: selectedProject.id,
+        starts_at: startsAt.toISOString(),
+        status: "scheduled",
+      })
+      .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+      .single();
+    if (result.error) {
+      setError(result.error.message);
+      setFutureAppointmentSaving(false);
+      return;
+    }
+    const created = result.data as AppointmentRecord;
+    setAppointments((current) => [...current, created]);
+    const [googleResult, emailResult, reminderResult] = await Promise.all([
+      syncAppointmentToGoogle(created.id),
+      sendAppointmentConfirmation(created.id),
+      scheduleAppointmentReminder(created.id),
+    ]);
+    const warnings = [
+      googleResult.status === "failed" ? googleResult.error : "",
+      !emailResult.sent ? emailResult.error || emailResult.reason || "Confirmation email was not sent." : "",
+      reminderResult.status === "failed" ? reminderResult.error || reminderResult.reason || "Reminder was not scheduled." : "",
+    ].filter(Boolean);
+    setMessage("Future appointment scheduled for this project.");
+    if (warnings.length) setError(`Appointment saved. ${warnings.join(" ")}`);
+    setFutureAppointmentOpen(false);
+    setFutureAppointmentSaving(false);
   }
 
   function selectCustomer(customer: CustomerRecord) {
@@ -1229,9 +1372,16 @@ export default function SessionWizardPage() {
                     </button>
                   ))}
                   {Array.from({ length: Math.max(0, 4 - selectedAppointments.length) }, (_, index) => (
-                    <div className="flex min-h-40 items-center justify-center rounded-md border-2 border-dashed border-[#d9d3c7] bg-white text-3xl font-light text-[#b0b2b4]" key={`empty-appointment-${index}`}>
-                      N/A
-                    </div>
+                    <button
+                      className="flex min-h-40 flex-col items-center justify-center rounded-md border-2 border-dashed border-[#9ab6c3] bg-white px-4 text-center transition hover:border-[#236c8f] hover:bg-[#e8f3f7]"
+                      key={`empty-appointment-${index}`}
+                      onClick={openFutureAppointment}
+                      type="button"
+                    >
+                      <span className="text-3xl font-light text-[#236c8f]">+</span>
+                      <span className="mt-2 text-sm font-bold">Schedule appointment</span>
+                      <span className="mt-1 text-xs text-[#697178]">Connect an existing appointment or add a new one.</span>
+                    </button>
                   ))}
                   <button
                     className={`min-h-40 rounded-md border-2 px-4 py-4 text-left transition ${appointmentMode === "manual" ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm" : "border-dashed border-[#9ab6c3] bg-white hover:border-[#236c8f] hover:bg-[#eef7fb]"}`}
@@ -1243,6 +1393,38 @@ export default function SessionWizardPage() {
                     <span className="mt-2 block text-xs text-[#697178]">Enter a completed session without a scheduled appointment.</span>
                   </button>
               </div>
+              {futureAppointmentOpen ? (
+                <div className="mt-4 rounded-md border border-[#9ab6c3] bg-[#eef7fb] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h5 className="font-bold">Schedule a future appointment</h5>
+                      <p className="mt-1 text-sm text-[#5e6870]">Add up to four appointments while recording this session.</p>
+                    </div>
+                    <button className="text-sm font-semibold text-[#5e6870] hover:text-black" onClick={() => setFutureAppointmentOpen(false)} type="button">Close</button>
+                  </div>
+                  {linkableAppointments.length ? (
+                    <div className="mt-4 flex gap-2">
+                      <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "existing" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("existing")} type="button">Connect existing</button>
+                      <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "new" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("new")} type="button">Create new</button>
+                    </div>
+                  ) : null}
+                  {futureAppointmentMode === "existing" && linkableAppointments.length ? (
+                    <label className="mt-4 block max-w-xl text-sm font-semibold">
+                      Existing appointment
+                      <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setFutureAppointmentId(event.target.value)} value={futureAppointmentId}>
+                        {linkableAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointmentLabel(appointment)}</option>)}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="mt-4 grid max-w-3xl gap-3 md:grid-cols-3">
+                      <label className="text-sm font-semibold">Date<DatePicker onChange={(value) => setFutureAppointment((current) => ({ ...current, date: value }))} value={futureAppointment.date} /></label>
+                      <label className="text-sm font-semibold">Start<TimeSelect endHour={24} interval={30} onChange={(value) => { const end = addMinutesToTime(futureAppointment.date, value, selectedArtistDuration); setFutureAppointment((current) => ({ ...current, endTime: end.time, startTime: value })); }} startHour={8} value={futureAppointment.startTime} /></label>
+                      <label className="text-sm font-semibold">Hours<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => { const end = addMinutesToTime(futureAppointment.date, futureAppointment.startTime, Number(event.target.value) * 60); setFutureAppointment((current) => ({ ...current, endTime: end.time })); }} value={hoursBetween(futureAppointment.startTime, futureAppointment.endTime)}>{Array.from({ length: 10 }, (_, hour) => <option key={hour + 1} value={hour + 1}>{hour + 1} hour{hour ? "s" : ""}</option>)}</select></label>
+                    </div>
+                  )}
+                  <button className="mt-4 h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:opacity-60" disabled={futureAppointmentSaving} onClick={saveFutureAppointment} type="button">{futureAppointmentSaving ? "Saving..." : futureAppointmentMode === "existing" && linkableAppointments.length ? "Connect appointment" : "Schedule appointment"}</button>
+                </div>
+              ) : null}
               {appointmentMode === "manual" ? (
                 <div className="grid max-w-xl gap-3">
                   <label className="text-sm font-semibold">
