@@ -1402,19 +1402,24 @@ export default function SessionWizardPage() {
                     </div>
                     <button className="text-sm font-semibold text-[#5e6870] hover:text-black" onClick={() => setFutureAppointmentOpen(false)} type="button">Close</button>
                   </div>
-                  {linkableAppointments.length ? (
-                    <div className="mt-4 flex gap-2">
-                      <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "existing" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("existing")} type="button">Connect existing</button>
-                      <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "new" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("new")} type="button">Create new</button>
-                    </div>
-                  ) : null}
-                  {futureAppointmentMode === "existing" && linkableAppointments.length ? (
-                    <label className="mt-4 block max-w-xl text-sm font-semibold">
-                      Existing appointment
-                      <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setFutureAppointmentId(event.target.value)} value={futureAppointmentId}>
-                        {linkableAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointmentLabel(appointment)}</option>)}
-                      </select>
-                    </label>
+                  <div className="mt-4 flex gap-2">
+                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "existing" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("existing")} type="button">Connect existing</button>
+                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "new" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("new")} type="button">Create new</button>
+                  </div>
+                  {futureAppointmentMode === "existing" ? (
+                    linkableAppointments.length ? (
+                      <label className="mt-4 block max-w-xl text-sm font-semibold">
+                        Existing appointment
+                        <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setFutureAppointmentId(event.target.value)} value={futureAppointmentId}>
+                          {linkableAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointmentLabel(appointment)}</option>)}
+                        </select>
+                      </label>
+                    ) : (
+                      <div className="mt-4 max-w-xl rounded-md border border-dashed border-[#9ab6c3] bg-white px-4 py-5">
+                        <p className="text-sm font-bold">No available appointments to connect.</p>
+                        <p className="mt-1 text-xs text-[#697178]">This client has no scheduled appointment that is waiting to be linked to a project.</p>
+                      </div>
+                    )
                   ) : (
                     <div className="mt-4 grid max-w-3xl gap-3 md:grid-cols-3">
                       <label className="text-sm font-semibold">Date<DatePicker onChange={(value) => setFutureAppointment((current) => ({ ...current, date: value }))} value={futureAppointment.date} /></label>
@@ -1422,7 +1427,7 @@ export default function SessionWizardPage() {
                       <label className="text-sm font-semibold">Hours<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => { const end = addMinutesToTime(futureAppointment.date, futureAppointment.startTime, Number(event.target.value) * 60); setFutureAppointment((current) => ({ ...current, endTime: end.time })); }} value={hoursBetween(futureAppointment.startTime, futureAppointment.endTime)}>{Array.from({ length: 10 }, (_, hour) => <option key={hour + 1} value={hour + 1}>{hour + 1} hour{hour ? "s" : ""}</option>)}</select></label>
                     </div>
                   )}
-                  <button className="mt-4 h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:opacity-60" disabled={futureAppointmentSaving} onClick={saveFutureAppointment} type="button">{futureAppointmentSaving ? "Saving..." : futureAppointmentMode === "existing" && linkableAppointments.length ? "Connect appointment" : "Schedule appointment"}</button>
+                  <button className="mt-4 h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-50" disabled={futureAppointmentSaving || (futureAppointmentMode === "existing" && !linkableAppointments.length)} onClick={saveFutureAppointment} type="button">{futureAppointmentSaving ? "Saving..." : futureAppointmentMode === "existing" ? "Connect appointment" : "Schedule appointment"}</button>
                 </div>
               ) : null}
               {appointmentMode === "manual" ? (
