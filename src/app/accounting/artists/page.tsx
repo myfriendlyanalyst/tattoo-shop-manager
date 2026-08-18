@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AccountingShell } from "@/components/accounting-shell";
 import { BarChart } from "@/components/accounting-charts";
 import { DatePicker } from "@/components/date-picker";
-import { getSafeSession, getSafeUser } from "@/lib/auth-session";
+import { getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
 
@@ -32,7 +32,11 @@ type ArtistSummary = {
   total: number;
   entry_count: number;
   entries: EntryRow[];
-  payout_rate: number | null;
+  active_projects: number;
+  on_hold_projects: number;
+  upcoming_appointments: number;
+  finalized_payout: number;
+  paid_payout: number;
 };
 
 function money(value: number) {
@@ -49,14 +53,6 @@ function formatDate(value: string) {
   );
 }
 
-function payoutTotal(summary: ArtistSummary) {
-  return summary.payout_rate === null ? null : summary.total * (summary.payout_rate / 100);
-}
-
-function sessionPayout(entry: EntryRow, rate: number | null) {
-  return rate === null ? null : Number(entry.total_amount) * (rate / 100);
-}
-
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -67,7 +63,6 @@ function escapeHtml(value: string) {
 }
 
 function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
-  const payout = payoutTotal(summary);
   const rows = summary.entries
     .map(
       (entry) => `
@@ -113,9 +108,7 @@ function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
           <div class="box"><div class="label">Tattoo</div><div class="value">${money(summary.tattoo_total)}</div></div>
           <div class="box"><div class="label">Tips</div><div class="value">${money(summary.tip_total)}</div></div>
           <div class="box"><div class="label">Gross Total</div><div class="value">${money(summary.total)}</div></div>
-          <div class="box"><div class="label">Payout Total</div><div class="value">${
-            payout === null ? "Rate not set" : money(payout)
-          }</div></div>
+          <div class="box"><div class="label">Finalized Payout</div><div class="value">${money(summary.finalized_payout)}</div></div>
         </div>
         <table>
           <thead>
@@ -136,10 +129,6 @@ function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
               <td style="text-align:right">${money(summary.tip_total)}</td>
               <td style="text-align:right">${money(summary.total)}</td>
             </tr>
-            <tr>
-              <td colspan="5">Payout total${summary.payout_rate !== null ? ` (${summary.payout_rate}% rate)` : ""}</td>
-              <td style="text-align:right">${payout === null ? "Rate not set" : money(payout)}</td>
-            </tr>
           </tfoot>
         </table>
         <div class="footer">Printed ${new Date().toLocaleString("en-US")} · Oyabun Accounting</div>
@@ -158,17 +147,12 @@ export default function ArtistsPage() {
   const now = new Date();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [summaries, setSummaries] = useState<ArtistSummary[]>([]);
   const [expandedArtistId, setExpandedArtistId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(
     localDateValue(new Date(now.getFullYear(), now.getMonth(), 1)),
   );
   const [dateTo, setDateTo] = useState(localDateValue());
-
-  // Payout rate editing
-  const [rateEdit, setRateEdit] = useState<Record<string, string>>({});
-  const [rateSaving, setRateSaving] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -191,7 +175,7 @@ export default function ArtistsPage() {
       const fromTs = new Date(`${dateFrom}T00:00:00`).toISOString();
       const toTs = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
-      const [entriesResult, staffResult] = await Promise.all([
+      const [entriesResult, staffResult, projectResult, appointmentResult, payoutResult] = await Promise.all([
         supabase
           .from("accounting_entries")
           .select(entrySelect)
@@ -200,8 +184,17 @@ export default function ArtistsPage() {
           .order("entered_at", { ascending: false }),
         supabase
           .from("staff")
-          .select("id, payout_rate")
-          .eq("active", true),
+          .select("id, display_name")
+          .eq("active", true)
+          .in("role", ["Artist", "Owner"]),
+        supabase.from("projects").select("artist_id, status"),
+        supabase.from("appointments").select("artist_id, status, starts_at").gte("starts_at", new Date().toISOString()),
+        supabase
+          .from("payouts")
+          .select("artist_id, status, settlement_amount, period_start, period_end")
+          .in("status", ["ready", "paid"])
+          .gte("period_end", dateFrom)
+          .lte("period_start", dateTo),
       ]);
 
       if (entriesResult.error) {
@@ -210,16 +203,25 @@ export default function ArtistsPage() {
         return;
       }
 
-      // Build a map of staff.id → payout_rate (graceful if column missing)
-      const staffRateMap: Record<string, number | null> = {};
-      if (!staffResult.error && staffResult.data) {
-        for (const s of staffResult.data) {
-          const raw = s as { id: string; payout_rate?: number | null };
-          staffRateMap[raw.id] = raw.payout_rate ?? null;
-        }
-      }
-
       const artistMap: Record<string, ArtistSummary> = {};
+      for (const staff of staffResult.data ?? []) {
+        const artist = staff as { id: string; display_name: string };
+        artistMap[artist.id] = {
+          artist_id: artist.id,
+          artist_name: artist.display_name,
+          tattoo_total: 0,
+          tip_total: 0,
+          merch_total: 0,
+          total: 0,
+          entry_count: 0,
+          entries: [],
+          active_projects: 0,
+          on_hold_projects: 0,
+          upcoming_appointments: 0,
+          finalized_payout: 0,
+          paid_payout: 0,
+        };
+      }
       for (const e of entriesResult.data ?? []) {
         const raw = e as unknown as EntryRow & {
           artist_id: string | null;
@@ -236,7 +238,11 @@ export default function ArtistsPage() {
             total: 0,
             entry_count: 0,
             entries: [],
-            payout_rate: key === "__unassigned__" ? null : (staffRateMap[key] ?? null),
+            active_projects: 0,
+            on_hold_projects: 0,
+            upcoming_appointments: 0,
+            finalized_payout: 0,
+            paid_payout: 0,
           };
         }
         artistMap[key].tattoo_total += Number(raw.tattoo_amount);
@@ -245,6 +251,26 @@ export default function ArtistsPage() {
         artistMap[key].total += Number(raw.total_amount);
         artistMap[key].entry_count += 1;
         artistMap[key].entries.push(raw as EntryRow);
+      }
+
+      for (const project of projectResult.data ?? []) {
+        const row = project as { artist_id: string | null; status: string };
+        if (!row.artist_id || !artistMap[row.artist_id]) continue;
+        if (["booked", "in_progress"].includes(row.status)) artistMap[row.artist_id].active_projects += 1;
+        if (row.status === "on_hold") artistMap[row.artist_id].on_hold_projects += 1;
+      }
+      for (const appointment of appointmentResult.data ?? []) {
+        const row = appointment as { artist_id: string | null; status: string };
+        if (row.artist_id && artistMap[row.artist_id] && ["scheduled", "checked_in"].includes(row.status)) {
+          artistMap[row.artist_id].upcoming_appointments += 1;
+        }
+      }
+      for (const payout of payoutResult.data ?? []) {
+        const row = payout as { artist_id: string | null; status: string; settlement_amount: number | null };
+        if (!row.artist_id || !artistMap[row.artist_id]) continue;
+        const amount = Number(row.settlement_amount ?? 0);
+        artistMap[row.artist_id].finalized_payout += amount;
+        if (row.status === "paid") artistMap[row.artist_id].paid_payout += amount;
       }
 
       setSummaries(Object.values(artistMap).sort((a, b) => b.total - a.total));
@@ -276,65 +302,6 @@ export default function ArtistsPage() {
     setDateTo(localDateValue(new Date(target.getFullYear(), target.getMonth() + 1, 0)));
   }
 
-  async function savePayoutRate(artistId: string) {
-    if (artistId === "__unassigned__") return;
-
-    const rawVal = rateEdit[artistId];
-    const isEmpty = rawVal === undefined || rawVal.trim() === "";
-
-    if (!isEmpty) {
-      const rate = parseFloat(rawVal);
-      if (isNaN(rate) || rate < 0 || rate > 100) {
-        setError("Payout rate must be between 0 and 100.");
-        return;
-      }
-    }
-
-    setRateSaving(artistId);
-    setError("");
-    setMessage("");
-
-    const newRate = isEmpty ? null : parseFloat(rawVal);
-
-    const session = await getSafeSession();
-    const token = session?.access_token;
-    if (!token) {
-      setError("Please log in again.");
-      setRateSaving(null);
-      return;
-    }
-
-    const result = await fetch(`/api/accounting/artists/${artistId}/payout-rate`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ payoutRate: newRate }),
-    });
-    const payload = (await result.json()) as {
-      artist?: { payout_rate: number | null };
-      error?: string;
-    };
-
-    if (!result.ok) {
-      setError(payload.error ?? "Failed to save payout rate.");
-    } else {
-      const savedRate = payload.artist?.payout_rate ?? null;
-      setSummaries((current) =>
-        current.map((a) =>
-          a.artist_id === artistId ? { ...a, payout_rate: savedRate } : a,
-        ),
-      );
-      setMessage(
-        savedRate !== null
-          ? `Payout rate set to ${savedRate}%.`
-          : "Payout rate cleared.",
-      );
-    }
-    setRateSaving(null);
-  }
-
   return (
     <AccountingShell
       active="Artists"
@@ -355,12 +322,6 @@ export default function ArtistsPage() {
 
       {!loading && !error ? (
         <div className="space-y-4">
-          {message ? (
-            <p className="rounded-md bg-[#e4f1df] px-3 py-2 text-sm font-semibold text-[#476b33]">
-              {message}
-            </p>
-          ) : null}
-
           <div className="rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
             <div className="flex flex-wrap items-end gap-3">
               <button aria-label="Previous month" className="h-9 w-9 rounded-md border border-[#cfc7b8] text-lg font-black hover:bg-[#eee8dd]" onClick={() => shiftMonth(-1)} type="button">‹</button>
@@ -421,11 +382,8 @@ export default function ArtistsPage() {
               {summaries.map((artist) => {
                 const expanded = expandedArtistId === artist.artist_id;
                 const initials = artist.artist_name.slice(0, 2).toUpperCase();
-                const isReal = artist.artist_id !== "__unassigned__";
-                const editVal =
-                  rateEdit[artist.artist_id] ??
-                  (artist.payout_rate !== null ? String(artist.payout_rate) : "");
-                const artistPayoutTotal = payoutTotal(artist);
+                const averageSession = artist.entry_count ? artist.tattoo_total / artist.entry_count : 0;
+                const outstandingPayout = artist.finalized_payout - artist.paid_payout;
 
                 return (
                   <div
@@ -448,9 +406,7 @@ export default function ArtistsPage() {
                             <p className="text-lg font-bold">{artist.artist_name}</p>
                             <p className="text-sm text-[#697178]">
                               {artist.entry_count} entr{artist.entry_count === 1 ? "y" : "ies"}
-                              {artist.payout_rate !== null
-                                ? ` · ${artist.payout_rate}% rate`
-                                : ""}
+                              {` · ${artist.active_projects} active projects`}
                             </p>
                           </div>
                         </div>
@@ -477,10 +433,10 @@ export default function ArtistsPage() {
                           </div>
                           <div className="hidden lg:block">
                             <p className="text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
-                              Payout
+                              Outstanding payout
                             </p>
                             <p className="font-black text-[#1f2428]">
-                              {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
+                              {money(outstandingPayout)}
                             </p>
                           </div>
                           <span className="text-sm text-[#697178]">{expanded ? "Hide" : "Show"}</span>
@@ -498,7 +454,7 @@ export default function ArtistsPage() {
                                 <th className="px-5 py-2">Date</th>
                                 <th className="px-5 py-2">Client</th>
                                 <th className="px-5 py-2">Project</th>
-                                <th className="px-5 py-2 text-right">Artist payout</th>
+                                <th className="px-5 py-2 text-right">Session sales</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#eee8dd]">
@@ -512,7 +468,7 @@ export default function ArtistsPage() {
                                     {e.project_subject ?? "-"}
                                   </td>
                                   <td className="px-5 py-2 text-right font-bold text-[#236c8f]">
-                                    {artist.payout_rate === null ? "Rate not set" : money(sessionPayout(e, artist.payout_rate) ?? 0)}
+                                    {money(Number(e.total_amount))}
                                   </td>
                                 </tr>
                               ))}
@@ -526,7 +482,7 @@ export default function ArtistsPage() {
                                   Subtotal
                                 </td>
                                 <td className="px-5 py-2 text-right text-[#236c8f]">
-                                  {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
+                                  {money(artist.entries.filter((entry) => entry.entry_type === "session").reduce((sum, entry) => sum + Number(entry.total_amount), 0))}
                                 </td>
                               </tr>
                             </tfoot>
@@ -536,15 +492,11 @@ export default function ArtistsPage() {
                         <div className="flex flex-col gap-3 border-t border-[#e5dfd4] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="grid gap-1 text-sm">
                             <p>
-                              <span className="font-semibold text-[#697178]">Payout total:</span>{" "}
+                              <span className="font-semibold text-[#697178]">Finalized payout:</span>{" "}
                               <span className="font-black text-[#1f2428]">
-                                {artistPayoutTotal === null ? "Rate not set" : money(artistPayoutTotal)}
+                                {money(artist.finalized_payout)}
                               </span>
-                              {artist.payout_rate !== null ? (
-                                <span className="ml-2 text-xs font-semibold text-[#697178]">
-                                  {artist.payout_rate}% rate
-                                </span>
-                              ) : null}
+                              <span className="ml-2 text-xs font-semibold text-[#697178]">Paid {money(artist.paid_payout)} · Outstanding {money(outstandingPayout)}</span>
                             </p>
                           </div>
                           <button
@@ -556,48 +508,16 @@ export default function ArtistsPage() {
                           </button>
                         </div>
 
-                        {/* Payout rate editor */}
                         <div className="border-t border-[#e5dfd4] bg-[#f7f2e9] px-5 py-4">
-                          <p className="mb-2 text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
-                            Payout Rate
-                          </p>
-                          {isReal ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <input
-                                className="h-8 w-20 rounded border border-[#cfc7b8] bg-white px-2 text-right text-sm"
-                                max="100"
-                                min="0"
-                                onChange={(e) =>
-                                  setRateEdit((prev) => ({
-                                    ...prev,
-                                    [artist.artist_id]: e.target.value,
-                                  }))
-                                }
-                                placeholder="—"
-                                step="0.01"
-                                type="number"
-                                value={editVal}
-                              />
-                              <span className="text-sm font-semibold text-[#697178]">%</span>
-                              <button
-                                className="h-8 rounded border border-[#cfc7b8] px-3 text-xs font-semibold hover:bg-[#eee8dd] disabled:opacity-50"
-                                disabled={rateSaving === artist.artist_id}
-                                onClick={() => savePayoutRate(artist.artist_id)}
-                                type="button"
-                              >
-                                {rateSaving === artist.artist_id ? "Saving..." : "Save"}
-                              </button>
-                              <span className="text-xs text-[#697178]">
-                                {artist.payout_rate !== null
-                                  ? `Artist keeps ${artist.payout_rate}%, shop keeps ${(100 - artist.payout_rate).toFixed(2)}%. Used for auto-calculation in Payouts.`
-                                  : "Not set — adjustment will not be auto-calculated in Payouts."}
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-[#697178]">
-                              N/A — unassigned entries have no payout rate.
-                            </p>
-                          )}
+                          <p className="mb-3 text-xs font-black uppercase tracking-[0.06em] text-[#697178]">Artist operations</p>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                            <div><p className="text-xs text-[#697178]">Avg. tattoo / entry</p><p className="font-black">{money(averageSession)}</p></div>
+                            <div><p className="text-xs text-[#697178]">Active projects</p><p className="font-black">{artist.active_projects}</p></div>
+                            <div><p className="text-xs text-[#697178]">On hold projects</p><p className="font-black">{artist.on_hold_projects}</p></div>
+                            <div><p className="text-xs text-[#697178]">Upcoming appointments</p><p className="font-black">{artist.upcoming_appointments}</p></div>
+                            <div><p className="text-xs text-[#697178]">Outstanding payout</p><p className="font-black">{money(outstandingPayout)}</p></div>
+                          </div>
+                          <p className="mt-3 text-xs text-[#697178]">Payout figures use finalized Payout records, not gross sales multiplied by a rate.</p>
                         </div>
                       </div>
                     ) : null}

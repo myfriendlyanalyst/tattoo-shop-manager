@@ -502,6 +502,7 @@ export default function ProjectsPage() {
   const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [artistFilter, setArtistFilter] = useState("all");
+  const [projectView, setProjectView] = useState<"active" | "archive">("active");
   const [statusFilter, setStatusFilter] = useState("active");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -527,10 +528,11 @@ export default function ProjectsPage() {
       const customer = relatedOne(project.customer);
       const artistMatches = artistFilter === "all" || project.artist_id === artistFilter;
       const statusMatches =
-        statusFilter === "all" ||
-        (statusFilter === "active"
-          ? activeProjectStatuses.includes(project.status)
-          : project.status === statusFilter);
+        projectView === "active"
+          ? activeProjectStatuses.includes(project.status) &&
+            (statusFilter === "active" || project.status === statusFilter)
+          : ["completed", "cancelled"].includes(project.status) &&
+            (statusFilter === "archive" || project.status === statusFilter);
       const searchMatches =
         !term ||
         [project.subject, project.size, customer?.name, customer?.email, artistName(project)]
@@ -539,7 +541,7 @@ export default function ProjectsPage() {
 
       return artistMatches && statusMatches && searchMatches;
     });
-  }, [artistFilter, projects, search, statusFilter]);
+  }, [artistFilter, projectView, projects, search, statusFilter]);
 
   const groupedProjects = useMemo(() => {
     const groups = new Map<string, ProjectRecord[]>();
@@ -554,10 +556,14 @@ export default function ProjectsPage() {
 
   const selectedProject = useMemo(
     () =>
-      projects.find((project) => project.id === selectedProjectId) ??
-      filteredProjects[0] ??
-      projects[0],
-    [filteredProjects, projects, selectedProjectId],
+      filteredProjects.find((project) => project.id === selectedProjectId) ??
+      filteredProjects[0],
+    [filteredProjects, selectedProjectId],
+  );
+  const canManageSelectedProject = Boolean(
+    selectedProject &&
+      (operationsContext?.isOperationsAdmin ||
+        (operationsContext?.isArtist && selectedProject.artist_id === operationsContext.staffId)),
   );
 
   const selectedAppointments = useMemo(() => {
@@ -961,6 +967,20 @@ export default function ProjectsPage() {
     if (project.status === status) {
       return;
     }
+    const canManage =
+      operationsContext?.isOperationsAdmin === true ||
+      (operationsContext?.isArtist === true && project.artist_id === operationsContext.staffId);
+    if (!canManage) {
+      setError("Only the assigned artist, Owner, Admin, or Front Desk can change this project status.");
+      return;
+    }
+
+    if (["completed", "cancelled"].includes(status)) {
+      const action = status === "completed" ? "complete" : "cancel";
+      if (!window.confirm(`Are you sure you want to ${action} this project? It will move to Archive.`)) {
+        return;
+      }
+    }
 
     setSaving(true);
     setError("");
@@ -981,7 +1001,25 @@ export default function ProjectsPage() {
       current.map((item) => (item.id === project.id ? { ...item, status } : item)),
     );
     setMessage(`Project marked ${projectStatusLabel(status).toLowerCase()}.`);
+    if (["completed", "cancelled"].includes(status) && projectView === "active") {
+      setSelectedProjectId("");
+      setMobileDetailOpen(false);
+    }
     setSaving(false);
+  }
+
+  async function reopenProject(project: ProjectRecord) {
+    const canReopen =
+      operationsContext?.isOperationsAdmin === true ||
+      (operationsContext?.isArtist === true && project.artist_id === operationsContext.staffId);
+    if (!canReopen) {
+      setError("Only the assigned artist, Owner, Admin, or Front Desk can reopen this project.");
+      return;
+    }
+    if (!window.confirm("Reopen this project and move it back to the active project list?")) return;
+    await setProjectStatus(project, "in_progress");
+    setSelectedProjectId("");
+    setMobileDetailOpen(false);
   }
 
   async function markCancelledDepositTreatment(treatment: "forfeited" | "refunded") {
@@ -1071,6 +1109,8 @@ export default function ProjectsPage() {
     setDeposits((current) => current.map((deposit) => availableDeposits.some((item) => item.id === deposit.id) ? { ...deposit, available: false, disposition: "forfeited", used_at: usedAt, memo: [deposit.memo, `Used early to close project: ${reason}`].filter(Boolean).join(" / ") } : deposit));
     setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, status: "completed" } : project));
     setMessage("Deposit used early and project marked completed.");
+    setSelectedProjectId("");
+    setMobileDetailOpen(false);
     setSaving(false);
   }
 
@@ -1732,6 +1772,22 @@ export default function ProjectsPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
+          <div className="inline-flex rounded-md border border-[#cfc7b8] bg-white p-1 shadow-sm">
+            <button
+              className={`h-9 rounded px-4 text-sm font-bold ${projectView === "active" ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"}`}
+              onClick={() => { setProjectView("active"); setStatusFilter("active"); setSelectedProjectId(""); setMobileDetailOpen(false); }}
+              type="button"
+            >
+              Active projects
+            </button>
+            <button
+              className={`h-9 rounded px-4 text-sm font-bold ${projectView === "archive" ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"}`}
+              onClick={() => { setProjectView("archive"); setStatusFilter("archive"); setSelectedProjectId(""); setMobileDetailOpen(false); }}
+              type="button"
+            >
+              Archive
+            </button>
+          </div>
           <section
             className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm`}
           >
@@ -1772,9 +1828,10 @@ export default function ProjectsPage() {
                 }}
                 value={statusFilter}
               >
-                <option value="active">Active statuses</option>
-                <option value="all">All statuses</option>
-                {projectStatusOptions.map((status) => (
+                <option value={projectView === "active" ? "active" : "archive"}>
+                  {projectView === "active" ? "All active statuses" : "All archived statuses"}
+                </option>
+                {projectStatusOptions.filter((status) => projectView === "active" ? activeProjectStatuses.includes(status.value) : ["completed", "cancelled"].includes(status.value)).map((status) => (
                   <option key={status.value} value={status.value}>
                     {status.label}
                   </option>
@@ -1794,7 +1851,7 @@ export default function ProjectsPage() {
               className="rounded-md border border-[#d9d3c7] bg-white shadow-sm"
             >
               <div className="border-b border-[#e5dfd4] px-4 py-4">
-                <h3 className="text-base font-semibold">Artist project list</h3>
+                <h3 className="text-base font-semibold">{projectView === "archive" ? "Project archive" : "Artist project list"}</h3>
                 <p className="mt-1 text-sm text-[#697178]">
                   {filteredProjects.length} project{filteredProjects.length === 1 ? "" : "s"} shown
                 </p>
@@ -2377,10 +2434,23 @@ export default function ProjectsPage() {
 
                 <div className="order-4 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
                   <p className="text-sm font-semibold">Project status actions</p>
+                  {projectView === "archive" ? (
+                    <div className="mt-3">
+                      <button
+                        className="h-10 rounded-md border border-[#315f82] px-4 text-sm font-semibold text-[#315f82] hover:bg-[#e5edf4] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={saving || !canManageSelectedProject}
+                        onClick={() => reopenProject(selectedProject)}
+                        type="button"
+                      >
+                        Reopen project
+                      </button>
+                      <p className="mt-2 text-xs text-[#697178]">Moves this project back to In progress. Available to the assigned Artist, Owner, Admin, and Front Desk.</p>
+                    </div>
+                  ) : (
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     <button
                       className="h-10 rounded-md border border-[#8a5130] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || selectedProject.status === "completed" || selectedDeposits.every((deposit) => !deposit.available)}
+                      disabled={saving || !canManageSelectedProject || selectedProject.status === "completed" || selectedDeposits.every((deposit) => !deposit.available)}
                       onClick={useDepositEarlyAndCloseProject}
                       type="button"
                     >
@@ -2388,7 +2458,7 @@ export default function ProjectsPage() {
                     </button>
                     <button
                       className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || selectedProject.status === "completed"}
+                      disabled={saving || !canManageSelectedProject || selectedProject.status === "completed"}
                       onClick={() => setProjectStatus(selectedProject, "completed")}
                       type="button"
                     >
@@ -2396,7 +2466,7 @@ export default function ProjectsPage() {
                     </button>
                     <button
                       className="h-10 rounded-md border border-[#8a3030] px-3 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || selectedProject.status === "cancelled"}
+                      disabled={saving || !canManageSelectedProject || selectedProject.status === "cancelled"}
                       onClick={() => setProjectStatus(selectedProject, "cancelled")}
                       type="button"
                     >
@@ -2404,13 +2474,14 @@ export default function ProjectsPage() {
                     </button>
                     <button
                       className="h-10 rounded-md border border-[#b98238] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || selectedProject.status === "on_hold"}
+                      disabled={saving || !canManageSelectedProject || selectedProject.status === "on_hold"}
                       onClick={() => setProjectStatus(selectedProject, "on_hold")}
                       type="button"
                     >
                       On Hold
                     </button>
                   </div>
+                  )}
                   {selectedProject.status === "cancelled" && selectedDeposits.length > 0 ? (
                     <div className="mt-4 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
                       <p className="text-sm font-semibold">Cancelled deposit handling</p>
