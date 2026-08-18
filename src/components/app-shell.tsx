@@ -61,6 +61,14 @@ export function AppShell({ children }: AppShellProps) {
       ? navItems.filter((item) => basicNavLabels.has(item.label))
       : navItems;
 
+  function handleNavClick(event: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    setMobileMenuOpen(false);
+    if (pathname === href) {
+      event.preventDefault();
+      window.location.reload();
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
 
@@ -127,7 +135,7 @@ export function AppShell({ children }: AppShellProps) {
                   isActive ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"
                 }`}
                 href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={(event) => handleNavClick(event, item.href)}
               >
                 <span className="flex-1">{item.label}</span>
                 {item.note ? (
@@ -154,7 +162,7 @@ export function AppShell({ children }: AppShellProps) {
                         }`}
                         href={child.href}
                         key={child.href}
-                        onClick={() => setMobileMenuOpen(false)}
+                        onClick={(event) => handleNavClick(event, child.href)}
                       >
                         {child.label}
                       </Link>

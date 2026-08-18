@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -31,7 +32,16 @@ export function AccountingShell({
   actions,
   children,
 }: AccountingShellProps) {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  function handleNavClick(event: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    setMobileMenuOpen(false);
+    if (pathname === href) {
+      event.preventDefault();
+      window.location.reload();
+    }
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -46,7 +56,7 @@ export function AccountingShell({
           <Link
             key={item.label}
             href={item.href}
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={(event) => handleNavClick(event, item.href)}
             className={`flex h-9 w-full items-center rounded-md px-3 text-sm font-semibold transition ${
               isActive
                 ? "bg-[#236c8f] text-white"
