@@ -285,6 +285,7 @@ export function SessionEntryForm({
   const tattooTotal = gridTotal(form.paymentGrid, "tattoo");
   const tipTotal = gridTotal(form.paymentGrid, "tip");
   const appliedDepositAmount = Number(form.depositAppliedAmount || 0);
+  const depositMemoRequired = appliedDepositAmount > 0 && !form.memo.trim();
   const tattooWorkTotal = tattooTotal + appliedDepositAmount;
   const newPaymentTotal = tattooTotal + tipTotal;
   const remainingDepositBalance = Math.max(availableDepositBalance - appliedDepositAmount, 0);
@@ -528,13 +529,17 @@ export function SessionEntryForm({
         </label>
       )}
 
-      <textarea
-        className="min-h-24 w-full rounded-md border border-[#cfc7b8] bg-white px-3 py-2 text-sm"
-        disabled={locked}
-        onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
-        placeholder="Memo"
-        value={form.memo}
-      />
+      <label className="block text-sm font-semibold">
+        Memo {appliedDepositAmount > 0 ? <span className="text-[#8a3030]">*</span> : null}
+        <textarea
+          className={`mt-2 min-h-24 w-full rounded-md border bg-white px-3 py-2 text-sm ${depositMemoRequired ? "border-[#8a3030]" : "border-[#cfc7b8]"}`}
+          disabled={locked}
+          onChange={(event) => setForm((current) => ({ ...current, memo: event.target.value }))}
+          placeholder={appliedDepositAmount > 0 ? "Required: explain why the deposit is being applied" : "Memo"}
+          value={form.memo}
+        />
+        {depositMemoRequired ? <span className="mt-1 block text-xs font-semibold text-[#8a3030]">Enter a reason before continuing.</span> : null}
+      </label>
 
       {saved ? (
         <div className="grid gap-2 sm:grid-cols-2">
@@ -560,7 +565,7 @@ export function SessionEntryForm({
         {onBack ? <button className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]" disabled={saving} onClick={onBack} type="button">Back</button> : <span />}
         <button
           className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={saving}
+          disabled={saving || depositMemoRequired}
           onClick={confirmAndSave}
           type="button"
         >

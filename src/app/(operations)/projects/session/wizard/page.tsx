@@ -725,6 +725,9 @@ export default function SessionWizardPage() {
     if (depositAppliedAmount > tattooAmount) {
       throw new Error("Applied deposit cannot exceed tattoo amount.");
     }
+    if (depositAppliedAmount > 0 && !form.memo.trim()) {
+      throw new Error("Memo is required when applying a deposit. Enter the reason for using it.");
+    }
     if (
       project.session_type === "Multiple Session" &&
       sessionOutcome === "closing" &&
@@ -1000,6 +1003,10 @@ export default function SessionWizardPage() {
   }
 
   function handlePaymentContinue(form: SessionForm) {
+    if (Number(form.depositAppliedAmount || 0) > 0 && !form.memo.trim()) {
+      setError("Memo is required when applying a deposit. Enter the reason for using it.");
+      return;
+    }
     setPendingForm(form);
     setSavedDraft({
       depositAppliedAmount: form.depositAppliedAmount,

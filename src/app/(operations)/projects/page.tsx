@@ -1945,6 +1945,9 @@ export default function ProjectsPage() {
                       >
                         {projectStatusLabel(selectedProject.status)}
                       </span>
+                      {projectView === "archive" ? (
+                        <span className="rounded-md bg-[#ece9e2] px-2 py-1 text-xs font-black text-[#4d555c]">Locked</span>
+                      ) : null}
                       <span
                         className={`rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(
                           selectedProject,
@@ -1990,7 +1993,7 @@ export default function ProjectsPage() {
                             </p>
                           )}
                         </div>
-                        {!editingProjectType ? (
+                        {!editingProjectType && projectView !== "archive" ? (
                           <button
                             aria-label="Edit project type"
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#cfc7b8] hover:bg-[#eee8dd]"
@@ -2038,7 +2041,9 @@ export default function ProjectsPage() {
                       <p className="mt-1 font-semibold">
                         {displayDate(selectedProject.waiver_signed_at)}
                       </p>
-                      {!selectedProject.waiver_signed ? (
+                      {projectView === "archive" ? (
+                        <p className="mt-2 text-xs font-semibold text-[#697178]">Read only</p>
+                      ) : !selectedProject.waiver_signed ? (
                         <button
                           className="mt-2 h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={saving}
@@ -2062,6 +2067,12 @@ export default function ProjectsPage() {
                 </section>
 
                 <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+                  {projectView === "archive" ? (
+                    <div className="order-0 rounded-md border border-[#b7b0a4] bg-[#ece9e2] px-4 py-3">
+                      <p className="text-sm font-black">Archived project — record locked</p>
+                      <p className="mt-1 text-xs text-[#5e666c]">Project, waiver, Session, and Deposit records are read-only until this project is reopened.</p>
+                    </div>
+                  ) : null}
                   <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                     <div className="border-b border-[#e5dfd4] px-4 py-3">
                       <h3 className="text-sm font-semibold">Client & tattoo details</h3>
@@ -2118,12 +2129,12 @@ export default function ProjectsPage() {
                   <section className="order-3 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
-                    <Link
+                    {projectView !== "archive" ? <Link
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
                       href={`/projects/session/wizard?projectId=${selectedProject.id}`}
                     >
                       Add session
-                    </Link>
+                    </Link> : null}
                   </div>
                   <div className="divide-y divide-[#eee8dd]">
                     {selectedSessions.length === 0 ? (
@@ -2182,7 +2193,7 @@ export default function ProjectsPage() {
                           >
                             Receipt
                           </Link>
-                          <button
+                          {projectView !== "archive" ? <button
                             className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                             disabled={saving}
                             onClick={() => {
@@ -2194,15 +2205,15 @@ export default function ProjectsPage() {
                             type="button"
                           >
                             Edit
-                          </button>
-                          <button
+                          </button> : null}
+                          {projectView !== "archive" ? <button
                             className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
                             disabled={saving}
                             onClick={() => deleteSession(session)}
                             type="button"
                           >
                             Delete
-                          </button>
+                          </button> : null}
                         </div>
                       </div>
                     ))}
@@ -2222,7 +2233,7 @@ export default function ProjectsPage() {
                       </div>
                       <p className="mt-1 text-xs text-[#697178]">Received {money(selectedProjectDetail?.depositTotal ?? 0)} · Applied {money(selectedProjectDetail?.depositApplied ?? 0)}</p>
                     </div>
-                    <button
+                    {projectView !== "archive" ? <button
                       className="h-9 rounded-md bg-[#1f2428] px-3 text-sm font-semibold text-white hover:bg-[#30373d]"
                       onClick={() => {
                         setEntryError("");
@@ -2232,7 +2243,7 @@ export default function ProjectsPage() {
                       type="button"
                     >
                       Add deposit
-                    </button>
+                    </button> : null}
                   </div>
                   <div className="divide-y divide-[#eee8dd]">
                     {selectedDeposits.length === 0 ? (
@@ -2295,7 +2306,7 @@ export default function ProjectsPage() {
                                     >
                                       Receipt
                                     </Link>
-                                    <button
+                                    {projectView !== "archive" ? <button
                                       className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                                       disabled={saving}
                                       onClick={() => {
@@ -2306,15 +2317,15 @@ export default function ProjectsPage() {
                                       type="button"
                                     >
                                       Edit
-                                    </button>
-                                    <button
+                                    </button> : null}
+                                    {projectView !== "archive" ? <button
                                       className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
                                       disabled={saving}
                                       onClick={() => deleteDeposit(row.deposit!)}
                                       type="button"
                                     >
                                       Delete
-                                    </button>
+                                    </button> : null}
                                   </div>
                                 ) : null}
                               </div>
@@ -2381,7 +2392,7 @@ export default function ProjectsPage() {
                                             >
                                               Receipt
                                             </Link>
-                                            <button
+                                            {projectView !== "archive" ? <button
                                               className="h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd]"
                                               disabled={saving}
                                               onClick={() => {
@@ -2392,21 +2403,21 @@ export default function ProjectsPage() {
                                               type="button"
                                             >
                                               Edit
-                                            </button>
-                                            <button
+                                            </button> : null}
+                                            {projectView !== "archive" ? <button
                                               className="h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1]"
                                               disabled={saving}
                                               onClick={() => deleteDeposit(row.deposit!)}
                                               type="button"
                                             >
                                               Delete
-                                            </button>
+                                            </button> : null}
                                           </>
-                                        ) : (
+                                        ) : projectView !== "archive" ? (
                                           <span className="text-xs font-semibold text-[#697178]">
                                             Edit session
                                           </span>
-                                        )}
+                                        ) : null}
                                       </span>
                                     </div>
                                 ))}
@@ -2482,7 +2493,7 @@ export default function ProjectsPage() {
                     </button>
                   </div>
                   )}
-                  {selectedProject.status === "cancelled" && selectedDeposits.length > 0 ? (
+                  {projectView !== "archive" && selectedProject.status === "cancelled" && selectedDeposits.length > 0 ? (
                     <div className="mt-4 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-3 py-3">
                       <p className="text-sm font-semibold">Cancelled deposit handling</p>
                       <p className="mt-1 text-xs text-[#697178]">
@@ -2537,7 +2548,7 @@ export default function ProjectsPage() {
         </div>
       ) : null}
 
-      {showSessionEntry && selectedProject ? (
+      {showSessionEntry && selectedProject && projectView !== "archive" ? (
         <SessionEntryModal
           appointments={editingSession ? selectedAppointments : unenteredSelectedAppointments}
           availableDepositBalance={selectedDepositBalance}
@@ -2565,7 +2576,7 @@ export default function ProjectsPage() {
         />
       ) : null}
 
-      {showDepositEntry && selectedProject ? (
+      {showDepositEntry && selectedProject && projectView !== "archive" ? (
         <DepositEntryModal
           appliedAmount={
             editingDeposit ? depositAppliedTotal(editingDeposit.id, depositApplications) : 0
