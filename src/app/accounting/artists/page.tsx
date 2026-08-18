@@ -37,7 +37,26 @@ type ArtistSummary = {
   upcoming_appointments: number;
   finalized_payout: number;
   paid_payout: number;
+  trend: ArtistTrend[];
 };
+
+type ArtistTrend = {
+  key: string;
+  label: string;
+  tattoo: number;
+  tips: number;
+  sessions: number;
+  payout: number;
+};
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <button aria-label={text} className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#9b9fa2] text-[10px] font-black text-[#697178]" type="button">?</button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-md bg-[#1f2428] px-3 py-2 text-left text-xs font-medium normal-case tracking-normal text-white shadow-lg group-hover:block group-focus-within:block">{text}</span>
+    </span>
+  );
+}
 
 function money(value: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
@@ -60,6 +79,20 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function threeMonthTrend(reference = new Date()): ArtistTrend[] {
+  return Array.from({ length: 3 }, (_, index) => {
+    const date = new Date(reference.getFullYear(), reference.getMonth() - 2 + index, 1);
+    return {
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+      label: date.toLocaleDateString("en-US", { month: "short" }),
+      payout: 0,
+      sessions: 0,
+      tattoo: 0,
+      tips: 0,
+    };
+  });
 }
 
 function printArtistSummary(summary: ArtistSummary, periodLabel: string) {
@@ -175,7 +208,11 @@ export default function ArtistsPage() {
       const fromTs = new Date(`${dateFrom}T00:00:00`).toISOString();
       const toTs = new Date(`${dateTo}T23:59:59.999`).toISOString();
 
-      const [entriesResult, staffResult, projectResult, appointmentResult, payoutResult] = await Promise.all([
+      const trendReference = new Date();
+      const trendTemplate = threeMonthTrend(trendReference);
+      const trendFrom = `${trendTemplate[0].key}-01`;
+      const trendFromTs = new Date(`${trendFrom}T00:00:00`).toISOString();
+      const [entriesResult, staffResult, projectResult, appointmentResult, payoutResult, trendEntryResult, trendPayoutResult] = await Promise.all([
         supabase
           .from("accounting_entries")
           .select(entrySelect)
@@ -195,6 +232,17 @@ export default function ArtistsPage() {
           .in("status", ["ready", "paid"])
           .gte("period_end", dateFrom)
           .lte("period_start", dateTo),
+        supabase
+          .from("accounting_entries")
+          .select(entrySelect)
+          .gte("entered_at", trendFromTs)
+          .lte("entered_at", new Date().toISOString()),
+        supabase
+          .from("payouts")
+          .select("artist_id, status, settlement_amount, period_end")
+          .in("status", ["ready", "paid"])
+          .gte("period_end", trendFrom)
+          .lte("period_end", localDateValue(trendReference)),
       ]);
 
       if (entriesResult.error) {
@@ -220,6 +268,7 @@ export default function ArtistsPage() {
           upcoming_appointments: 0,
           finalized_payout: 0,
           paid_payout: 0,
+          trend: threeMonthTrend(trendReference),
         };
       }
       for (const e of entriesResult.data ?? []) {
@@ -243,6 +292,7 @@ export default function ArtistsPage() {
             upcoming_appointments: 0,
             finalized_payout: 0,
             paid_payout: 0,
+            trend: threeMonthTrend(trendReference),
           };
         }
         artistMap[key].tattoo_total += Number(raw.tattoo_amount);
@@ -271,6 +321,24 @@ export default function ArtistsPage() {
         const amount = Number(row.settlement_amount ?? 0);
         artistMap[row.artist_id].finalized_payout += amount;
         if (row.status === "paid") artistMap[row.artist_id].paid_payout += amount;
+      }
+      for (const entry of trendEntryResult.data ?? []) {
+        const row = entry as unknown as EntryRow & { artist_id: string | null };
+        if (!row.artist_id || !artistMap[row.artist_id]) continue;
+        const date = new Date(row.entered_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const month = artistMap[row.artist_id].trend.find((item) => item.key === key);
+        if (!month) continue;
+        month.tattoo += Number(row.tattoo_amount);
+        month.tips += Number(row.tip_amount);
+        if (row.entry_type === "session") month.sessions += 1;
+      }
+      for (const payout of trendPayoutResult.data ?? []) {
+        const row = payout as { artist_id: string | null; period_end: string; settlement_amount: number | null };
+        if (!row.artist_id || !artistMap[row.artist_id]) continue;
+        const key = row.period_end.slice(0, 7);
+        const month = artistMap[row.artist_id].trend.find((item) => item.key === key);
+        if (month) month.payout += Number(row.settlement_amount ?? 0);
       }
 
       setSummaries(Object.values(artistMap).sort((a, b) => b.total - a.total));
@@ -446,7 +514,31 @@ export default function ArtistsPage() {
 
                     {expanded ? (
                       <div className="border-t border-[#e5dfd4]">
-                        <div className="border-b border-[#e5dfd4] px-5 py-4"><h4 className="mb-3 text-sm font-bold">Monthly sales</h4><BarChart data={Array.from({length:12},(_,month)=>({label:new Date(2026,month,1).toLocaleDateString("en-US",{month:"short"}),value:artist.entries.filter((entry)=>new Date(entry.entered_at).getFullYear()===new Date(dateFrom).getFullYear()&&new Date(entry.entered_at).getMonth()===month).reduce((sum,entry)=>sum+Number(entry.total_amount),0)}))} height={180} /></div>
+                        <div className="bg-[#f7f2e9] px-5 py-4">
+                          <p className="mb-3 text-xs font-black uppercase tracking-[0.06em] text-[#697178]">Artist summary</p>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                            <div><p className="text-xs text-[#697178]">Avg. tattoo / entry <InfoTip text="Tattoo sales in the selected period divided by the number of accounting entries. Tips and deposits are excluded from the numerator." /></p><p className="font-black">{money(averageSession)}</p></div>
+                            <div><p className="text-xs text-[#697178]">Active projects <InfoTip text="Current snapshot of this artist's Booked and In progress projects. Historical project status is not reconstructed." /></p><p className="font-black">{artist.active_projects}</p></div>
+                            <div><p className="text-xs text-[#697178]">On hold projects <InfoTip text="Current number of projects placed On hold for this artist." /></p><p className="font-black">{artist.on_hold_projects}</p></div>
+                            <div><p className="text-xs text-[#697178]">Upcoming appointments <InfoTip text="Current future appointments with Scheduled or Checked in status." /></p><p className="font-black">{artist.upcoming_appointments}</p></div>
+                            <div><p className="text-xs text-[#697178]">Outstanding payout <InfoTip text="Finalized settlement amounts in the selected period that have not yet been marked Paid. This uses Payout records, not gross sales × rate." /></p><p className="font-black">{money(outstandingPayout)}</p></div>
+                          </div>
+                          <p className="mt-3 text-xs text-[#697178]">Operational counts are current snapshots. Financial figures follow the selected period.</p>
+                        </div>
+
+                        <div className="border-t border-[#e5dfd4] px-5 py-4">
+                          <div className="mb-3">
+                            <h4 className="text-sm font-bold">Recent 3-month trends <InfoTip text="Monthly activity for the current month and the two preceding calendar months, independent of the period filter above." /></h4>
+                            <p className="mt-1 text-xs text-[#697178]">Current month and previous two calendar months</p>
+                          </div>
+                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="rounded-md border border-[#e5dfd4] p-3"><p className="text-xs font-bold text-[#697178]">Tattoo sales <InfoTip text="Tattoo amounts entered in Sessions during each month." /></p><BarChart data={artist.trend.map((month) => ({ label: month.label, value: month.tattoo }))} height={130} /></div>
+                            <div className="rounded-md border border-[#e5dfd4] p-3"><p className="text-xs font-bold text-[#697178]">Tips <InfoTip text="Tip amounts entered during each month." /></p><BarChart color="#8a5130" data={artist.trend.map((month) => ({ label: month.label, value: month.tips }))} height={130} /></div>
+                            <div className="rounded-md border border-[#e5dfd4] p-3"><p className="text-xs font-bold text-[#697178]">Sessions <InfoTip text="Number of completed Session accounting entries in each month." /></p><BarChart color="#476b33" data={artist.trend.map((month) => ({ label: month.label, value: month.sessions }))} height={130} valueFormatter={(value) => String(value)} /></div>
+                            <div className="rounded-md border border-[#e5dfd4] p-3"><p className="text-xs font-bold text-[#697178]">Finalized payout <InfoTip text="Settlement amount from Ready or Paid Payout records, grouped by payout period end month." /></p><BarChart color="#775f36" data={artist.trend.map((month) => ({ label: month.label, value: month.payout }))} height={130} /></div>
+                          </div>
+                        </div>
+
                         <div className="overflow-x-auto">
                           <table className="w-full min-w-[580px] text-left text-sm">
                             <thead className="bg-[#f7f2e9] text-xs font-black uppercase tracking-[0.06em] text-[#697178]">
@@ -508,17 +600,6 @@ export default function ArtistsPage() {
                           </button>
                         </div>
 
-                        <div className="border-t border-[#e5dfd4] bg-[#f7f2e9] px-5 py-4">
-                          <p className="mb-3 text-xs font-black uppercase tracking-[0.06em] text-[#697178]">Artist operations</p>
-                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                            <div><p className="text-xs text-[#697178]">Avg. tattoo / entry</p><p className="font-black">{money(averageSession)}</p></div>
-                            <div><p className="text-xs text-[#697178]">Active projects</p><p className="font-black">{artist.active_projects}</p></div>
-                            <div><p className="text-xs text-[#697178]">On hold projects</p><p className="font-black">{artist.on_hold_projects}</p></div>
-                            <div><p className="text-xs text-[#697178]">Upcoming appointments</p><p className="font-black">{artist.upcoming_appointments}</p></div>
-                            <div><p className="text-xs text-[#697178]">Outstanding payout</p><p className="font-black">{money(outstandingPayout)}</p></div>
-                          </div>
-                          <p className="mt-3 text-xs text-[#697178]">Payout figures use finalized Payout records, not gross sales multiplied by a rate.</p>
-                        </div>
                       </div>
                     ) : null}
                   </div>

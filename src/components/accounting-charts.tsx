@@ -151,10 +151,12 @@ export function BarChart({
   data,
   height = 160,
   color = "#236c8f",
+  valueFormatter = money,
 }: {
   data: ChartPoint[];
   height?: number;
   color?: string;
+  valueFormatter?: (value: number) => string;
 }) {
   if (!data.length) return <EmptyChart height={height} />;
 
@@ -226,7 +228,7 @@ export function BarChart({
                 fill={color}
                 fontWeight="bold"
               >
-                {money(d.value)}
+                {valueFormatter(d.value)}
               </text>
             )}
             {/* Label below */}
