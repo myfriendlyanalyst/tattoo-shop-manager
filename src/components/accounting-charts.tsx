@@ -152,11 +152,15 @@ export function BarChart({
   height = 160,
   color = "#236c8f",
   valueFormatter = money,
+  valueFontSize = 9,
+  labelFontSize = 10,
 }: {
   data: ChartPoint[];
   height?: number;
   color?: string;
   valueFormatter?: (value: number) => string;
+  valueFontSize?: number;
+  labelFontSize?: number;
 }) {
   if (!data.length) return <EmptyChart height={height} />;
 
@@ -224,7 +228,7 @@ export function BarChart({
                 x={bx + barW / 2}
                 y={by - 4}
                 textAnchor="middle"
-                fontSize="9"
+                fontSize={valueFontSize}
                 fill={color}
                 fontWeight="bold"
               >
@@ -236,7 +240,7 @@ export function BarChart({
               x={bx + barW / 2}
               y={H - 10}
               textAnchor="middle"
-              fontSize="10"
+              fontSize={labelFontSize}
               fill="#697178"
             >
               {d.label.length > 10 ? `${d.label.slice(0, 9)}...` : d.label}
