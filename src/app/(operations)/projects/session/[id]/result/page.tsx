@@ -38,6 +38,12 @@ type PaymentRecord = {
   amount: number;
 };
 
+type ProjectDepositRecord = {
+  amount: number;
+  available: boolean;
+  deposit_applications: Array<{ amount: number }> | null;
+};
+
 function relatedOne<T>(value: Relation<T>) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
@@ -98,6 +104,7 @@ export default function SessionResultPage() {
   const [session, setSession] = useState<SessionResultRecord | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [depositApplied, setDepositApplied] = useState(0);
+  const [depositRemaining, setDepositRemaining] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -140,6 +147,34 @@ export default function SessionResultPage() {
         return;
       }
       const nextSession = sessionResult.data as unknown as SessionResultRecord;
+      const nextProject = relatedOne(nextSession.project);
+      if (nextProject) {
+        const projectDepositResult = await supabase
+          .from("deposits")
+          .select("amount, available, deposit_applications(amount)")
+          .eq("project_id", nextProject.id);
+        if (projectDepositResult.error) {
+          setError(projectDepositResult.error.message);
+          setLoading(false);
+          return;
+        }
+        setDepositRemaining(
+          ((projectDepositResult.data ?? []) as ProjectDepositRecord[])
+            .filter((deposit) => deposit.available)
+            .reduce(
+              (sum, deposit) =>
+                sum + Math.max(
+                  Number(deposit.amount) -
+                    (deposit.deposit_applications ?? []).reduce(
+                      (applied, application) => applied + Number(application.amount),
+                      0,
+                    ),
+                  0,
+                ),
+              0,
+            ),
+        );
+      }
       setSession(nextSession);
       setPayments((paymentResult.data ?? []) as PaymentRecord[]);
       setDepositApplied(
@@ -610,13 +645,19 @@ export default function SessionResultPage() {
                     <div className="receipt-payment-type-row">
                       <p className="receipt-payment-type capitalize text-black">{type}</p>
                       <p className="receipt-payment-type receipt-payment-type-amount text-black">
-                        {receiptMoney(Object.values(receivedByType[type]).reduce((sum, amount) => sum + amount, 0))}
+                        {receiptMoney(type === "tattoo" ? session.tattoo_amount : session.tip_amount)}
                       </p>
                     </div>
                     {type === "tattoo" && depositApplied > 0 ? (
-                      <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2 text-[#697178]">
-                        <span className="receipt-payment-label">Deposit applied</span>
-                        <span className="receipt-payment-amount font-bold">{receiptMoney(depositApplied)}</span>
+                      <div className="my-2 rounded-md border-2 border-[#2f6658] bg-[#eef8ea] px-2 py-2 text-[#2f6658]">
+                        <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
+                          <span className="receipt-payment-label font-black">DEPOSIT APPLIED</span>
+                          <span className="receipt-payment-amount font-black">{receiptMoney(depositApplied)}</span>
+                        </div>
+                        <div className="receipt-payment-line mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t border-[#b8d5ae] pt-1">
+                          <span className="receipt-payment-label font-bold">Deposit remaining</span>
+                          <span className="receipt-payment-amount font-black">{receiptMoney(depositRemaining)}</span>
+                        </div>
                       </div>
                     ) : null}
                     {(["cash", "credit_card", "app"] as const).filter((method) =>

@@ -1068,52 +1068,6 @@ export default function ProjectsPage() {
     setSaving(false);
   }
 
-  async function useDepositEarlyAndCloseProject() {
-    if (!selectedProject) return;
-    const availableDeposits = selectedDeposits.filter((deposit) => deposit.available);
-    if (availableDeposits.length === 0) {
-      setError("There is no deposit on hold for this project.");
-      return;
-    }
-    const reason = window.prompt(
-      "Why is the deposit being used before a session?\n\nA memo is required. This will close the project.",
-    )?.trim();
-    if (!reason) {
-      setError("A memo is required to use a deposit early.");
-      return;
-    }
-    if (!window.confirm("Use the deposit early and mark this project completed?")) return;
-
-    setSaving(true);
-    setError("");
-    setMessage("");
-    const usedAt = new Date().toISOString();
-    for (const deposit of availableDeposits) {
-      const memo = [deposit.memo, `Used early to close project: ${reason}`].filter(Boolean).join(" / ");
-      const result = await supabase
-        .from("deposits")
-        .update({ available: false, disposition: "forfeited", used_at: usedAt, used_session_entry_id: null, memo })
-        .eq("id", deposit.id);
-      if (result.error) {
-        setError(result.error.message);
-        setSaving(false);
-        return;
-      }
-    }
-    const projectResult = await supabase.from("projects").update({ status: "completed" }).eq("id", selectedProject.id);
-    if (projectResult.error) {
-      setError(projectResult.error.message);
-      setSaving(false);
-      return;
-    }
-    setDeposits((current) => current.map((deposit) => availableDeposits.some((item) => item.id === deposit.id) ? { ...deposit, available: false, disposition: "forfeited", used_at: usedAt, memo: [deposit.memo, `Used early to close project: ${reason}`].filter(Boolean).join(" / ") } : deposit));
-    setProjects((current) => current.map((project) => project.id === selectedProject.id ? { ...project, status: "completed" } : project));
-    setMessage("Deposit used early and project marked completed.");
-    setSelectedProjectId("");
-    setMobileDetailOpen(false);
-    setSaving(false);
-  }
-
   async function returnCancelledDepositsToHold() {
     if (!selectedProject || selectedDeposits.length === 0) {
       return;
@@ -2465,15 +2419,7 @@ export default function ProjectsPage() {
                       <p className="mt-2 text-xs text-[#697178]">Moves this project back to In progress. Available to the assigned Artist, Owner, Admin, and Front Desk.</p>
                     </div>
                   ) : (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    <button
-                      className="h-10 rounded-md border border-[#8a5130] px-3 text-sm font-semibold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={saving || !canManageSelectedProject || selectedProject.status === "completed" || selectedDeposits.every((deposit) => !deposit.available)}
-                      onClick={useDepositEarlyAndCloseProject}
-                      type="button"
-                    >
-                      Use deposit & close project
-                    </button>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <button
                       className="h-10 rounded-md border border-[#cfc7b8] px-3 text-sm font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving || !canManageSelectedProject || selectedProject.status === "completed"}

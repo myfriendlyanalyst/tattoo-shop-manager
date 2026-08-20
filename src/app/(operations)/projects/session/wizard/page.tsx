@@ -96,7 +96,7 @@ type SessionPaymentRecord = {
 };
 
 type SessionKind = "existing" | "walk_in";
-type Step = "kind" | "client" | "details" | "appointment" | "payments" | "review" | "result";
+type Step = "kind" | "client" | "details" | "appointment" | "payments" | "review" | "schedule" | "result";
 
 type WalkInForm = {
   artistId: string;
@@ -295,6 +295,10 @@ export default function SessionWizardPage() {
     () => projects.find((project) => project.id === projectId) ?? null,
     [projectId, projects],
   );
+  const existingSessionProjects = useMemo(
+    () => projects.filter((project) => project.session_type !== "Walk-in"),
+    [projects],
+  );
   const selectedAppointments = useMemo(
     () =>
       appointments.filter(
@@ -420,14 +424,17 @@ export default function SessionWizardPage() {
         context?.isArtist && context.staffId
           ? rawProjects.filter((project) => project.artist_id === context.staffId)
           : rawProjects;
+      const selectableExistingProjects = visibleProjects.filter(
+        (project) => project.session_type !== "Walk-in",
+      );
 
       setArtists(visibleArtists);
       setCustomers((customerResult.data ?? []) as CustomerRecord[]);
       setProjects(visibleProjects);
       const requestedProjectId = new URLSearchParams(window.location.search).get("projectId");
       setProjectId(
-        visibleProjects.find((project) => project.id === requestedProjectId)?.id ??
-          visibleProjects[0]?.id ??
+        selectableExistingProjects.find((project) => project.id === requestedProjectId)?.id ??
+          selectableExistingProjects[0]?.id ??
           "",
       );
       setWalkInForm((current) => ({
@@ -800,6 +807,17 @@ export default function SessionWizardPage() {
       status: "completed",
     }).eq("id", sessionAppointment.id);
     if (appointmentUpdate.error) throw new Error(appointmentUpdate.error.message);
+    setAppointments((current) =>
+      current.map((item) =>
+        item.id === sessionAppointment.id
+          ? {
+              ...item,
+              appointment_type: completedSessionType(project.session_type, sessionOutcome),
+              status: "completed",
+            }
+          : item,
+      ),
+    );
 
     const sessionPayload = {
         appointment_id: sessionAppointment.id,
@@ -1090,7 +1108,11 @@ export default function SessionWizardPage() {
           walkInForm,
         }),
       );
-      router.push(`/projects/session/${nextResult.sessionId}/result`);
+      if (nextResult.projectClosed) {
+        router.push(`/projects/session/${nextResult.sessionId}/result`);
+      } else {
+        setStep("schedule");
+      }
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Session could not be saved.");
     } finally {
@@ -1187,7 +1209,7 @@ export default function SessionWizardPage() {
     }));
   }
 
-  const totalSteps = kind === "walk_in" ? 6 : 5;
+  const totalSteps = 6;
   const stepIndex =
     step === "kind"
       ? 1
@@ -1199,6 +1221,8 @@ export default function SessionWizardPage() {
             ? kind === "walk_in" ? 4 : 3
             : step === "payments"
               ? kind === "walk_in" ? 5 : 4
+              : step === "review"
+                ? kind === "walk_in" ? 6 : 5
               : totalSteps;
 
   return (
@@ -1341,7 +1365,7 @@ export default function SessionWizardPage() {
                   value={projectId}
                 >
                   <option value="">Select project</option>
-                  {projects.map((project) => (
+                  {existingSessionProjects.map((project) => (
                     <option key={project.id} value={project.id}>
                       {projectLabel(project)}
                     </option>
@@ -1421,74 +1445,6 @@ export default function SessionWizardPage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-md border border-[#d9d3c7] bg-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h5 className="font-bold">Schedule next appointments <span className="font-normal text-[#697178]">(optional)</span></h5>
-                    <p className="mt-1 text-sm text-[#697178]">Add future Appointments separately from the Session being recorded.</p>
-                  </div>
-                  <button
-                    className="h-10 rounded-md border border-[#236c8f] bg-white px-4 text-sm font-bold text-[#236c8f] hover:bg-[#e8f3f7] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={futureProjectAppointments.length >= 4}
-                    onClick={openFutureAppointment}
-                    type="button"
-                  >
-                    + Add next appointment
-                  </button>
-                </div>
-                {futureProjectAppointments.length ? (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {futureProjectAppointments.map((appointment) => (
-                      <div className="rounded-md border border-[#9ab6c3] bg-[#eef7fb] px-4 py-3" key={`future-${appointment.id}`}>
-                        <p className="font-black">{displayDateTime(appointment.starts_at)}</p>
-                        <p className="mt-1 text-xs font-semibold text-[#697178]">Future appointment</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-4 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#697178]">No additional appointments scheduled.</p>
-                )}
-                {futureProjectAppointments.length >= 4 ? (
-                  <p className="mt-3 text-xs font-semibold text-[#697178]">Four future appointments have been added.</p>
-                ) : null}
-              </div>
-              {futureAppointmentOpen ? (
-                <div className="mt-4 rounded-md border border-[#9ab6c3] bg-[#eef7fb] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h5 className="font-bold">Schedule a future appointment</h5>
-                      <p className="mt-1 text-sm text-[#5e6870]">Add up to four appointments while recording this session.</p>
-                    </div>
-                    <button className="text-sm font-semibold text-[#5e6870] hover:text-black" onClick={() => setFutureAppointmentOpen(false)} type="button">Close</button>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "existing" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("existing")} type="button">Connect existing</button>
-                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "new" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("new")} type="button">Create new</button>
-                  </div>
-                  {futureAppointmentMode === "existing" ? (
-                    linkableAppointments.length ? (
-                      <label className="mt-4 block max-w-xl text-sm font-semibold">
-                        Existing appointment
-                        <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setFutureAppointmentId(event.target.value)} value={futureAppointmentId}>
-                          {linkableAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointmentLabel(appointment)}</option>)}
-                        </select>
-                      </label>
-                    ) : (
-                      <div className="mt-4 max-w-xl rounded-md border border-dashed border-[#9ab6c3] bg-white px-4 py-5">
-                        <p className="text-sm font-bold">No available appointments to connect.</p>
-                        <p className="mt-1 text-xs text-[#697178]">This client has no scheduled appointment that is waiting to be linked to a project.</p>
-                      </div>
-                    )
-                  ) : (
-                    <div className="mt-4 grid max-w-3xl gap-3 md:grid-cols-3">
-                      <label className="text-sm font-semibold">Date<DatePicker onChange={(value) => setFutureAppointment((current) => ({ ...current, date: value }))} value={futureAppointment.date} /></label>
-                      <label className="text-sm font-semibold">Start<TimeSelect endHour={24} interval={30} onChange={(value) => { const end = addMinutesToTime(futureAppointment.date, value, selectedArtistDuration); setFutureAppointment((current) => ({ ...current, endTime: end.time, startTime: value })); }} startHour={8} value={futureAppointment.startTime} /></label>
-                      <label className="text-sm font-semibold">Hours<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => { const end = addMinutesToTime(futureAppointment.date, futureAppointment.startTime, Number(event.target.value) * 60); setFutureAppointment((current) => ({ ...current, endTime: end.time })); }} value={hoursBetween(futureAppointment.startTime, futureAppointment.endTime)}>{Array.from({ length: 10 }, (_, hour) => <option key={hour + 1} value={hour + 1}>{hour + 1} hour{hour ? "s" : ""}</option>)}</select></label>
-                    </div>
-                  )}
-                  <button className="mt-4 h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-50" disabled={futureAppointmentSaving || (futureAppointmentMode === "existing" && !linkableAppointments.length)} onClick={saveFutureAppointment} type="button">{futureAppointmentSaving ? "Saving..." : futureAppointmentMode === "existing" ? "Connect appointment" : "Schedule appointment"}</button>
-                </div>
-              ) : null}
               {appointmentMode === "manual" ? (
                 <div className="grid max-w-xl gap-3">
                   <label className="text-sm font-semibold">
@@ -1768,38 +1724,30 @@ export default function SessionWizardPage() {
                   </p>
                 </div>
                 <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                  <p className="text-xs font-bold uppercase text-[#697178]">Tattoo / Tip</p>
-                  <p className="mt-1 font-semibold">
-                    {money(Number(pendingForm.tattooAmount || 0))} / {money(Number(pendingForm.tipAmount || 0))}
-                  </p>
-                  <div className="mt-2 grid gap-1 text-sm text-[#4d555c]">
-                    <p>
-                      <span className="font-semibold text-[#697178]">Tattoo:</span>{" "}
-                      {paymentBreakdown(pendingForm.paymentGrid, "tattoo")}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[#697178]">Tip:</span>{" "}
-                      {paymentBreakdown(pendingForm.paymentGrid, "tip")}
-                    </p>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-xs font-bold uppercase text-[#697178]">Tattoo</p>
+                    <p className="text-xl font-black">{money(Number(pendingForm.tattooAmount || 0))}</p>
                   </div>
+                  <p className="mt-2 text-sm text-[#4d555c]">{paymentBreakdown(pendingForm.paymentGrid, "tattoo")}</p>
+                  {Number(pendingForm.depositAppliedAmount || 0) > 0 ? (
+                    <div className="mt-3 rounded-md border-2 border-[#2f6658] bg-[#eef8ea] px-3 py-3">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-black text-[#2f6658]">DEPOSIT APPLIED TO TATTOO</span>
+                        <span className="text-xl font-black text-[#2f6658]">{money(Number(pendingForm.depositAppliedAmount || 0))}</span>
+                      </div>
+                      <div className="mt-2 flex justify-between gap-3 border-t border-[#b8d5ae] pt-2 text-sm">
+                        <span className="font-semibold text-[#355b27]">Deposit remaining after Session</span>
+                        <span className="font-black text-[#355b27]">{money(Math.max(availableDeposit - Number(pendingForm.depositAppliedAmount || 0), 0))}</span>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-[#d9d3c7] pt-3">
+                    <p className="text-xs font-bold uppercase text-[#697178]">Tip</p>
+                    <p className="font-black">{money(Number(pendingForm.tipAmount || 0))}</p>
+                  </div>
+                  <p className="mt-2 text-sm text-[#4d555c]">{paymentBreakdown(pendingForm.paymentGrid, "tip")}</p>
                 </div>
               </div>
-              {kind === "existing" ? (
-                <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${["One Done", "Walk-in"].includes(selectedProject?.session_type ?? "") || sessionOutcome === "closing" ? "border-[#2f6658] bg-[#eef8ea]" : "border-[#d9d3c7]"}`}>
-                  <div className="grid grid-cols-2 gap-3">
-                    <span className="font-semibold text-[#697178]">Deposit before Session</span>
-                    <span className="text-right font-bold">{money(availableDeposit)}</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-3">
-                    <span className="font-semibold text-[#697178]">Deposit applied</span>
-                    <span className="text-right font-bold">-{money(Number(pendingForm.depositAppliedAmount || 0))}</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-3 border-t border-[#b8d5ae] pt-2">
-                    <span className="font-black text-[#355b27]">Remaining deposit</span>
-                    <span className="text-right font-black text-[#355b27]">{money(Math.max(availableDeposit - Number(pendingForm.depositAppliedAmount || 0), 0))}</span>
-                  </div>
-                </div>
-              ) : null}
               <div className="mt-5 flex justify-between gap-2">
                 <button
                   className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]"
@@ -1815,6 +1763,97 @@ export default function SessionWizardPage() {
                   type="button"
                 >
                   {saving ? "Saving..." : editingSavedSession ? "Update session" : "Complete session"}
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {step === "schedule" && saveResult ? (
+            <section className="rounded-md border border-[#d9d3c7] bg-white px-5 py-5 shadow-sm">
+              <div className="border-b border-[#e5dfd4] pb-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#476b33]">Session saved</p>
+                <h4 className="mt-1 text-2xl font-semibold">Schedule next appointments</h4>
+                <p className="mt-2 text-sm text-[#697178]">The completed Session is already saved. Future scheduling is optional and separate.</p>
+              </div>
+
+              <div className="mt-5 rounded-md border border-[#d9d3c7] bg-[#fdfbf7] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-bold">{saveResult.clientName}</p>
+                    <p className="mt-1 text-sm text-[#697178]">{saveResult.projectName}</p>
+                  </div>
+                  <button
+                    className="h-10 rounded-md border border-[#236c8f] bg-white px-4 text-sm font-bold text-[#236c8f] hover:bg-[#e8f3f7] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={futureProjectAppointments.length >= 4}
+                    onClick={openFutureAppointment}
+                    type="button"
+                  >
+                    + Add next appointment
+                  </button>
+                </div>
+
+                {futureProjectAppointments.length ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {futureProjectAppointments.map((appointment) => (
+                      <div className="rounded-md border border-[#9ab6c3] bg-[#eef7fb] px-4 py-3" key={`future-${appointment.id}`}>
+                        <p className="font-black">{displayDateTime(appointment.starts_at)}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#697178]">Future appointment</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#697178]">No future appointments scheduled.</p>
+                )}
+                {futureProjectAppointments.length >= 4 ? (
+                  <p className="mt-3 text-xs font-semibold text-[#697178]">Four future appointments have been added.</p>
+                ) : null}
+              </div>
+
+              {futureAppointmentOpen ? (
+                <div className="mt-4 rounded-md border border-[#9ab6c3] bg-[#eef7fb] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h5 className="font-bold">Add a future appointment</h5>
+                      <p className="mt-1 text-sm text-[#5e6870]">Connect an existing Appointment or create a new one.</p>
+                    </div>
+                    <button className="text-sm font-semibold text-[#5e6870] hover:text-black" onClick={() => setFutureAppointmentOpen(false)} type="button">Close</button>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "existing" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("existing")} type="button">Connect existing</button>
+                    <button className={`h-9 rounded-md px-3 text-sm font-semibold ${futureAppointmentMode === "new" ? "bg-[#1f2428] text-white" : "border border-[#cfc7b8] bg-white"}`} onClick={() => setFutureAppointmentMode("new")} type="button">Create new</button>
+                  </div>
+                  {futureAppointmentMode === "existing" ? (
+                    linkableAppointments.length ? (
+                      <label className="mt-4 block max-w-xl text-sm font-semibold">
+                        Existing appointment
+                        <select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => setFutureAppointmentId(event.target.value)} value={futureAppointmentId}>
+                          {linkableAppointments.map((appointment) => <option key={appointment.id} value={appointment.id}>{appointmentLabel(appointment)}</option>)}
+                        </select>
+                      </label>
+                    ) : (
+                      <div className="mt-4 max-w-xl rounded-md border border-dashed border-[#9ab6c3] bg-white px-4 py-5">
+                        <p className="text-sm font-bold">No available appointments to connect.</p>
+                        <p className="mt-1 text-xs text-[#697178]">This client has no unlinked scheduled Appointment.</p>
+                      </div>
+                    )
+                  ) : (
+                    <div className="mt-4 grid max-w-3xl gap-3 md:grid-cols-3">
+                      <label className="text-sm font-semibold">Date<DatePicker onChange={(value) => setFutureAppointment((current) => ({ ...current, date: value }))} value={futureAppointment.date} /></label>
+                      <label className="text-sm font-semibold">Start<TimeSelect endHour={24} interval={30} onChange={(value) => { const end = addMinutesToTime(futureAppointment.date, value, selectedArtistDuration); setFutureAppointment((current) => ({ ...current, endTime: end.time, startTime: value })); }} startHour={8} value={futureAppointment.startTime} /></label>
+                      <label className="text-sm font-semibold">Hours<select className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3" onChange={(event) => { const end = addMinutesToTime(futureAppointment.date, futureAppointment.startTime, Number(event.target.value) * 60); setFutureAppointment((current) => ({ ...current, endTime: end.time })); }} value={hoursBetween(futureAppointment.startTime, futureAppointment.endTime)}>{Array.from({ length: 10 }, (_, hour) => <option key={hour + 1} value={hour + 1}>{hour + 1} hour{hour ? "s" : ""}</option>)}</select></label>
+                    </div>
+                  )}
+                  <button className="mt-4 h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-50" disabled={futureAppointmentSaving || (futureAppointmentMode === "existing" && !linkableAppointments.length)} onClick={saveFutureAppointment} type="button">{futureAppointmentSaving ? "Saving..." : futureAppointmentMode === "existing" ? "Connect appointment" : "Schedule appointment"}</button>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  className="h-10 rounded-md bg-[#1f2428] px-5 text-sm font-semibold text-white hover:bg-[#30373d]"
+                  onClick={() => router.push(`/projects/session/${saveResult.sessionId}/result`)}
+                  type="button"
+                >
+                  Continue to receipt
                 </button>
               </div>
             </section>
