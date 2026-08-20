@@ -38,12 +38,6 @@ type PaymentRecord = {
   amount: number;
 };
 
-type ProjectDepositRecord = {
-  amount: number;
-  available: boolean;
-  deposit_applications: Array<{ amount: number }> | null;
-};
-
 function relatedOne<T>(value: Relation<T>) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
@@ -104,7 +98,6 @@ export default function SessionResultPage() {
   const [session, setSession] = useState<SessionResultRecord | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [depositApplied, setDepositApplied] = useState(0);
-  const [depositRemaining, setDepositRemaining] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -147,34 +140,6 @@ export default function SessionResultPage() {
         return;
       }
       const nextSession = sessionResult.data as unknown as SessionResultRecord;
-      const nextProject = relatedOne(nextSession.project);
-      if (nextProject) {
-        const projectDepositResult = await supabase
-          .from("deposits")
-          .select("amount, available, deposit_applications(amount)")
-          .eq("project_id", nextProject.id);
-        if (projectDepositResult.error) {
-          setError(projectDepositResult.error.message);
-          setLoading(false);
-          return;
-        }
-        setDepositRemaining(
-          ((projectDepositResult.data ?? []) as ProjectDepositRecord[])
-            .filter((deposit) => deposit.available)
-            .reduce(
-              (sum, deposit) =>
-                sum + Math.max(
-                  Number(deposit.amount) -
-                    (deposit.deposit_applications ?? []).reduce(
-                      (applied, application) => applied + Number(application.amount),
-                      0,
-                    ),
-                  0,
-                ),
-              0,
-            ),
-        );
-      }
       setSession(nextSession);
       setPayments((paymentResult.data ?? []) as PaymentRecord[]);
       setDepositApplied(
@@ -649,15 +614,9 @@ export default function SessionResultPage() {
                       </p>
                     </div>
                     {type === "tattoo" && depositApplied > 0 ? (
-                      <div className="my-2 rounded-md border-2 border-[#2f6658] bg-[#eef8ea] px-2 py-2 text-[#2f6658]">
-                        <div className="receipt-payment-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
-                          <span className="receipt-payment-label font-black">DEPOSIT APPLIED</span>
-                          <span className="receipt-payment-amount font-black">{receiptMoney(depositApplied)}</span>
-                        </div>
-                        <div className="receipt-payment-line mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 border-t border-[#b8d5ae] pt-1">
-                          <span className="receipt-payment-label font-bold">Deposit remaining</span>
-                          <span className="receipt-payment-amount font-black">{receiptMoney(depositRemaining)}</span>
-                        </div>
+                      <div className="receipt-payment-line receipt-method-line grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-2">
+                        <span className="receipt-payment-label text-black">Deposit applied</span>
+                        <span className="receipt-payment-amount font-bold leading-none text-black">{receiptMoney(depositApplied)}</span>
                       </div>
                     ) : null}
                     {(["cash", "credit_card", "app"] as const).filter((method) =>
@@ -692,6 +651,11 @@ export default function SessionResultPage() {
         <div className="mx-auto mt-4 flex w-full max-w-[620px] flex-wrap justify-center gap-2 print:hidden">
           <button className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white" onClick={() => window.print()} type="button">Print</button>
           {isReprint ? <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={returnHref}>Back</Link> : null}
+          {!isReprint && project?.status === "in_progress" ? (
+            <Link className="inline-flex h-10 items-center rounded-md border border-[#236c8f] px-4 text-sm font-semibold text-[#236c8f]" href={`/projects/session/wizard?resumeScheduleId=${session.id}`}>
+              Back to scheduling
+            </Link>
+          ) : null}
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={`/projects/session/wizard?editSessionId=${session.id}`}>Edit</Link>
           <button className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] disabled:opacity-60" disabled={deleting} onClick={deleteSession} type="button">{deleting ? "Deleting..." : "Delete"}</button>
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href="/projects/session/wizard">Next session</Link>

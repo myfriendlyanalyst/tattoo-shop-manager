@@ -445,9 +445,12 @@ export default function SessionWizardPage() {
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
       setDepositApplications((applicationResult.data ?? []) as DepositApplicationRecord[]);
 
-      const editSessionId = new URLSearchParams(window.location.search).get("editSessionId") ?? "";
-      const storedEdit = editSessionId
-        ? window.sessionStorage.getItem(`session-wizard-${editSessionId}`)
+      const wizardParams = new URLSearchParams(window.location.search);
+      const editSessionId = wizardParams.get("editSessionId") ?? "";
+      const resumeScheduleId = wizardParams.get("resumeScheduleId") ?? "";
+      const restoredSessionId = editSessionId || resumeScheduleId;
+      const storedEdit = restoredSessionId
+        ? window.sessionStorage.getItem(`session-wizard-${restoredSessionId}`)
         : null;
 
       if (storedEdit) {
@@ -474,8 +477,8 @@ export default function SessionWizardPage() {
         setSavedDraft(restored.savedDraft ?? null);
         setWalkInAppointment((current) => restored.walkInAppointment ?? current);
         setWalkInForm(restored.walkInForm ?? emptyWalkInForm());
-        setEditingSavedSession(true);
-        setStep("payments");
+        setEditingSavedSession(Boolean(editSessionId));
+        setStep(resumeScheduleId ? "schedule" : "payments");
       }
       setLoading(false);
     }
@@ -1847,15 +1850,17 @@ export default function SessionWizardPage() {
                 </div>
               ) : null}
 
-              <div className="mt-5 flex justify-end">
-                <button
-                  className="h-10 rounded-md bg-[#1f2428] px-5 text-sm font-semibold text-white hover:bg-[#30373d]"
-                  onClick={() => router.push(`/projects/session/${saveResult.sessionId}/result`)}
-                  type="button"
-                >
-                  Continue to receipt
-                </button>
-              </div>
+              {!futureAppointmentOpen ? (
+                <div className="mt-5 flex justify-end border-t border-[#e5dfd4] pt-5">
+                  <button
+                    className="h-10 rounded-md border-2 border-[#1f2428] bg-white px-5 text-sm font-bold text-[#1f2428] hover:bg-[#eee8dd]"
+                    onClick={() => router.push(`/projects/session/${saveResult.sessionId}/result`)}
+                    type="button"
+                  >
+                    Finish scheduling &amp; view receipt
+                  </button>
+                </div>
+              ) : null}
             </section>
           ) : null}
 
