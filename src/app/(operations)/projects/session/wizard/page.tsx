@@ -116,6 +116,7 @@ type SaveResult = {
   depositApplied: number;
   projectId: string;
   projectName: string;
+  projectClosed: boolean;
   sessionId: string;
   kind: SessionKind;
   tattooTotal: number;
@@ -318,6 +319,13 @@ export default function SessionWizardPage() {
     () => selectedAppointments.find((appointment) => appointment.id === effectiveAppointmentId) ?? null,
     [effectiveAppointmentId, selectedAppointments],
   );
+  const futureProjectAppointments = useMemo(
+    () =>
+      selectedAppointments.filter(
+        (appointment) => appointmentMode !== "scheduled" || appointment.id !== effectiveAppointmentId,
+      ),
+    [appointmentMode, effectiveAppointmentId, selectedAppointments],
+  );
   const selectedDeposits = useMemo(
     () => deposits.filter((deposit) => deposit.project_id === projectId),
     [deposits, projectId],
@@ -502,6 +510,10 @@ export default function SessionWizardPage() {
   }
 
   function openFutureAppointment() {
+    if (futureProjectAppointments.length >= 4) {
+      setError("Up to four future appointments can be scheduled from this Session.");
+      return;
+    }
     const date = localDateValue();
     const startTime = timeValue();
     const end = addMinutesToTime(date, startTime, selectedArtistDuration);
@@ -921,7 +933,20 @@ export default function SessionWizardPage() {
     }
 
     const closesProject = ["One Done", "Walk-in"].includes(project.session_type ?? "") || sessionOutcome === "closing";
-    await supabase.from("projects").update({ status: closesProject ? "completed" : "in_progress" }).eq("id", project.id);
+    const projectStatusResult = await supabase
+      .from("projects")
+      .update({ status: closesProject ? "completed" : "in_progress" })
+      .eq("id", project.id)
+      .select("id, status")
+      .single();
+    if (projectStatusResult.error) {
+      throw new Error(
+        `The Session was saved, but the Project status could not be updated: ${projectStatusResult.error.message}`,
+      );
+    }
+    if (closesProject && projectStatusResult.data.status !== "completed") {
+      throw new Error("The Session was saved, but the Project was not moved to Completed.");
+    }
     setDepositApplications(nextDepositApplications);
 
     return {
@@ -935,6 +960,7 @@ export default function SessionWizardPage() {
       depositApplied: depositAppliedAmount,
       projectId: project.id,
       projectName: project.subject,
+      projectClosed: closesProject,
       sessionId: sessionResult.data.id,
       tattooTotal: tattooAmount,
       tipTotal: tipAmount,
@@ -1361,10 +1387,15 @@ export default function SessionWizardPage() {
                   {selectedProject?.session_type} — project completes with this session
                 </p>
               )}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <div className="rounded-md border border-[#d9d3c7] bg-white p-4">
+                <div>
+                  <h5 className="font-bold">Session to record</h5>
+                  <p className="mt-1 text-sm text-[#697178]">Connect this completed Session to its scheduled Appointment, or record it without one.</p>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {selectedAppointments.map((appointment) => (
                     <button
-                      className={`min-h-40 rounded-md border-2 px-4 py-4 text-left text-sm transition ${
+                      className={`min-h-32 rounded-md border-2 px-4 py-4 text-left text-sm transition ${
                         appointmentMode === "scheduled" && effectiveAppointmentId === appointment.id
                           ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm"
                           : "border-[#d9d3c7] bg-white hover:border-[#4f91b0] hover:bg-[#eef7fb]"
@@ -1378,20 +1409,8 @@ export default function SessionWizardPage() {
                       <span className="mt-1 block text-xs capitalize text-[#697178]">{appointment.status}</span>
                     </button>
                   ))}
-                  {Array.from({ length: Math.max(0, 4 - selectedAppointments.length) }, (_, index) => (
-                    <button
-                      className="flex min-h-40 flex-col items-center justify-center rounded-md border-2 border-dashed border-[#9ab6c3] bg-white px-4 text-center transition hover:border-[#236c8f] hover:bg-[#e8f3f7]"
-                      key={`empty-appointment-${index}`}
-                      onClick={openFutureAppointment}
-                      type="button"
-                    >
-                      <span className="text-3xl font-light text-[#236c8f]">+</span>
-                      <span className="mt-2 text-sm font-bold">Schedule appointment</span>
-                      <span className="mt-1 text-xs text-[#697178]">Connect an existing appointment or add a new one.</span>
-                    </button>
-                  ))}
                   <button
-                    className={`min-h-40 rounded-md border-2 px-4 py-4 text-left transition ${appointmentMode === "manual" ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm" : "border-dashed border-[#9ab6c3] bg-white hover:border-[#236c8f] hover:bg-[#eef7fb]"}`}
+                    className={`min-h-32 rounded-md border-2 px-4 py-4 text-left transition ${appointmentMode === "manual" ? "border-[#236c8f] bg-[#e8f3f7] shadow-sm" : "border-dashed border-[#9ab6c3] bg-white hover:border-[#236c8f] hover:bg-[#eef7fb]"}`}
                     onClick={() => { setAppointmentMode("manual"); setAppointmentId(""); }}
                     type="button"
                   >
@@ -1399,6 +1418,39 @@ export default function SessionWizardPage() {
                     <span className="mt-4 block text-xl font-black">Record session</span>
                     <span className="mt-2 block text-xs text-[#697178]">Enter a completed session without a scheduled appointment.</span>
                   </button>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-md border border-[#d9d3c7] bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h5 className="font-bold">Schedule next appointments <span className="font-normal text-[#697178]">(optional)</span></h5>
+                    <p className="mt-1 text-sm text-[#697178]">Add future Appointments separately from the Session being recorded.</p>
+                  </div>
+                  <button
+                    className="h-10 rounded-md border border-[#236c8f] bg-white px-4 text-sm font-bold text-[#236c8f] hover:bg-[#e8f3f7] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={futureProjectAppointments.length >= 4}
+                    onClick={openFutureAppointment}
+                    type="button"
+                  >
+                    + Add next appointment
+                  </button>
+                </div>
+                {futureProjectAppointments.length ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {futureProjectAppointments.map((appointment) => (
+                      <div className="rounded-md border border-[#9ab6c3] bg-[#eef7fb] px-4 py-3" key={`future-${appointment.id}`}>
+                        <p className="font-black">{displayDateTime(appointment.starts_at)}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#697178]">Future appointment</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-md bg-[#f7f2e9] px-3 py-3 text-sm text-[#697178]">No additional appointments scheduled.</p>
+                )}
+                {futureProjectAppointments.length >= 4 ? (
+                  <p className="mt-3 text-xs font-semibold text-[#697178]">Four future appointments have been added.</p>
+                ) : null}
               </div>
               {futureAppointmentOpen ? (
                 <div className="mt-4 rounded-md border border-[#9ab6c3] bg-[#eef7fb] p-4">
@@ -1733,11 +1785,19 @@ export default function SessionWizardPage() {
                 </div>
               </div>
               {kind === "existing" ? (
-                <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${selectedProject?.session_type === "Multiple Session" && sessionOutcome === "closing" ? "border-[#2f6658] bg-[#eef8ea]" : "border-[#d9d3c7]"}`}>
-                  <div><span className="font-semibold text-[#697178]">Deposit applied</span><span className="float-right font-bold">{money(Number(pendingForm.depositAppliedAmount || 0))}</span></div>
-                  {selectedProject?.session_type === "Multiple Session" && sessionOutcome === "closing" ? (
-                    <div className="mt-2 border-t border-[#b8d5ae] pt-2"><span className="font-black text-[#355b27]">Balance after closing</span><span className="float-right font-black text-[#355b27]">{money(Math.max(availableDeposit - Number(pendingForm.depositAppliedAmount || 0), 0))}</span></div>
-                  ) : null}
+                <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${["One Done", "Walk-in"].includes(selectedProject?.session_type ?? "") || sessionOutcome === "closing" ? "border-[#2f6658] bg-[#eef8ea]" : "border-[#d9d3c7]"}`}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <span className="font-semibold text-[#697178]">Deposit before Session</span>
+                    <span className="text-right font-bold">{money(availableDeposit)}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <span className="font-semibold text-[#697178]">Deposit applied</span>
+                    <span className="text-right font-bold">-{money(Number(pendingForm.depositAppliedAmount || 0))}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-3 border-t border-[#b8d5ae] pt-2">
+                    <span className="font-black text-[#355b27]">Remaining deposit</span>
+                    <span className="text-right font-black text-[#355b27]">{money(Math.max(availableDeposit - Number(pendingForm.depositAppliedAmount || 0), 0))}</span>
+                  </div>
                 </div>
               ) : null}
               <div className="mt-5 flex justify-between gap-2">

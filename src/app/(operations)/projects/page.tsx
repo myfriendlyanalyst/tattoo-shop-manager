@@ -1967,18 +1967,18 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 px-4 py-4 md:grid-cols-3">
-                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <p className="text-sm text-[#697178]">Artist</p>
-                      <p className="mt-1 font-semibold">{artistName(selectedProject)}</p>
+                  <div className="grid gap-2 px-4 py-2 md:grid-cols-3">
+                    <div className="flex min-h-11 items-center gap-4 rounded-md bg-[#f7f2e9] px-3 py-2">
+                      <p className="shrink-0 text-sm text-[#697178]">Artist</p>
+                      <p className="truncate font-bold">{artistName(selectedProject)}</p>
                     </div>
-                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm text-[#697178]">Project type</p>
+                    <div className="rounded-md bg-[#f7f2e9] px-3 py-2">
+                      <div className="flex min-h-7 items-center justify-between gap-2">
+                        <div className="flex min-w-0 flex-1 items-center gap-4">
+                          <p className="shrink-0 text-sm text-[#697178]">Project type</p>
                           {editingProjectType ? (
                             <select
-                              className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
+                              className="h-9 min-w-0 flex-1 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold"
                               disabled={saving}
                               onChange={(event) => setProjectTypeDraft(event.target.value)}
                               value={projectTypeDraft}
@@ -1988,7 +1988,7 @@ export default function ProjectsPage() {
                               ))}
                             </select>
                           ) : (
-                            <p className="mt-1 font-semibold">
+                            <p className="truncate font-bold">
                               {selectedProject.session_type || "Multiple Session"}
                             </p>
                           )}
@@ -2036,16 +2036,20 @@ export default function ProjectsPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
-                      <p className="text-sm text-[#697178]">Waiver signed</p>
-                      <p className="mt-1 font-semibold">
-                        {displayDate(selectedProject.waiver_signed_at)}
-                      </p>
+                    <div className="flex min-h-11 items-center justify-between gap-3 rounded-md bg-[#f7f2e9] px-3 py-2">
+                      {waiverLabel(selectedProject) === "Signed" ? (
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#2f6658]">Waiver signed</p>
+                          <p className="truncate text-xs text-[#697178]">{displayDate(selectedProject.waiver_signed_at)}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xl font-black leading-none text-red-600">No waiver yet</p>
+                      )}
                       {projectView === "archive" ? (
-                        <p className="mt-2 text-xs font-semibold text-[#697178]">Read only</p>
-                      ) : !selectedProject.waiver_signed ? (
+                        <p className="shrink-0 text-xs font-semibold text-[#697178]">Read only</p>
+                      ) : waiverLabel(selectedProject) !== "Signed" ? (
                         <button
-                          className="mt-2 h-8 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="h-8 shrink-0 rounded-md border border-[#cfc7b8] px-2 text-xs font-semibold hover:bg-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={saving}
                           onClick={() => markWaiverSigned(selectedProject)}
                           type="button"
@@ -2054,7 +2058,7 @@ export default function ProjectsPage() {
                         </button>
                       ) : (
                         <button
-                          className="mt-2 h-8 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="h-8 shrink-0 rounded-md border border-[#8a3030] px-2 text-xs font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={saving}
                           onClick={() => markWaiverUnsigned(selectedProject)}
                           type="button"
@@ -2068,12 +2072,15 @@ export default function ProjectsPage() {
 
                 <div className="min-h-0 flex flex-1 flex-col gap-6 overflow-y-auto p-4">
                   {projectView === "archive" ? (
-                    <div className="order-0 rounded-md border border-[#b7b0a4] bg-[#ece9e2] px-4 py-3">
-                      <p className="text-sm font-black">Archived project — record locked</p>
+                    <div className={`order-0 shrink-0 rounded-md border px-4 py-3 ${selectedProject.status === "completed" ? "border-red-300 bg-red-50" : "border-[#b7b0a4] bg-[#ece9e2]"}`}>
+                      <p className={`font-black ${selectedProject.status === "completed" ? "text-2xl text-red-600" : "text-sm"}`}>
+                        {selectedProject.status === "completed" ? "CLOSED" : "Archived project"}
+                      </p>
+                      <p className="mt-1 text-sm font-bold">Record locked</p>
                       <p className="mt-1 text-xs text-[#5e666c]">Project, waiver, Session, and Deposit records are read-only until this project is reopened.</p>
                     </div>
                   ) : null}
-                  <section className="order-1 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <section className="order-1 shrink-0 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                     <div className="border-b border-[#e5dfd4] px-4 py-3">
                       <h3 className="text-sm font-semibold">Client & tattoo details</h3>
                     </div>
@@ -2126,7 +2133,7 @@ export default function ProjectsPage() {
                     </div>
                   </section>
 
-                  <section className="order-3 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <section className="order-3 shrink-0 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5dfd4] px-4 py-4">
                     <h3 className="text-base font-semibold">Session entries</h3>
                     {projectView !== "archive" ? <Link
@@ -2220,7 +2227,7 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                  <section className={`order-2 overflow-hidden rounded-md border-2 bg-white shadow-sm ${(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "border-[#2f6658]" : "border-[#9b9fa2]"}`}>
+                  <section className={`order-2 shrink-0 overflow-hidden rounded-md border-2 bg-white shadow-sm ${(selectedProjectDetail?.depositRemaining ?? 0) > 0 ? "border-[#2f6658]" : "border-[#9b9fa2]"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e5dfd4] bg-[#f7f2e9] px-4 py-4">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.1em] text-[#697178]">Deposit balance</p>
@@ -2443,7 +2450,7 @@ export default function ProjectsPage() {
                   </div>
                 </section>
 
-                <div className="order-4 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
+                <div className="order-4 shrink-0 rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm">
                   <p className="text-sm font-semibold">Project status actions</p>
                   {projectView === "archive" ? (
                     <div className="mt-3">
@@ -2530,7 +2537,7 @@ export default function ProjectsPage() {
                 </div>
 
                 <button
-                  className="order-5 h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
+                  className="order-5 h-10 shrink-0 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm font-semibold hover:bg-[#eee8dd]"
                   onClick={closeProjectDetail}
                   type="button"
                 >

@@ -25,6 +25,7 @@ type SessionResultRecord = {
     id: string;
     subject: string;
     session_type: string | null;
+    status: string;
     customer: Relation<{ name: string; email: string | null; phone: string | null }>;
     artist: Relation<{ display_name: string }>;
   }>;
@@ -109,7 +110,7 @@ export default function SessionResultPage() {
         supabase
           .from("session_entries")
           .select(
-            "id, created_by, entered_at, tattoo_amount, tip_amount, memo, appointment:appointments(id, starts_at, ends_at, appointment_type), project:projects(id, subject, session_type, customer:customers(name, email, phone), artist:staff(display_name))",
+            "id, created_by, entered_at, tattoo_amount, tip_amount, memo, appointment:appointments(id, starts_at, ends_at, appointment_type), project:projects(id, subject, session_type, status, customer:customers(name, email, phone), artist:staff(display_name))",
           )
           .eq("id", sessionId)
           .single(),
@@ -179,6 +180,7 @@ export default function SessionResultPage() {
   const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
   const placement = placementLabel(project?.subject, customer?.name ?? null);
   const sessionType = appointment?.appointment_type || project?.session_type || "Session";
+  const projectClosed = project?.status === "completed";
 
   async function deleteSession() {
     if (!session || !window.confirm("Delete this session?")) return;
@@ -561,6 +563,12 @@ export default function SessionResultPage() {
 
         {session ? (
           <>
+            {projectClosed ? (
+              <div className="print:hidden mb-5 rounded-md border-2 border-red-400 bg-red-50 px-4 py-4 text-center">
+                <p className="text-3xl font-black tracking-[0.08em] text-red-600">PROJECT CLOSED</p>
+                <p className="mt-1 text-sm font-bold text-red-700">Completed and moved to Project Archive</p>
+              </div>
+            ) : null}
             <div className="receipt-header border-b-2 border-[#176783] pb-4">
               {isReprint ? <p className="mb-2 text-center text-lg font-black tracking-[0.2em] text-black">REPRINT</p> : null}
               <p className="receipt-label text-sm font-bold uppercase tracking-[0.1em] text-black">Session completed by</p>
