@@ -290,6 +290,14 @@ function waiverLabel(project: ProjectRecord) {
   return "Missing";
 }
 
+function waiverStatusClasses(project: ProjectRecord) {
+  const status = waiverLabel(project);
+
+  if (status === "Signed") return "bg-[#e4f1df] text-[#2f6658]";
+  if (status === "Sent") return "bg-[#f5ecd8] text-[#805f1f]";
+  return "bg-[#f8dddd] text-red-700";
+}
+
 function artistName(project: ProjectRecord) {
   return relatedOne(project.artist)?.display_name ?? "Unassigned";
 }
@@ -1893,14 +1901,24 @@ export default function ProjectsPage() {
                           }}
                           type="button"
                         >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-base font-bold">{customerName(project)}</p>
-                              <p className="mt-1 truncate text-sm text-[#697178]">Placement: {project.subject}</p>
-                              <p className="mt-1 truncate text-xs text-[#8a8174]">
-                                {project.session_type ?? "Project"} · Created {displayDate(project.created_at)} · {project.size || "Size not set"}
+                          <div className="flex flex-wrap items-center gap-3 md:flex-nowrap md:gap-4">
+                            <p className="min-w-0 shrink-0 truncate text-base font-bold md:w-40">
+                              {customerName(project)}
+                            </p>
+                            <div className="min-w-0 flex-1 text-xs text-[#697178]">
+                              <p className="truncate">
+                                <span className="font-semibold text-[#4d555c]">Placement:</span>{" "}
+                                {memoField(project.memo, "Placement") || "Not set"}
+                              </p>
+                              <p className="mt-0.5 truncate text-[#8a8174]">
+                                {project.session_type ?? "Project"} · {project.size || "Size not set"} · Created {displayDate(project.created_at)}
                               </p>
                             </div>
+                            <span
+                              className={`shrink-0 rounded-md px-3 py-2 text-sm font-black ${waiverStatusClasses(project)}`}
+                            >
+                              Waiver {waiverLabel(project)}
+                            </span>
                             <span
                               className={`shrink-0 rounded-md px-4 py-2 text-base font-black ${projectStatusClasses(
                                 project.status,
