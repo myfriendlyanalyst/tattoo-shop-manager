@@ -526,6 +526,27 @@ export default function ProjectsPage() {
   const [operationsContext, setOperationsContext] = useState<OperationsContext | null>(null);
   const isArtistUser = operationsContext?.isArtist === true;
 
+  const artistFilterOptions = useMemo(() => {
+    const artists = new Map<string, string>();
+
+    staff.forEach((member) => {
+      if (member.active && member.role.toLowerCase() === "artist") {
+        artists.set(member.id, member.display_name);
+      }
+    });
+
+    projects.forEach((project) => {
+      const projectArtist = relatedOne(project.artist);
+      if (project.artist_id && projectArtist?.display_name) {
+        artists.set(project.artist_id, projectArtist.display_name);
+      }
+    });
+
+    return Array.from(artists, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [projects, staff]);
+
   const filteredProjects = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -1811,11 +1832,9 @@ export default function ProjectsPage() {
                 value={artistFilter}
               >
                 <option value="all">All artists</option>
-                {staff
-                  .filter((member) => member.active && member.role === "Artist")
-                  .map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.display_name}
+                {artistFilterOptions.map((artist) => (
+                    <option key={artist.id} value={artist.id}>
+                      {artist.name}
                     </option>
                   ))}
               </select>
