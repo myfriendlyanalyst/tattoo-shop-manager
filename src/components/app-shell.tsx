@@ -19,7 +19,7 @@ const navItems = [
     label: "PROJECTS",
     href: "/projects",
     children: [
-      { label: "NEW PROJECT / DEPOSIT", href: "/projects/new" },
+      { label: "DEPOSIT / NEW PROJECT", href: "/projects/new" },
       { label: "SESSION", href: "/projects/session/wizard" },
       { label: "PROJECT LIST", href: "/projects" },
     ],

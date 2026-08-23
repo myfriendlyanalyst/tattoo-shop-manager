@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
 import { SessionEntryForm, type SessionForm } from "@/components/session-entry-form";
 import { DateTimeSelect } from "@/components/time-select";
@@ -87,6 +88,13 @@ type SessionPaymentRecord = {
   payment_method: string;
   amount: number;
   memo: string | null;
+};
+
+type WaiverFileRecord = {
+  id: string;
+  project_id: string | null;
+  storage_path: string;
+  original_name: string | null;
 };
 
 type SessionEntryRecord = {
@@ -280,20 +288,6 @@ function waiverLabel(project: ProjectRecord) {
   }
 
   return "Missing";
-}
-
-function waiverClasses(project: ProjectRecord) {
-  const status = waiverLabel(project);
-
-  if (status === "Signed") {
-    return "bg-[#e8f0ee] text-[#2f6658]";
-  }
-
-  if (status === "Sent") {
-    return "bg-[#e5edf4] text-[#315f82]";
-  }
-
-  return "bg-[#f4e7df] text-[#8a5130]";
 }
 
 function artistName(project: ProjectRecord) {
@@ -493,6 +487,7 @@ function SessionEntryModal({
   );
 }
 export default function ProjectsPage() {
+  const router = useRouter();
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
@@ -500,10 +495,12 @@ export default function ProjectsPage() {
   const [depositApplications, setDepositApplications] = useState<DepositApplicationRecord[]>([]);
   const [sessionPayments, setSessionPayments] = useState<SessionPaymentRecord[]>([]);
   const [sessions, setSessions] = useState<SessionEntryRecord[]>([]);
+  const [waiverFiles, setWaiverFiles] = useState<WaiverFileRecord[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [artistFilter, setArtistFilter] = useState("all");
   const [projectView, setProjectView] = useState<"active" | "archive">("active");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [waiverFilter, setWaiverFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -533,15 +530,19 @@ export default function ProjectsPage() {
             (statusFilter === "active" || project.status === statusFilter)
           : ["completed", "cancelled"].includes(project.status) &&
             (statusFilter === "archive" || project.status === statusFilter);
+      const waiverMatches =
+        waiverFilter === "all" ||
+        (waiverFilter === "signed" && waiverLabel(project) === "Signed") ||
+        (waiverFilter === "missing" && waiverLabel(project) !== "Signed");
       const searchMatches =
         !term ||
         [project.subject, project.size, customer?.name, customer?.email, artistName(project)]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(term));
 
-      return artistMatches && statusMatches && searchMatches;
+      return artistMatches && statusMatches && waiverMatches && searchMatches;
     });
-  }, [artistFilter, projectView, projects, search, statusFilter]);
+  }, [artistFilter, projectView, projects, search, statusFilter, waiverFilter]);
 
   const groupedProjects = useMemo(() => {
     const groups = new Map<string, ProjectRecord[]>();
@@ -565,6 +566,7 @@ export default function ProjectsPage() {
       (operationsContext?.isOperationsAdmin ||
         (operationsContext?.isArtist && selectedProject.artist_id === operationsContext.staffId)),
   );
+  const selectedWaiverFile = waiverFiles.find((file) => file.project_id === selectedProject?.id) ?? null;
 
   const selectedAppointments = useMemo(() => {
     if (!selectedProject) {
@@ -737,6 +739,7 @@ export default function ProjectsPage() {
         depositApplicationResult,
         sessionPaymentResult,
         sessionResult,
+        waiverFileResult,
       ] =
         await Promise.all([
           supabase
@@ -768,6 +771,11 @@ export default function ProjectsPage() {
               "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
             )
             .order("entered_at", { ascending: false }),
+          supabase
+            .from("files")
+            .select("id, project_id, storage_path, original_name")
+            .eq("file_type", "waiver")
+            .order("created_at", { ascending: false }),
         ]);
 
       if (staffResult.error) {
@@ -816,6 +824,12 @@ export default function ProjectsPage() {
         return;
       }
 
+      if (waiverFileResult.error) {
+        setError(waiverFileResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       const rawProjects = (projectResult.data ?? []) as unknown as ProjectRecord[];
       const nextProjects =
         context?.isArtist && context.staffId
@@ -854,6 +868,7 @@ export default function ProjectsPage() {
       );
       setSessionPayments((sessionPaymentResult.data ?? []) as SessionPaymentRecord[]);
       setSessions(scopedSessions);
+      setWaiverFiles((waiverFileResult.data ?? []) as WaiverFileRecord[]);
       setSelectedProjectId(nextProjects[0]?.id ?? "");
       if (context?.isArtist && context.staffId) {
         setArtistFilter(context.staffId);
@@ -899,6 +914,18 @@ export default function ProjectsPage() {
     );
     setMessage("Waiver marked as signed.");
     setSaving(false);
+  }
+
+  async function viewWaiver(file: WaiverFileRecord) {
+    setError("");
+    const result = await supabase.storage
+      .from("request-references")
+      .createSignedUrl(file.storage_path, 60 * 60);
+    if (result.error || !result.data?.signedUrl) {
+      setError(result.error?.message ?? "Waiver file could not be opened.");
+      return;
+    }
+    window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   async function markWaiverUnsigned(project: ProjectRecord) {
@@ -1159,6 +1186,7 @@ export default function ProjectsPage() {
     }
 
     const amount = Number(form.amount);
+    const isEditingDeposit = Boolean(editingDeposit);
     const alreadyApplied = editingDeposit
       ? depositAppliedTotal(editingDeposit.id, depositApplications)
       : 0;
@@ -1238,8 +1266,11 @@ export default function ProjectsPage() {
     );
     setEditingDeposit(null);
     setShowDepositEntry(false);
-    setMessage(editingDeposit ? "Deposit updated." : "Deposit entry saved.");
+    setMessage(isEditingDeposit ? "Deposit updated." : "Deposit entry saved.");
     setSaving(false);
+    if (!isEditingDeposit) {
+      router.push(`/projects/deposit/${result.data.id}/receipt`);
+    }
   }
 
   async function saveSession(form: SessionForm) {
@@ -1681,6 +1712,10 @@ export default function ProjectsPage() {
       return;
     }
 
+    if (!window.confirm("Are you sure you want to delete this Deposit? This cannot be undone.")) {
+      return;
+    }
+
     setSaving(true);
     setEntryError("");
     setError("");
@@ -1735,17 +1770,20 @@ export default function ProjectsPage() {
               Active projects
             </button>
             <button
-              className={`h-9 rounded px-4 text-sm font-bold ${projectView === "archive" ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"}`}
+              className={`inline-flex h-10 items-center gap-2 rounded px-4 text-sm font-bold ${projectView === "archive" ? "bg-[#1f2428] text-white" : "text-[#4d555c] hover:bg-[#eee8dd]"}`}
               onClick={() => { setProjectView("archive"); setStatusFilter("archive"); setSelectedProjectId(""); setMobileDetailOpen(false); }}
               type="button"
             >
+              <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <path d="M4 7h16v13H4V7Zm-1-4h18v4H3V3Zm6 8h6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+              </svg>
               Archive
             </button>
           </div>
           <section
             className={`${mobileDetailOpen ? "hidden md:block" : "block"} rounded-md border border-[#d9d3c7] bg-white px-4 py-4 shadow-sm`}
           >
-            <div className="grid gap-3 md:grid-cols-[1fr_0.7fr_0.7fr]">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <input
                 className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
                 onChange={(event) => {
@@ -1790,6 +1828,18 @@ export default function ProjectsPage() {
                     {status.label}
                   </option>
                 ))}
+              </select>
+              <select
+                className="h-10 rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                onChange={(event) => {
+                  setWaiverFilter(event.target.value);
+                  setMobileDetailOpen(false);
+                }}
+                value={waiverFilter}
+              >
+                <option value="all">All waiver statuses</option>
+                <option value="missing">Waiver missing</option>
+                <option value="signed">Waiver signed</option>
               </select>
             </div>
           </section>
@@ -1843,30 +1893,20 @@ export default function ProjectsPage() {
                           }}
                           type="button"
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-semibold">{customerName(project)}</p>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-base font-bold">{customerName(project)}</p>
                               <p className="mt-1 truncate text-sm text-[#697178]">Placement: {project.subject}</p>
-                              <p className="mt-1 text-xs text-[#8a8174]">{project.session_type ?? "Project"} / Created {displayDate(project.created_at)}</p>
+                              <p className="mt-1 truncate text-xs text-[#8a8174]">
+                                {project.session_type ?? "Project"} · Created {displayDate(project.created_at)} · {project.size || "Size not set"}
+                              </p>
                             </div>
                             <span
-                              className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
+                              className={`shrink-0 rounded-md px-4 py-2 text-base font-black ${projectStatusClasses(
                                 project.status,
                               )}`}
                             >
                               {projectStatusLabel(project.status)}
-                            </span>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <span
-                              className={`rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(
-                                project,
-                              )}`}
-                            >
-                              Waiver {waiverLabel(project)}
-                            </span>
-                            <span className="rounded-md bg-[#eee8dd] px-2 py-1 text-xs font-semibold text-[#4d555c]">
-                              {project.size || "Size not set"}
                             </span>
                           </div>
                         </button>
@@ -1893,22 +1933,20 @@ export default function ProjectsPage() {
                     <div className="flex items-start gap-2">
                       <div className="flex flex-wrap gap-2">
                       <span
-                        className={`rounded-md px-2 py-1 text-xs font-semibold ${projectStatusClasses(
+                        className={`rounded-md px-4 py-2 text-base font-black ${projectStatusClasses(
                           selectedProject.status,
                         )}`}
                       >
                         {projectStatusLabel(selectedProject.status)}
                       </span>
                       {projectView === "archive" ? (
-                        <span className="rounded-md bg-[#ece9e2] px-2 py-1 text-xs font-black text-[#4d555c]">Locked</span>
+                        <span className="inline-flex items-center gap-2 rounded-md bg-[#ece9e2] px-3 py-2 text-sm font-black text-[#4d555c]">
+                          <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                            <path d="M7 10V7a5 5 0 0 1 10 0v3M6 10h12v10H6V10Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                          </svg>
+                          Locked
+                        </span>
                       ) : null}
-                      <span
-                        className={`rounded-md px-2 py-1 text-xs font-semibold ${waiverClasses(
-                          selectedProject,
-                        )}`}
-                      >
-                        Waiver {waiverLabel(selectedProject)}
-                      </span>
                       </div>
                       <button
                         aria-label="Close project detail"
@@ -1999,6 +2037,20 @@ export default function ProjectsPage() {
                       ) : (
                         <p className="text-xl font-black leading-none text-red-600">No waiver yet</p>
                       )}
+                      {selectedWaiverFile ? (
+                        <button
+                          aria-label="View signed waiver"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#2f6658] text-[#2f6658] hover:bg-[#e8f0ee]"
+                          onClick={() => viewWaiver(selectedWaiverFile)}
+                          title={`View waiver${selectedWaiverFile.original_name ? `: ${selectedWaiverFile.original_name}` : ""}`}
+                          type="button"
+                        >
+                          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" stroke="currentColor" strokeWidth="2" />
+                            <circle cx="12" cy="12" fill="currentColor" r="2.5" />
+                          </svg>
+                        </button>
+                      ) : null}
                       {projectView === "archive" ? (
                         <p className="shrink-0 text-xs font-semibold text-[#697178]">Read only</p>
                       ) : waiverLabel(selectedProject) !== "Signed" ? (
