@@ -2022,8 +2022,8 @@ export default function RequestsPage() {
                     <>
                   <div>
                     <h4 className="text-base font-bold">Basic info</h4>
-                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-6">
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
+                    <div className="request-detail-basic-grid mt-3 grid gap-3 text-sm lg:grid-cols-6">
+                      <div className="request-detail-basic-third rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">Artist</p>
                         {needsArtistAssignment ? (
                           <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -2065,32 +2065,32 @@ export default function RequestsPage() {
                           </>
                         )}
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
+                      <div className="request-detail-basic-third rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">Timing preference</p>
                         <p className="mt-1.5 text-base font-bold">
                           {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
+                      <div className="request-detail-basic-third rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">How did they hear about us?</p>
                         <p className="mt-1.5 text-base font-bold">
                           {selectedRequest.how_did_you_hear_about_us || "-"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
+                      <div className="request-detail-basic-half rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Client name</p>
                         <p className="mt-1.5 text-base font-bold">{selectedRequest.client_name}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
+                      <div className="request-detail-basic-half rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Contact</p>
                         <p className="mt-1.5 break-all text-base font-bold">{selectedRequest.email || "-"}</p>
                         <p className="mt-1 text-[#697178]">{selectedRequest.phone || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
+                      <div className="request-detail-basic-half rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Placement</p>
                         <p className="mt-1.5 text-base font-bold">{selectedRequest.placement || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
+                      <div className="request-detail-basic-half rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Size</p>
                         <p className="mt-1.5 text-base font-bold">
                           {selectedRequest.approximate_size
@@ -2098,7 +2098,7 @@ export default function RequestsPage() {
                             : "-"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-6">
+                      <div className="request-detail-basic-full rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-6">
                         <p className="text-[#697178]">Description</p>
                         <p className="mt-1.5 text-base font-bold leading-relaxed">
                           {selectedRequest.tattoo_description || selectedRequest.subject}
@@ -2155,7 +2155,7 @@ export default function RequestsPage() {
 
                   <div>
                     <h4 className="text-base font-bold">Timeline</h4>
-                    <ol className="mt-3 grid gap-3 overflow-x-auto pb-1 sm:grid-cols-4">
+                    <ol className="request-detail-timeline-grid mt-3 grid gap-3 overflow-x-auto pb-1 sm:grid-cols-4">
                       {timelineFor(selectedRequest).map((item) => (
                         <li
                           key={item.label}

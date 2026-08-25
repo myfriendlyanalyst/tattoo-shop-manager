@@ -58,6 +58,27 @@ input[type="number"]::-webkit-outer-spin-button {
     overflow: visible !important;
   }
 
+  body.printing-request-detail .request-detail-basic-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+
+  body.printing-request-detail .request-detail-basic-third {
+    grid-column: span 2 / span 2 !important;
+  }
+
+  body.printing-request-detail .request-detail-basic-half {
+    grid-column: span 3 / span 3 !important;
+  }
+
+  body.printing-request-detail .request-detail-basic-full {
+    grid-column: span 6 / span 6 !important;
+  }
+
+  body.printing-request-detail .request-detail-timeline-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    overflow: visible !important;
+  }
+
   body.printing-request-detail .request-detail-print-copy .request-detail-print-controls {
     display: none !important;
   }
