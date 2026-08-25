@@ -1350,11 +1350,29 @@ export default function RequestsPage() {
   }
 
   function printRequestDetail() {
+    const requestDetail = document.querySelector<HTMLElement>(".request-detail-print");
+    if (!requestDetail) {
+      return;
+    }
+
+    const printCopy = requestDetail.cloneNode(true) as HTMLElement;
+    printCopy.className = "request-detail-print-copy";
+    printCopy.querySelectorAll(".request-detail-print-controls").forEach((element) => element.remove());
+    document.body.appendChild(printCopy);
     document.body.classList.add("printing-request-detail");
+
+    const cleanup = () => {
+      document.body.classList.remove("printing-request-detail");
+      printCopy.remove();
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    window.addEventListener("afterprint", cleanup);
     try {
       window.print();
-    } finally {
-      document.body.classList.remove("printing-request-detail");
+    } catch (printError) {
+      cleanup();
+      throw printError;
     }
   }
 
