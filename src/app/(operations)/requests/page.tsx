@@ -1798,12 +1798,12 @@ export default function RequestsPage() {
 
             {selectedRequest ? (
               <aside
-                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-4 md:left-1/2 md:max-h-[calc(100vh-2rem)] md:max-w-[1400px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-3 md:left-1/2 md:max-h-[calc(100vh-1.5rem)] md:max-w-[1600px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
-                <div className="shrink-0 border-b border-[#e5dfd4] px-5 py-5 sm:px-7">
+                <div className="shrink-0 border-b border-[#e5dfd4] px-5 py-4 sm:px-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h3 className="text-xl font-bold sm:text-2xl">{selectedRequest.subject}</h3>
+                      <h3 className="text-xl font-bold">{selectedRequest.subject}</h3>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#697178]">
                         <span className="rounded bg-[#eeeae3] px-2 py-1 text-xs font-bold text-[#4d555c]">
                           {requestCode(selectedRequest)}
@@ -1834,24 +1834,24 @@ export default function RequestsPage() {
                       {!bookingMode ? (
                         <>
                           <button
-                            className="hidden h-11 rounded-md border border-[#cfc7b8] px-4 text-sm font-bold hover:bg-[#eee8dd] sm:inline-flex sm:items-center"
+                            className="hidden h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-bold hover:bg-[#eee8dd] sm:inline-flex sm:items-center"
                             onClick={() => window.print()}
                             type="button"
                           >
                             Print
                           </button>
-                          <label className={`flex h-11 items-center gap-2 rounded-md px-3 font-bold ${statusClasses(selectedRequest.status)}`}>
+                          <label className={`flex h-10 items-center gap-2 rounded-md px-3 font-bold ${statusClasses(selectedRequest.status)}`}>
                             <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-current" />
                             <select
                               aria-label="Request status"
-                              className="max-w-48 bg-transparent text-sm font-bold outline-none sm:text-base"
+                              className="max-w-52 bg-transparent text-sm font-bold outline-none"
                               disabled={saving}
                               onChange={(event) => updateRequestStatus(event.target.value)}
                               value={selectedRequest.status}
                             >
                               {statusOptions.map((status) => (
                                 <option className="bg-white text-[#1f2428]" key={status} value={status}>
-                                  {statusLabel(status)}
+                                  {status === "forwarded" ? "Forwarded to artist" : statusLabel(status)}
                                 </option>
                               ))}
                             </select>
@@ -1860,7 +1860,7 @@ export default function RequestsPage() {
                       ) : null}
                       <button
                         aria-label="Close request detail"
-                        className="flex h-11 w-11 items-center justify-center rounded-md border border-[#cfc7b8] text-lg font-semibold text-[#30373d] hover:bg-[#eee8dd]"
+                        className="flex h-10 w-10 items-center justify-center rounded-md border border-[#cfc7b8] text-base font-semibold text-[#30373d] hover:bg-[#eee8dd]"
                         onClick={closeRequestDetail}
                         type="button"
                       >
@@ -1870,7 +1870,7 @@ export default function RequestsPage() {
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-5 py-6 sm:px-7">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
                   {error ? (
                     <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
                       {error}
@@ -1994,9 +1994,9 @@ export default function RequestsPage() {
                   ) : (
                     <>
                   <div>
-                    <h4 className="text-lg font-bold">Basic info</h4>
-                    <div className="mt-4 grid gap-4 text-base lg:grid-cols-6">
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-2">
+                    <h4 className="text-base font-bold">Basic info</h4>
+                    <div className="mt-3 grid gap-3 text-sm lg:grid-cols-6">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">Artist</p>
                         {needsArtistAssignment ? (
                           <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -2024,7 +2024,7 @@ export default function RequestsPage() {
                           </div>
                         ) : (
                           <>
-                            <p className="mt-2 text-lg font-bold">
+                            <p className="mt-1.5 text-base font-bold">
                               {isAnyAvailableLabel(selectedRequest.requested_artist_label)
                                 ? relatedOne(selectedRequest.artist)?.display_name || "Any available"
                                 : selectedRequest.requested_artist_label || "-"}
@@ -2038,42 +2038,42 @@ export default function RequestsPage() {
                           </>
                         )}
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-2">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">Timing preference</p>
-                        <p className="mt-2 text-lg font-bold">
+                        <p className="mt-1.5 text-base font-bold">
                           {tattooTimingLabel(selectedRequest.tattoo_timing_preference)}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-2">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-2">
                         <p className="text-[#697178]">How did they hear about us?</p>
-                        <p className="mt-2 text-lg font-bold">
+                        <p className="mt-1.5 text-base font-bold">
                           {selectedRequest.how_did_you_hear_about_us || "-"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-3">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Client name</p>
-                        <p className="mt-2 text-lg font-bold">{selectedRequest.client_name}</p>
+                        <p className="mt-1.5 text-base font-bold">{selectedRequest.client_name}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-3">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Contact</p>
-                        <p className="mt-2 break-all text-lg font-bold">{selectedRequest.email || "-"}</p>
+                        <p className="mt-1.5 break-all text-base font-bold">{selectedRequest.email || "-"}</p>
                         <p className="mt-1 text-[#697178]">{selectedRequest.phone || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-3">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Placement</p>
-                        <p className="mt-2 text-lg font-bold">{selectedRequest.placement || "-"}</p>
+                        <p className="mt-1.5 text-base font-bold">{selectedRequest.placement || "-"}</p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-3">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-3">
                         <p className="text-[#697178]">Size</p>
-                        <p className="mt-2 text-lg font-bold">
+                        <p className="mt-1.5 text-base font-bold">
                           {selectedRequest.approximate_size
                             ? `${selectedRequest.approximate_size} inch`
                             : "-"}
                         </p>
                       </div>
-                      <div className="rounded-md bg-[#f7f2e9] px-5 py-5 lg:col-span-6">
+                      <div className="rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-6">
                         <p className="text-[#697178]">Description</p>
-                        <p className="mt-2 text-lg font-bold leading-relaxed">
+                        <p className="mt-1.5 text-base font-bold leading-relaxed">
                           {selectedRequest.tattoo_description || selectedRequest.subject}
                         </p>
                       </div>
@@ -2127,16 +2127,16 @@ export default function RequestsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-lg font-bold">Timeline</h4>
-                    <ol className="mt-4 grid gap-3 overflow-x-auto pb-1 sm:grid-cols-4">
+                    <h4 className="text-base font-bold">Timeline</h4>
+                    <ol className="mt-3 grid gap-3 overflow-x-auto pb-1 sm:grid-cols-4">
                       {timelineFor(selectedRequest).map((item) => (
                         <li
                           key={item.label}
-                          className="relative min-w-44 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-5 py-5"
+                          className="relative min-w-40 rounded-md border border-[#e4dccf] bg-[#fdfbf7] px-4 py-4"
                         >
-                          <div className="mb-4 flex items-center gap-3">
+                          <div className="mb-3 flex items-center gap-2">
                             <span
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                                 timelineDotClasses(item, selectedRequest)
                               }`}
                             >
@@ -2145,8 +2145,8 @@ export default function RequestsPage() {
                             <span className="hidden h-px flex-1 bg-[#d9d3c7] sm:block" />
                             <span className="hidden text-[#bdb3a3] sm:block">&gt;</span>
                           </div>
-                          <span className="block text-base font-bold">{item.label}</span>
-                          <span className="mt-2 block text-sm text-[#697178]">{item.value}</span>
+                          <span className="block text-sm font-bold">{item.label}</span>
+                          <span className="mt-1.5 block text-sm text-[#697178]">{item.value}</span>
                         </li>
                       ))}
                     </ol>
@@ -2154,8 +2154,8 @@ export default function RequestsPage() {
 
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-lg font-bold">Email log</h4>
-                      <span className="rounded bg-[#f1eadc] px-3 py-1.5 text-sm font-bold text-[#775f36]">
+                      <h4 className="text-base font-bold">Email log</h4>
+                      <span className="rounded bg-[#f1eadc] px-2.5 py-1 text-xs font-bold text-[#775f36]">
                         {selectedActionMessages.length} messages
                       </span>
                     </div>
@@ -2168,20 +2168,20 @@ export default function RequestsPage() {
                       <div className="mt-3 space-y-2">
                         {selectedActionMessages.map((email) => (
                           <details
-                            className="group rounded-md border border-[#e4dccf] bg-[#fdfbf7] text-base"
+                            className="group rounded-md border border-[#e4dccf] bg-[#fdfbf7] text-sm"
                             key={email.id}
                           >
-                            <summary className="grid cursor-pointer list-none gap-3 px-5 py-4 marker:hidden sm:grid-cols-[1fr_auto] sm:items-start">
+                            <summary className="grid cursor-pointer list-none gap-2 px-4 py-3 marker:hidden sm:grid-cols-[1fr_auto] sm:items-start">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded bg-[#1f2428] px-3 py-1.5 text-sm font-bold text-white">
+                                  <span className="rounded bg-[#1f2428] px-2.5 py-1 text-xs font-bold text-white">
                                     {emailLogEventLabel(email, selectedRequest)}
                                   </span>
                                   <p className="min-w-0 flex-1 truncate font-semibold">
                                     {email.subject || selectedRequest.subject}
                                   </p>
                                 </div>
-                                <p className="mt-2 text-sm text-[#697178]">
+                                <p className="mt-1.5 text-xs text-[#697178]">
                                   From {displayEmailSender(email)} / To {displayEmailList(email.to_emails)}
                                 </p>
                               </div>
@@ -2195,18 +2195,18 @@ export default function RequestsPage() {
                                 >
                                   {email.direction === "inbound" ? "Inbound" : "Outbound"}
                                 </span>
-                                <span className="text-sm font-semibold text-[#697178]">
+                                <span className="text-xs font-semibold text-[#697178]">
                                   {displayDateTime(email.received_at)}
                                 </span>
-                                <span className="text-sm font-bold text-[#8a6f4d] group-open:hidden">
+                                <span className="text-xs font-bold text-[#8a6f4d] group-open:hidden">
                                   Open
                                 </span>
-                                <span className="hidden text-sm font-bold text-[#8a6f4d] group-open:inline">
+                                <span className="hidden text-xs font-bold text-[#8a6f4d] group-open:inline">
                                   Close
                                 </span>
                               </div>
                             </summary>
-                            <div className="border-t border-[#e4dccf] px-5 py-4">
+                            <div className="border-t border-[#e4dccf] px-4 py-3">
                               <p className="whitespace-pre-wrap break-words text-[#4d555c]">
                                 {emailLogBody(email)}
                               </p>
@@ -2228,7 +2228,7 @@ export default function RequestsPage() {
 
                   <div className="grid gap-3 sm:grid-cols-[minmax(260px,1fr)_auto_auto]">
                     <button
-                      className="h-14 rounded-md bg-[#1f2428] px-6 text-base font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="h-12 rounded-md bg-[#1f2428] px-5 text-sm font-bold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={
                         saving ||
                         Boolean(selectedRequest.project_id) ||
@@ -2240,7 +2240,7 @@ export default function RequestsPage() {
                       {selectedRequest.project_id ? "Project created" : "Create project"}
                     </button>
                     <button
-                      className="h-14 rounded-md border border-[#b98238] px-6 text-base font-bold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 rounded-md border border-[#b98238] px-5 text-sm font-bold text-[#8a5130] hover:bg-[#f4e7df] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving || selectedRequest.status === "no_answer"}
                       onClick={() => updateRequestStatus("no_answer")}
                       type="button"
@@ -2248,7 +2248,7 @@ export default function RequestsPage() {
                       No answer from client
                     </button>
                     <button
-                      className="h-14 rounded-md border border-[#8a3030] px-6 text-base font-bold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-12 rounded-md border border-[#8a3030] px-5 text-sm font-bold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={saving || selectedRequest.status === "denied"}
                       onClick={() => updateRequestStatus("denied")}
                       type="button"
