@@ -1349,6 +1349,15 @@ export default function RequestsPage() {
     setMessage("");
   }
 
+  function printRequestDetail() {
+    document.body.classList.add("printing-request-detail");
+    try {
+      window.print();
+    } finally {
+      document.body.classList.remove("printing-request-detail");
+    }
+  }
+
   async function bookProject() {
     if (!selectedRequest) {
       return;
@@ -1798,7 +1807,7 @@ export default function RequestsPage() {
 
             {selectedRequest ? (
               <aside
-                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-3 md:left-1/2 md:max-h-[calc(100vh-1.5rem)] md:max-w-[1600px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} request-detail-print inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-3 md:left-1/2 md:max-h-[calc(100vh-1.5rem)] md:max-w-[1600px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
                 <div className="shrink-0 border-b border-[#e5dfd4] px-5 py-4 sm:px-6">
                   <div className="flex items-start justify-between gap-4">
@@ -1830,12 +1839,12 @@ export default function RequestsPage() {
                         </span>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="request-detail-print-controls flex shrink-0 items-center gap-2">
                       {!bookingMode ? (
                         <>
                           <button
                             className="hidden h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-bold hover:bg-[#eee8dd] sm:inline-flex sm:items-center"
-                            onClick={() => window.print()}
+                            onClick={printRequestDetail}
                             type="button"
                           >
                             Print
@@ -1870,7 +1879,7 @@ export default function RequestsPage() {
                   </div>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
+                <div className="request-detail-print-content min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
                   {error ? (
                     <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
                       {error}

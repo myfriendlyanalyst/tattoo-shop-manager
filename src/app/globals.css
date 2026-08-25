@@ -32,3 +32,40 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+@media print {
+  body.printing-request-detail * {
+    visibility: hidden;
+  }
+
+  body.printing-request-detail .request-detail-print,
+  body.printing-request-detail .request-detail-print * {
+    visibility: visible;
+  }
+
+  body.printing-request-detail .request-detail-print {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  body.printing-request-detail .request-detail-print-content {
+    overflow: visible !important;
+  }
+
+  body.printing-request-detail .request-detail-print-controls {
+    display: none !important;
+  }
+
+  body.printing-request-detail .request-detail-print li,
+  body.printing-request-detail .request-detail-print details {
+    break-inside: avoid;
+  }
+}
