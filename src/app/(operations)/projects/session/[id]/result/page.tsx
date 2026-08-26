@@ -23,6 +23,7 @@ type SessionResultRecord = {
   }>;
   project: Relation<{
     id: string;
+    memo: string | null;
     subject: string;
     session_type: string | null;
     status: string;
@@ -71,21 +72,14 @@ function titleCase(value: string) {
     .join(" ");
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+function placementLabel(projectMemo: string | null | undefined) {
+  const placement = projectMemo
+    ?.split("\n")
+    .find((line) => line.toLowerCase().startsWith("placement:"))
+    ?.slice("placement:".length)
+    .trim();
 
-function placementLabel(projectSubject: string | null | undefined, customerName: string | null | undefined) {
-  if (!projectSubject) return "-";
-
-  const afterDash = projectSubject.includes(" - ")
-    ? projectSubject.split(" - ").slice(1).join(" - ")
-    : projectSubject;
-  const withoutClient = customerName
-    ? afterDash.replace(new RegExp(`^${escapeRegExp(customerName)}\\s*-\\s*`, "i"), "")
-    : afterDash;
-
-  return titleCase(withoutClient.trim() || projectSubject);
+  return placement ? titleCase(placement) : "-";
 }
 
 export default function SessionResultPage() {
@@ -110,7 +104,7 @@ export default function SessionResultPage() {
         supabase
           .from("session_entries")
           .select(
-            "id, created_by, entered_at, tattoo_amount, tip_amount, memo, appointment:appointments(id, starts_at, ends_at, appointment_type), project:projects(id, subject, session_type, status, customer:customers(name, email, phone), artist:staff(display_name))",
+            "id, created_by, entered_at, tattoo_amount, tip_amount, memo, appointment:appointments(id, starts_at, ends_at, appointment_type), project:projects(id, memo, subject, session_type, status, customer:customers(name, email, phone), artist:staff(display_name))",
           )
           .eq("id", sessionId)
           .single(),
@@ -178,7 +172,7 @@ export default function SessionResultPage() {
   const artistName = artist?.display_name ?? "-";
   const customerName = customer?.name ?? "-";
   const contactLine = [customer?.email, customer?.phone].filter(Boolean).join(" / ");
-  const placement = placementLabel(project?.subject, customer?.name ?? null);
+  const placement = placementLabel(project?.memo);
   const sessionType = appointment?.appointment_type || project?.session_type || "Session";
   const projectClosed = project?.status === "completed";
 

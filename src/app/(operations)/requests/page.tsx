@@ -159,6 +159,16 @@ const statusOptions = [
   "spam",
 ];
 
+const activeStatusFilterOptions = [
+  "forwarded",
+  "artist_replied",
+  "client_replied",
+  "booked",
+  "client_declined",
+  "no_answer",
+  "denied",
+];
+
 const referenceBucket = "request-references";
 const requestSelect =
   "id, request_number, customer_id, project_id, client_name, email, phone, subject, tattoo_description, approximate_size, placement, reference_image_url, requested_artist_label, how_did_you_hear_about_us, tattoo_timing_preference, preferred_appointment_date, age_confirmed, artist_id, status, priority, received_at, forwarded_at, artist_reply_at, client_reply_at, consultation_at, booked_at, notes, artist:staff(display_name)";
@@ -259,7 +269,7 @@ function statusLabel(status: string) {
     consultation: "Booked",
     booked: "Booked",
     client_waiting_for_reply: "Artist Replied",
-    client_declined: "Closed by client",
+    client_declined: "Canceled by client",
     no_answer: "No answer from client",
     denied: "Declined by shop",
     spam: "Spam",
@@ -859,7 +869,9 @@ export default function RequestsPage() {
       const statusMatches =
         statusFilter === "all"
           ? queueFilter === "closed" || request.status !== "spam"
-          : request.status === statusFilter;
+          : statusFilter === "artist_replied"
+            ? ["artist_replied", "client_waiting_for_reply"].includes(request.status)
+            : request.status === statusFilter;
       const artistMatches = artistMatchesFilter(request, artistFilter);
       const queueMatches = matchesQueueFilter(request, requestMessageList, queueFilter);
 
@@ -1349,33 +1361,6 @@ export default function RequestsPage() {
     setMessage("");
   }
 
-  function printRequestDetail() {
-    const requestDetail = document.querySelector<HTMLElement>(".request-detail-print");
-    if (!requestDetail) {
-      return;
-    }
-
-    const printCopy = requestDetail.cloneNode(true) as HTMLElement;
-    printCopy.className = "request-detail-print-copy";
-    printCopy.querySelectorAll(".request-detail-print-controls").forEach((element) => element.remove());
-    document.body.appendChild(printCopy);
-    document.body.classList.add("printing-request-detail");
-
-    const cleanup = () => {
-      document.body.classList.remove("printing-request-detail");
-      printCopy.remove();
-      window.removeEventListener("afterprint", cleanup);
-    };
-
-    window.addEventListener("afterprint", cleanup);
-    try {
-      window.print();
-    } catch (printError) {
-      cleanup();
-      throw printError;
-    }
-  }
-
   async function bookProject() {
     if (!selectedRequest) {
       return;
@@ -1598,9 +1583,6 @@ export default function RequestsPage() {
               <div className="flex flex-col gap-3 border-b border-[#e5dfd4] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="text-base font-semibold">Request queue</h3>
-                  <p className="mt-1 text-sm text-[#697178]">
-                    Webflow/Make.com requests should land here from Supabase.
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex flex-wrap gap-1">
@@ -1641,7 +1623,7 @@ export default function RequestsPage() {
                     value={statusFilter}
                   >
                     <option value="all">Active statuses</option>
-                    {statusOptions.map((status) => (
+                    {activeStatusFilterOptions.map((status) => (
                       <option key={status} value={status}>
                         {statusLabel(status)}
                       </option>
@@ -1825,7 +1807,7 @@ export default function RequestsPage() {
 
             {selectedRequest ? (
               <aside
-                className={`${mobileDetailOpen ? "fixed" : "hidden"} request-detail-print inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-3 md:left-1/2 md:max-h-[calc(100vh-1.5rem)] md:max-w-[1600px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
+                className={`${mobileDetailOpen ? "fixed" : "hidden"} inset-0 z-40 flex flex-col overflow-hidden bg-white shadow-xl md:inset-3 md:left-1/2 md:max-h-[calc(100vh-1.5rem)] md:max-w-[1600px] md:-translate-x-1/2 md:rounded-md md:border md:border-[#d9d3c7]`}
               >
                 <div className="shrink-0 border-b border-[#e5dfd4] px-5 py-4 sm:px-6">
                   <div className="flex items-start justify-between gap-4">
@@ -1847,27 +1829,10 @@ export default function RequestsPage() {
                           Client requested another artist
                         </span>
                       ) : null}
-                      {hasCurrentArtistReplied(
-                        selectedRequest,
-                        messagesByRequestId.get(selectedRequest.id) ?? [],
-                      ) ? (
-                        <span className="mt-2 inline-flex items-center gap-1 rounded bg-[#e3f6df] px-2 py-1 text-xs font-bold text-[#2f6b2f]">
-                          <span aria-hidden="true">&#10003;</span>
-                          Artist replied
-                        </span>
-                      ) : null}
                     </div>
-                    <div className="request-detail-print-controls flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       {!bookingMode ? (
-                        <>
-                          <button
-                            className="hidden h-10 rounded-md border border-[#cfc7b8] px-4 text-sm font-bold hover:bg-[#eee8dd] sm:inline-flex sm:items-center"
-                            onClick={printRequestDetail}
-                            type="button"
-                          >
-                            Print
-                          </button>
-                          <label className={`flex h-10 items-center gap-2 rounded-md px-3 font-bold ${statusClasses(selectedRequest.status)}`}>
+                        <label className={`flex h-10 items-center gap-2 rounded-md px-3 font-bold ${statusClasses(selectedRequest.status)}`}>
                             <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-current" />
                             <select
                               aria-label="Request status"
@@ -1882,8 +1847,7 @@ export default function RequestsPage() {
                                 </option>
                               ))}
                             </select>
-                          </label>
-                        </>
+                        </label>
                       ) : null}
                       <button
                         aria-label="Close request detail"
@@ -1897,7 +1861,7 @@ export default function RequestsPage() {
                   </div>
                 </div>
 
-                <div className="request-detail-print-content min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
+                <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
                   {error ? (
                     <p className="rounded-md bg-[#f3e1e1] px-3 py-2 text-sm font-semibold text-[#8a3030]">
                       {error}
@@ -2100,7 +2064,7 @@ export default function RequestsPage() {
                       </div>
                       <div className="request-detail-basic-full rounded-md bg-[#f7f2e9] px-4 py-4 lg:col-span-6">
                         <p className="text-[#697178]">Description</p>
-                        <p className="mt-1.5 text-base font-bold leading-relaxed">
+                        <p className="mt-1.5 text-base leading-relaxed">
                           {selectedRequest.tattoo_description || selectedRequest.subject}
                         </p>
                       </div>

@@ -149,6 +149,8 @@ async function findOrCreateCustomer(
   payload: ProjectPayload,
   createdBy: string,
 ) {
+  let customer: { id: string; name: string; email: string | null; phone: string | null; address?: string | null } | null =
+    null;
   const customerId = payload.customerId?.trim();
   if (customerId) {
     const { data, error } = await adminClient
@@ -158,15 +160,13 @@ async function findOrCreateCustomer(
       .maybeSingle();
 
     if (error) return { error };
-    if (data) return { customer: data };
+    customer = data;
   }
 
   const email = normalizeEmail(payload.customerEmail);
   const phoneNormalized = normalizePhone(payload.customerPhone);
-  let customer: { id: string; name: string; email: string | null; phone: string | null; address?: string | null } | null =
-    null;
 
-  if (email) {
+  if (!customer && email) {
     const { data, error } = await adminClient
       .from("customers")
       .select("id, name, email, phone")
@@ -216,8 +216,8 @@ async function findOrCreateCustomer(
 
   const patch: Record<string, string | null> = {};
   if (payload.customerName?.trim() && payload.customerName.trim() !== customer.name) patch.name = payload.customerName.trim();
-  if (!customer.email && payload.customerEmail?.trim()) patch.email = payload.customerEmail.trim();
-  if (!customer.phone && payload.customerPhone?.trim()) patch.phone = payload.customerPhone.trim();
+  if (payload.customerEmail?.trim() && payload.customerEmail.trim() !== customer.email) patch.email = payload.customerEmail.trim();
+  if (payload.customerPhone?.trim() && payload.customerPhone.trim() !== customer.phone) patch.phone = payload.customerPhone.trim();
   if (address) patch.address = address;
 
   if (Object.keys(patch).length === 0) return { customer };

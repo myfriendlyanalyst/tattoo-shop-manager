@@ -103,6 +103,7 @@ type WalkInForm = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  projectType: "One Done" | "Multiple Session";
   tattooDescription: string;
   tattooPlacement: string;
   tattooSize: string;
@@ -222,6 +223,7 @@ function emptyWalkInForm(): WalkInForm {
     customerEmail: "",
     customerName: "",
     customerPhone: "",
+    projectType: "One Done",
     tattooDescription: "",
     tattooPlacement: "",
     tattooSize: "",
@@ -476,7 +478,10 @@ export default function SessionWizardPage() {
         setSaveResult(restored.saveResult ?? null);
         setSavedDraft(restored.savedDraft ?? null);
         setWalkInAppointment((current) => restored.walkInAppointment ?? current);
-        setWalkInForm(restored.walkInForm ?? emptyWalkInForm());
+        setWalkInForm({
+          ...emptyWalkInForm(),
+          ...restored.walkInForm,
+        });
         setEditingSavedSession(Boolean(editSessionId));
         setStep(resumeScheduleId ? "schedule" : "payments");
       }
@@ -1006,7 +1011,7 @@ export default function SessionWizardPage() {
         customerPhone: walkInForm.customerPhone,
         depositAmount: 0,
         projectName: projectNameFromWalkIn(walkInForm),
-        projectType: "Walk-in",
+        projectType: walkInForm.projectType,
         tattooDescription: walkInForm.tattooDescription,
         tattooPlacement: walkInForm.tattooPlacement,
         tattooSize: walkInForm.tattooSize,
@@ -1038,7 +1043,7 @@ export default function SessionWizardPage() {
       customer_id: payload.customerId,
       id: payload.projectId,
       size: walkInForm.tattooSize.trim() || null,
-      session_type: "Walk-in",
+      session_type: walkInForm.projectType,
       status: "on_hold",
       subject: projectNameFromWalkIn(walkInForm),
     };
@@ -1599,7 +1604,6 @@ export default function SessionWizardPage() {
                   Phone <span className="text-[#8a3030]">*</span>
                   <input
                     className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
-                    disabled={customerMode === "existing" && Boolean(selectedCustomerId)}
                     onChange={(event) => patchWalkIn({ customerPhone: event.target.value })}
                     value={walkInForm.customerPhone}
                   />
@@ -1607,7 +1611,7 @@ export default function SessionWizardPage() {
               </div>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {artists.length > 1 ? <label className="block text-sm font-semibold">
                   Artist <span className="text-[#8a3030]">*</span>
                   <select
@@ -1623,6 +1627,21 @@ export default function SessionWizardPage() {
                     ))}
                   </select>
                 </label> : <div className="text-sm font-semibold">Artist<div className="mt-2 flex h-10 items-center rounded-md border border-[#d9d3c7] bg-[#f7f2e9] px-3">{artists[0]?.display_name ?? "-"}</div></div>}
+                <label className="block text-sm font-semibold">
+                  Project plan <span className="text-[#8a3030]">*</span>
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    onChange={(event) =>
+                      patchWalkIn({
+                        projectType: event.target.value as WalkInForm["projectType"],
+                      })
+                    }
+                    value={walkInForm.projectType}
+                  >
+                    <option value="One Done">One Done — finish today</option>
+                    <option value="Multiple Session">Multiple Session — more sessions needed</option>
+                  </select>
+                </label>
                 <label className="block text-sm font-semibold">
                   Placement <span className="text-[#8a3030]">*</span>
                   <input
