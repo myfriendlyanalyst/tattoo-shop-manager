@@ -40,6 +40,7 @@ type AppointmentRecord = {
   ends_at: string | null;
   appointment_type: string;
   status: string;
+  session_completed_at: string | null;
 };
 
 type DepositRecord = {
@@ -164,7 +165,7 @@ export default function NewSessionPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("appointments")
-          .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+          .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
           .order("starts_at", { ascending: false }),
         supabase
           .from("deposits")
@@ -307,6 +308,7 @@ export default function NewSessionPage() {
     let sessionAppointment = appointment;
 
     if (!sessionAppointment) {
+      const sessionCompletedAt = new Date().toISOString();
       const appointmentResult = await supabase
         .from("appointments")
         .insert({
@@ -318,8 +320,9 @@ export default function NewSessionPage() {
           project_id: project.id,
           starts_at: startsDate.toISOString(),
           status: "completed",
+          session_completed_at: sessionCompletedAt,
         })
-        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
         .single();
 
       if (appointmentResult.error) {
@@ -340,7 +343,7 @@ export default function NewSessionPage() {
           starts_at: startsDate.toISOString(),
         })
         .eq("id", sessionAppointment.id)
-        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
         .single();
 
       if (appointmentResult.error) {
@@ -350,6 +353,26 @@ export default function NewSessionPage() {
       }
 
       sessionAppointment = appointmentResult.data as AppointmentRecord;
+      setAppointments((current) =>
+        current.map((item) => (item.id === sessionAppointment!.id ? sessionAppointment! : item)),
+      );
+    }
+
+    if (!sessionAppointment.session_completed_at) {
+      const completionResult = await supabase
+        .from("appointments")
+        .update({ session_completed_at: new Date().toISOString() })
+        .eq("id", sessionAppointment.id)
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
+        .single();
+
+      if (completionResult.error) {
+        setError(completionResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      sessionAppointment = completionResult.data as AppointmentRecord;
       setAppointments((current) =>
         current.map((item) => (item.id === sessionAppointment!.id ? sessionAppointment! : item)),
       );
@@ -369,6 +392,7 @@ export default function NewSessionPage() {
       tip_amount: tipAmount,
       tip_payment_method:
         paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
+      record_status: "complete" as const,
     };
     const sessionResult = existingSessionId
       ? await supabase
@@ -603,7 +627,7 @@ export default function NewSessionPage() {
               saved={savedSessionLocked}
               saving={saving}
               sessionPayments={[] as SessionPaymentRecord[]}
-              submitLabel={createdSessionId ? "Update session" : "Complete session"}
+              submitLabel={createdSessionId ? "Update record" : "Complete Session Record"}
             />
           ) : (
             <p className="rounded-md border border-dashed border-[#d9d3c7] px-3 py-6 text-sm font-semibold text-[#697178]">

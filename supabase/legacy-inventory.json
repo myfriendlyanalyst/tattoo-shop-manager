@@ -37,6 +37,10 @@
     {
       "file": "20261124000009_financial_audit_and_locks.sql",
       "sha256": "0e3de58f59861e1b534389d2280e73cc3f8c08f3e95fcaf433220e42f015acf3"
+    },
+    {
+      "file": "20261124000010_session_completion.sql",
+      "sha256": "96101ab5bcc795262ae65a573651766dd4d418d532352a1bbc1faf4bc9919447"
     }
   ],
   "legacy": [

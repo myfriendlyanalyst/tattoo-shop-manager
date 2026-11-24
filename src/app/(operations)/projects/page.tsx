@@ -55,6 +55,7 @@ type AppointmentRecord = {
   ends_at: string | null;
   appointment_type: string;
   status: string;
+  session_completed_at: string | null;
 };
 
 type DepositRecord = {
@@ -110,6 +111,7 @@ type SessionEntryRecord = {
   tip_amount: number | null;
   tip_payment_method: string | null;
   memo: string | null;
+  record_status: "draft" | "complete";
 };
 
 type DepositForm = {
@@ -778,7 +780,7 @@ export default function ProjectsPage() {
           supabase.from("projects").select(projectSelect).order("created_at", { ascending: false }),
           supabase
             .from("appointments")
-            .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+            .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
             .order("starts_at", { ascending: false }),
           supabase
             .from("deposits")
@@ -797,7 +799,7 @@ export default function ProjectsPage() {
           supabase
             .from("session_entries")
             .select(
-              "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+              "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, record_status",
             )
             .order("entered_at", { ascending: false }),
           supabase
@@ -1392,6 +1394,7 @@ export default function ProjectsPage() {
     let sessionAppointment = appointment;
 
     if (!editingSession && !sessionAppointment) {
+      const sessionCompletedAt = new Date().toISOString();
       const appointmentResult = await supabase
         .from("appointments")
         .insert({
@@ -1402,9 +1405,10 @@ export default function ProjectsPage() {
           ends_at: endsDate.toISOString(),
           appointment_type: "walk-in",
           status: "completed",
+          session_completed_at: sessionCompletedAt,
           notes: "Created from manual session entry.",
         })
-        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
         .single();
 
       if (appointmentResult.error) {
@@ -1417,6 +1421,26 @@ export default function ProjectsPage() {
       setAppointments((current) => [sessionAppointment!, ...current]);
     }
 
+    if (!sessionAppointment!.session_completed_at) {
+      const completionResult = await supabase
+        .from("appointments")
+        .update({ session_completed_at: new Date().toISOString() })
+        .eq("id", sessionAppointment!.id)
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
+        .single();
+
+      if (completionResult.error) {
+        setEntryError(completionResult.error.message);
+        setSaving(false);
+        return;
+      }
+
+      sessionAppointment = completionResult.data as AppointmentRecord;
+      setAppointments((current) =>
+        current.map((item) => (item.id === sessionAppointment!.id ? sessionAppointment! : item)),
+      );
+    }
+
     const sessionPayload = {
       tattoo_amount: tattooAmount,
       tattoo_payment_method:
@@ -1425,6 +1449,7 @@ export default function ProjectsPage() {
       tip_payment_method:
         paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
       memo: form.memo.trim() || null,
+      record_status: "complete" as const,
     };
     const result = editingSession
       ? await supabase
@@ -1432,7 +1457,7 @@ export default function ProjectsPage() {
           .update(sessionPayload)
           .eq("id", editingSession.id)
           .select(
-            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, record_status",
           )
           .single()
       : await supabase
@@ -1448,7 +1473,7 @@ export default function ProjectsPage() {
             created_by: user?.id ?? null,
           })
           .select(
-            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo",
+            "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, record_status",
           )
           .single();
 
@@ -1637,6 +1662,31 @@ export default function ProjectsPage() {
     setEditingSession(result.data as SessionEntryRecord);
     setSavedSessionId(result.data.id);
     setMessage(editingSession ? "Session entry updated." : "Session entry saved.");
+    setSaving(false);
+  }
+
+  async function markAppointmentSessionComplete(appointment: AppointmentRecord) {
+    setSaving(true);
+    setEntryError("");
+    setMessage("");
+
+    const result = await supabase
+      .from("appointments")
+      .update({ session_completed_at: new Date().toISOString() })
+      .eq("id", appointment.id)
+      .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
+      .single();
+
+    if (result.error) {
+      setEntryError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    setAppointments((current) =>
+      current.map((item) => (item.id === appointment.id ? (result.data as AppointmentRecord) : item)),
+    );
+    setMessage("Tattoo session marked complete. Its Session Record remains a separate status.");
     setSaving(false);
   }
 
@@ -2174,6 +2224,40 @@ export default function ProjectsPage() {
                             </div>
                           ) : null}
                     </div>
+                  </section>
+
+                  <section className="order-3 shrink-0 rounded-md border border-[#d9d3c7] bg-white shadow-sm">
+                  <div className="border-b border-[#e5dfd4] px-4 py-4">
+                    <h3 className="text-base font-semibold">Session status</h3>
+                  </div>
+                  <div className="divide-y divide-[#eee8dd]">
+                    {selectedAppointments.length === 0 ? (
+                      <p className="px-4 py-4 text-sm font-semibold text-[#697178]">No appointments yet.</p>
+                    ) : null}
+                    {selectedAppointments.map((appointment) => {
+                      const record = selectedSessions.find((session) => session.appointment_id === appointment.id);
+                      return (
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm" key={appointment.id}>
+                          <div>
+                            <p className="font-semibold">{displayDateTime(appointment.starts_at)}</p>
+                            <p className="mt-1 text-xs text-[#697178]">
+                              Tattoo session: {appointment.session_completed_at ? "Complete" : "Not completed"} · Session Record: {record?.record_status === "complete" ? "Complete" : record?.record_status === "draft" ? "Draft" : "Missing"}
+                            </p>
+                          </div>
+                          {!appointment.session_completed_at && appointment.status !== "cancelled" && appointment.status !== "no_show" && projectView !== "archive" ? (
+                            <button
+                              className="h-8 rounded-md border border-[#2f6658] px-3 text-xs font-semibold text-[#2f6658] hover:bg-[#e8f0ee] disabled:opacity-60"
+                              disabled={saving}
+                              onClick={() => markAppointmentSessionComplete(appointment)}
+                              type="button"
+                            >
+                              Mark session complete
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
                   </section>
 
                   <section className="order-3 shrink-0 rounded-md border border-[#d9d3c7] bg-white shadow-sm">

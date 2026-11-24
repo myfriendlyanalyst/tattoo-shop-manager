@@ -60,6 +60,7 @@ type AppointmentRecord = {
   ends_at: string | null;
   appointment_type: string;
   status: string;
+  session_completed_at: string | null;
 };
 
 type DepositRecord = {
@@ -374,7 +375,7 @@ export default function SessionWizardPage() {
             .order("created_at", { ascending: false }),
           supabase
             .from("appointments")
-            .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+            .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
             .order("starts_at", { ascending: false }),
           supabase
             .from("deposits")
@@ -596,7 +597,7 @@ export default function SessionWizardPage() {
         starts_at: startsAt.toISOString(),
         status: "scheduled",
       })
-      .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+      .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
       .single();
     if (result.error) {
       setError(result.error.message);
@@ -775,6 +776,7 @@ export default function SessionWizardPage() {
     let sessionAppointment = appointment;
 
     if (!sessionAppointment) {
+      const sessionCompletedAt = new Date().toISOString();
       const appointmentResult = await supabase
         .from("appointments")
         .insert({
@@ -786,8 +788,9 @@ export default function SessionWizardPage() {
           project_id: project.id,
           starts_at: startsDate.toISOString(),
           status: "completed",
+          session_completed_at: sessionCompletedAt,
         })
-        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
         .single();
 
       if (appointmentResult.error) throw new Error(appointmentResult.error.message);
@@ -803,7 +806,7 @@ export default function SessionWizardPage() {
           starts_at: startsDate.toISOString(),
         })
         .eq("id", sessionAppointment.id)
-        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status")
+        .select("id, customer_id, project_id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at")
         .single();
 
       if (appointmentResult.error) throw new Error(appointmentResult.error.message);
@@ -812,7 +815,7 @@ export default function SessionWizardPage() {
 
     const appointmentUpdate = await supabase.from("appointments").update({
       appointment_type: completedSessionType(project.session_type, sessionOutcome),
-      status: "completed",
+      session_completed_at: sessionAppointment.session_completed_at ?? new Date().toISOString(),
     }).eq("id", sessionAppointment.id);
     if (appointmentUpdate.error) throw new Error(appointmentUpdate.error.message);
     setAppointments((current) =>
@@ -822,6 +825,7 @@ export default function SessionWizardPage() {
               ...item,
               appointment_type: completedSessionType(project.session_type, sessionOutcome),
               status: "completed",
+              session_completed_at: item.session_completed_at ?? new Date().toISOString(),
             }
           : item,
       ),
@@ -841,6 +845,7 @@ export default function SessionWizardPage() {
         tip_amount: tipAmount,
         tip_payment_method:
           paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
+        record_status: "complete" as const,
     };
     const sessionResult = existingSessionId
       ? await supabase
@@ -1784,7 +1789,7 @@ export default function SessionWizardPage() {
                   onClick={saveReviewedSession}
                   type="button"
                 >
-                  {saving ? "Saving..." : editingSavedSession ? "Update session" : "Complete session"}
+                  {saving ? "Saving..." : editingSavedSession ? "Update record" : "Complete Session Record"}
                 </button>
               </div>
             </section>

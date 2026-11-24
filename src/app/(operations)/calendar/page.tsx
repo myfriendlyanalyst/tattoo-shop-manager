@@ -55,6 +55,8 @@ type Appointment = {
   artist: string;
   type: string;
   status: string;
+  sessionCompletedAt: string | null;
+  recordStatus: "draft" | "complete" | null;
   waiver: string;
   notes: string;
 };
@@ -83,10 +85,12 @@ type AppointmentRow = {
   ends_at: string | null;
   appointment_type: string;
   status: string;
+  session_completed_at: string | null;
   notes: string | null;
   customer: { name: string } | { name: string }[] | null;
   project: { subject: string; waiver_signed: boolean } | { subject: string; waiver_signed: boolean }[] | null;
   artist: { display_name: string } | { display_name: string }[] | null;
+  session_entries: { record_status: "draft" | "complete" }[] | null;
 };
 
 type DraftAppointment = {
@@ -150,7 +154,6 @@ const appointmentTypes = [
 const appointmentStatusOptions = [
   "scheduled",
   "checked_in",
-  "completed",
   "no_show",
 ];
 
@@ -464,6 +467,11 @@ function mapAppointment(row: AppointmentRow): Appointment {
   const customer = relatedOne(row.customer);
   const project = relatedOne(row.project);
   const artist = relatedOne(row.artist);
+  const recordStatus = row.session_entries?.some((entry) => entry.record_status === "complete")
+    ? "complete"
+    : row.session_entries?.some((entry) => entry.record_status === "draft")
+      ? "draft"
+      : null;
 
   return {
     id: row.id,
@@ -477,6 +485,8 @@ function mapAppointment(row: AppointmentRow): Appointment {
     artist: artist?.display_name ?? "Unassigned",
     type: normalizeAppointmentType(row.appointment_type),
     status: row.status,
+    sessionCompletedAt: row.session_completed_at,
+    recordStatus,
     waiver: project?.waiver_signed ? "Signed" : "Missing",
     notes: row.notes ?? "",
   };
@@ -582,6 +592,7 @@ function AppointmentDetailModal({
   onCancel,
   onDelete,
   onRetryGoogleSync,
+  onMarkSessionComplete,
   onSave,
 }: {
   appointment: Appointment;
@@ -591,6 +602,7 @@ function AppointmentDetailModal({
   onCancel: (appointment: Appointment) => void;
   onDelete: (appointment: Appointment) => void;
   onRetryGoogleSync: (appointment: Appointment) => void;
+  onMarkSessionComplete: (appointment: Appointment) => void;
   onSave: (appointment: Appointment, form: AppointmentEditForm) => void;
 }) {
   const [form, setForm] = useState<AppointmentEditForm>({
@@ -642,6 +654,36 @@ function AppointmentDetailModal({
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+              <p className="text-[#697178]">Tattoo session</p>
+              <p className="mt-1 font-semibold">
+                {appointment.sessionCompletedAt ? "Complete" : "Not completed"}
+              </p>
+            </div>
+            <div className="rounded-md bg-[#f7f2e9] px-3 py-3">
+              <p className="text-[#697178]">Session Record</p>
+              <p className="mt-1 font-semibold">
+                {appointment.recordStatus === "complete"
+                  ? "Complete"
+                  : appointment.recordStatus === "draft"
+                    ? "Draft"
+                    : "Missing"}
+              </p>
+            </div>
+          </div>
+
+          {!appointment.sessionCompletedAt ? (
+            <button
+              className="h-10 w-full rounded-md border border-[#2f6658] px-4 text-sm font-semibold text-[#2f6658] hover:bg-[#e8f0ee] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={saving || appointment.status === "no_show" || appointment.status === "cancelled"}
+              onClick={() => onMarkSessionComplete(appointment)}
+              type="button"
+            >
+              Mark tattoo session complete
+            </button>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-semibold">
               Start
@@ -679,9 +721,11 @@ function AppointmentDetailModal({
               Status
               <select
                 className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                disabled={Boolean(appointment.sessionCompletedAt)}
                 onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
                 value={form.status}
               >
+                {appointment.sessionCompletedAt ? <option value="completed">Completed</option> : null}
                 {appointmentStatusOptions.map((status) => (
                   <option key={status} value={status}>
                     {statusLabel(status)}
@@ -711,7 +755,7 @@ function AppointmentDetailModal({
             </button>
             <button
               className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] hover:bg-[#f3e1e1] disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={saving || appointment.status === "cancelled"}
+              disabled={saving || appointment.status === "cancelled" || Boolean(appointment.sessionCompletedAt)}
               onClick={() => onCancel(appointment)}
               type="button"
             >
@@ -1215,11 +1259,11 @@ export default function CalendarPage() {
         supabase
           .from("appointments")
           .select(
-            "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+            "id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name), session_entries(record_status)",
           )
           .gte("starts_at", dayRange.start)
           .lte("starts_at", dayRange.end)
-          .in("status", ["scheduled", "checked_in"])
+          .in("status", ["scheduled", "checked_in", "completed"])
           .order("starts_at", { ascending: true }),
       ]);
 
@@ -1567,7 +1611,7 @@ export default function CalendarPage() {
         notes: form.notes.trim() || null,
       })
       .select(
-        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+        "id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name), session_entries(record_status)",
       )
       .single();
 
@@ -1672,7 +1716,7 @@ export default function CalendarPage() {
       })
       .eq("id", appointment.id)
       .select(
-        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+        "id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name), session_entries(record_status)",
       )
       .single();
 
@@ -1744,6 +1788,36 @@ export default function CalendarPage() {
     setSaving(false);
   }
 
+  async function markSessionComplete(appointment: Appointment) {
+    setSaving(true);
+    setModalError("");
+    setMessage("");
+
+    const completedAt = new Date().toISOString();
+    const result = await supabase
+      .from("appointments")
+      .update({ session_completed_at: completedAt })
+      .eq("id", appointment.id)
+      .select(
+        "id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name), session_entries(record_status)",
+      )
+      .single();
+
+    if (result.error) {
+      setModalError(result.error.message);
+      setSaving(false);
+      return;
+    }
+
+    const updatedAppointment = mapAppointment(result.data as unknown as AppointmentRow);
+    setAppointments((current) =>
+      current.map((item) => (item.id === appointment.id ? updatedAppointment : item)),
+    );
+    setSelectedAppointment(updatedAppointment);
+    setMessage("Tattoo session marked complete. The Session Record is still tracked separately.");
+    setSaving(false);
+  }
+
   async function cancelAppointment(appointment: Appointment) {
     const confirmed = window.confirm(`Cancel appointment for ${appointment.client}?`);
 
@@ -1761,7 +1835,7 @@ export default function CalendarPage() {
       .update({ status: "cancelled" })
       .eq("id", appointment.id)
       .select(
-        "id, artist_id, starts_at, ends_at, appointment_type, status, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name)",
+        "id, artist_id, starts_at, ends_at, appointment_type, status, session_completed_at, notes, customer:customers(name), project:projects(subject, waiver_signed), artist:staff(display_name), session_entries(record_status)",
       )
       .single();
 
@@ -2179,6 +2253,11 @@ export default function CalendarPage() {
                               <p className="mt-1 font-semibold text-[#7d684d]">
                                 {formatTime(appointment.start)} - {formatTime(appointment.end)}
                               </p>
+                              {appointment.sessionCompletedAt ? (
+                                <p className="mt-1 text-[10px] font-bold text-[#2f6658]">
+                                  Session complete · Record {appointment.recordStatus ?? "missing"}
+                                </p>
+                              ) : null}
                               {!isCancelled && !inSchedule ? (
                                 <p className="mt-1 text-[10px] font-bold uppercase text-[#9f5c3c]">
                                   Outside schedule
@@ -2350,6 +2429,11 @@ export default function CalendarPage() {
                               <p className="mt-1 font-semibold text-[#7d684d]">
                                 {formatTime(appointment.start)} - {formatTime(appointment.end)}
                               </p>
+                              {appointment.sessionCompletedAt ? (
+                                <p className="mt-1 text-[10px] font-bold text-[#2f6658]">
+                                  Session complete · Record {appointment.recordStatus ?? "missing"}
+                                </p>
+                              ) : null}
                               {!isCancelled && !inSchedule ? (
                                 <p className="mt-1 text-[10px] font-bold uppercase text-[#9f5c3c]">
                                   Outside schedule
@@ -2379,6 +2463,7 @@ export default function CalendarPage() {
           }}
           onDelete={deleteAppointment}
           onRetryGoogleSync={retryGoogleCalendarSync}
+          onMarkSessionComplete={markSessionComplete}
           onSave={updateAppointment}
           saving={saving}
         />
