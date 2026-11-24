@@ -27,6 +27,8 @@ export type SessionPaymentRecord = {
   amount: number;
   memo: string | null;
   payment_type?: "tattoo" | "tip" | null;
+  app_provider?: "venmo" | "zelle" | "legacy_unknown" | null;
+  processed_at?: string | null;
 };
 
 export type SessionEntryRecordForForm = {
@@ -45,6 +47,8 @@ export type PaymentLineForm = {
   paymentMethod: string;
   amount: string;
   paymentType: "tattoo" | "tip";
+  appProvider: "venmo" | "zelle" | null;
+  processedAt: string;
 };
 
 export type PaymentGrid = {
@@ -54,6 +58,8 @@ export type PaymentGrid = {
   tipCash: string;
   tipCreditCard: string;
   tipApp: string;
+  tattooAppProvider: "" | "venmo" | "zelle";
+  tipAppProvider: "" | "venmo" | "zelle";
 };
 
 export type SessionForm = {
@@ -71,6 +77,7 @@ export type SessionForm = {
   tipAmount: string;
   tipPaymentMethod: string;
   memo: string;
+  processedAt: string;
 };
 
 const paymentColumns = [
@@ -150,6 +157,8 @@ function paymentGridFromSession(
     tipCash: "",
     tipCreditCard: "",
     tipApp: "",
+    tattooAppProvider: "",
+    tipAppProvider: "",
   };
 
   for (const payment of sessionPayments) {
@@ -157,6 +166,9 @@ function paymentGridFromSession(
     const fields = paymentGridFields[type];
     const field = fields[payment.payment_method as keyof typeof fields];
     if (field) grid[field] = numberInputValue(payment.amount);
+    if (payment.payment_method === "app" && (payment.app_provider === "venmo" || payment.app_provider === "zelle")) {
+      grid[type === "tattoo" ? "tattooAppProvider" : "tipAppProvider"] = payment.app_provider;
+    }
   }
 
   if (session && sessionPayments.length === 0) {
@@ -179,7 +191,7 @@ function gridTotal(grid: PaymentGrid, type: "tattoo" | "tip") {
   return paymentColumns.reduce((sum, column) => sum + gridAmount(grid, type, column.key), 0);
 }
 
-function paymentLinesFromGrid(grid: PaymentGrid): PaymentLineForm[] {
+function paymentLinesFromGrid(grid: PaymentGrid, processedAt: string): PaymentLineForm[] {
   return (["tattoo", "tip"] as const).flatMap((type) =>
     paymentColumns
       .map((column) => ({
@@ -187,6 +199,8 @@ function paymentLinesFromGrid(grid: PaymentGrid): PaymentLineForm[] {
         id: `${type}-${column.key}`,
         paymentMethod: column.key,
         paymentType: type,
+        appProvider: column.key === "app" ? grid[type === "tattoo" ? "tattooAppProvider" : "tipAppProvider"] || null : null,
+        processedAt,
       }))
       .filter((line) => Number(line.amount || 0) > 0),
   );
@@ -277,7 +291,10 @@ export function SessionEntryForm({
       endsAt: localDateTimeInput(initialEndTime ? startDate : end.date, endTime),
       memo: initialMemo ?? session?.memo ?? "",
       paymentGrid,
-      paymentLines: paymentLinesFromGrid(paymentGrid),
+      paymentLines: paymentLinesFromGrid(paymentGrid, localDateTimeInput(startDate, startTime)),
+      processedAt: sessionPaymentLines[0]?.processed_at
+        ? localDateTimeInput(localDateValue(new Date(sessionPaymentLines[0].processed_at)), timeValue(new Date(sessionPaymentLines[0].processed_at)))
+        : localDateTimeInput(startDate, startTime),
       sessionDate: startDate,
       startTime,
       startsAt: localDateTimeInput(startDate, startTime),
@@ -294,6 +311,10 @@ export function SessionEntryForm({
   const tattooWorkTotal = tattooTotal + appliedDepositAmount;
   const newPaymentTotal = tattooTotal + tipTotal;
   const remainingDepositBalance = Math.max(availableDepositBalance - appliedDepositAmount, 0);
+  const appProviderMissing =
+    (Number(form.paymentGrid.tattooApp || 0) > 0 && !form.paymentGrid.tattooAppProvider) ||
+    (Number(form.paymentGrid.tipApp || 0) > 0 && !form.paymentGrid.tipAppProvider);
+  const processedAtMissing = !form.processedAt;
 
   function patchGrid(field: keyof PaymentGrid, value: string) {
     setForm((current) => {
@@ -304,7 +325,7 @@ export function SessionEntryForm({
       return {
         ...current,
         paymentGrid,
-        paymentLines: paymentLinesFromGrid(paymentGrid),
+        paymentLines: paymentLinesFromGrid(paymentGrid, current.processedAt),
         tattooAmount: numberInputValue(tattooAmount),
         tattooPaymentMethod:
           paymentColumns.find((column) => gridAmount(paymentGrid, "tattoo", column.key) > 0)?.key ?? "cash",
@@ -372,7 +393,7 @@ export function SessionEntryForm({
     if (confirmBeforeSave && !window.confirm(`Save this session?\n\n${summary}`)) return;
     onSave({
       ...form,
-      paymentLines: paymentLinesFromGrid(form.paymentGrid),
+      paymentLines: paymentLinesFromGrid(form.paymentGrid, form.processedAt),
       tattooAmount: String(tattooWorkTotal),
       tipAmount: String(tipTotal),
     });
@@ -381,7 +402,7 @@ export function SessionEntryForm({
   function saveDraft() {
     onSaveDraft?.({
       ...form,
-      paymentLines: paymentLinesFromGrid(form.paymentGrid),
+      paymentLines: paymentLinesFromGrid(form.paymentGrid, form.processedAt),
       tattooAmount: String(tattooWorkTotal),
       tipAmount: String(tipTotal),
     });
@@ -458,6 +479,19 @@ export function SessionEntryForm({
             Enter only the money received today.
           </p>
         </div>
+        <label className="mb-3 block max-w-sm text-sm font-semibold">
+          Payment processed at
+          <input
+            className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+            disabled={locked}
+            onChange={(event) => setForm((current) => ({ ...current, processedAt: event.target.value }))}
+            type="datetime-local"
+            value={form.processedAt}
+          />
+          <span className="mt-1 block text-xs font-medium text-[#697178]">
+            Defaults to Session Completion; correct it when payment was processed later.
+          </span>
+        </label>
         <div className="overflow-x-auto rounded-md border border-[#d9d3c7] bg-white">
           <table className="w-full min-w-[680px] table-fixed text-sm">
             <colgroup>
@@ -507,6 +541,36 @@ export function SessionEntryForm({
             </tbody>
           </table>
         </div>
+        {Number(form.paymentGrid.tattooApp || 0) > 0 || Number(form.paymentGrid.tipApp || 0) > 0 ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {(["tattoo", "tip"] as const).map((type) =>
+              Number(form.paymentGrid[type === "tattoo" ? "tattooApp" : "tipApp"] || 0) > 0 ? (
+                <label className="text-sm font-semibold" key={type}>
+                  {type === "tattoo" ? "Tattoo" : "Tip"} App provider
+                  <select
+                    className="mt-2 h-10 w-full rounded-md border border-[#cfc7b8] bg-white px-3 text-sm"
+                    disabled={locked}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      paymentGrid: {
+                        ...current.paymentGrid,
+                        [type === "tattoo" ? "tattooAppProvider" : "tipAppProvider"]: event.target.value as "" | "venmo" | "zelle",
+                      },
+                    }))}
+                    value={form.paymentGrid[type === "tattoo" ? "tattooAppProvider" : "tipAppProvider"]}
+                  >
+                    <option value="">Select provider</option>
+                    <option value="venmo">Venmo</option>
+                    <option value="zelle">Zelle</option>
+                  </select>
+                </label>
+              ) : null,
+            )}
+          </div>
+        ) : null}
+        {appProviderMissing ? (
+          <p className="mt-2 text-xs font-semibold text-[#8a3030]">Select Venmo or Zelle for every App Payment.</p>
+        ) : null}
       </div>
 
       {hideDeposit ? null : (
@@ -581,7 +645,7 @@ export function SessionEntryForm({
           {onSaveDraft ? (
             <button
               className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd] disabled:opacity-60"
-              disabled={saving}
+              disabled={saving || appProviderMissing || processedAtMissing}
               onClick={saveDraft}
               type="button"
             >
@@ -590,7 +654,7 @@ export function SessionEntryForm({
           ) : null}
           <button
             className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || depositMemoRequired}
+            disabled={saving || depositMemoRequired || appProviderMissing || processedAtMissing}
             onClick={confirmAndSave}
             type="button"
           >

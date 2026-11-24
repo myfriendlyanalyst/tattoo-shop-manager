@@ -719,8 +719,10 @@ export default function SessionWizardPage() {
     const paymentLines = form.paymentLines
       .map((line) => ({
         amount: Number(line.amount || 0),
+        appProvider: line.appProvider,
         paymentMethod: line.paymentMethod,
         paymentType: line.paymentType ?? "tattoo",
+        processedAt: line.processedAt,
       }))
       .filter((line) => line.amount > 0);
     const tattooPaymentTotal = paymentLines
@@ -845,7 +847,7 @@ export default function SessionWizardPage() {
         tip_amount: tipAmount,
         tip_payment_method:
           paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
-        record_status: "complete" as const,
+        record_status: "draft" as const,
     };
     const sessionResult = existingSessionId
       ? await supabase
@@ -880,6 +882,8 @@ export default function SessionWizardPage() {
           created_by: user?.id ?? null,
           payment_method: line.paymentMethod,
           payment_type: line.paymentType,
+          app_provider: line.appProvider,
+          processed_at: new Date(line.processedAt).toISOString(),
           session_entry_id: sessionResult.data.id,
         })),
       );
@@ -962,6 +966,12 @@ export default function SessionWizardPage() {
         .eq("id", depositId);
       if (depositResult.error) throw new Error(depositResult.error.message);
     }
+
+    const completionResult = await supabase
+      .from("session_entries")
+      .update({ record_status: "complete" })
+      .eq("id", sessionResult.data.id);
+    if (completionResult.error) throw new Error(completionResult.error.message);
 
     const closesProject = ["One Done", "Walk-in"].includes(project.session_type ?? "") || sessionOutcome === "closing";
     const projectStatusResult = await supabase

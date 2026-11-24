@@ -89,6 +89,8 @@ type SessionPaymentRecord = {
   payment_method: string;
   amount: number;
   memo: string | null;
+  app_provider: "venmo" | "zelle" | "legacy_unknown" | null;
+  processed_at: string;
 };
 
 type WaiverFileRecord = {
@@ -794,7 +796,7 @@ export default function ProjectsPage() {
             .order("applied_at", { ascending: false }),
           supabase
             .from("session_payments")
-            .select("id, session_entry_id, payment_type, payment_method, amount, memo")
+            .select("id, session_entry_id, payment_type, payment_method, amount, memo, app_provider, processed_at")
             .order("created_at", { ascending: false }),
           supabase
             .from("session_entries")
@@ -1325,6 +1327,8 @@ export default function ProjectsPage() {
         paymentType: line.paymentType ?? "tattoo",
         paymentMethod: line.paymentMethod,
         amount: Number(line.amount || 0),
+        appProvider: line.appProvider,
+        processedAt: line.processedAt,
       }))
       .filter((line) => line.amount > 0);
     const tattooPaymentTotal = paymentLines
@@ -1449,7 +1453,7 @@ export default function ProjectsPage() {
       tip_payment_method:
         paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
       memo: form.memo.trim() || null,
-      record_status: "complete" as const,
+      record_status: "draft" as const,
     };
     const result = editingSession
       ? await supabase
@@ -1507,10 +1511,12 @@ export default function ProjectsPage() {
             payment_type: line.paymentType,
             payment_method: line.paymentMethod,
             amount: line.amount,
+            app_provider: line.appProvider,
+            processed_at: new Date(line.processedAt).toISOString(),
             created_by: user?.id ?? null,
           })),
         )
-        .select("id, session_entry_id, payment_type, payment_method, amount, memo");
+        .select("id, session_entry_id, payment_type, payment_method, amount, memo, app_provider, processed_at");
 
       if (paymentResult.error) {
         setEntryError(
@@ -1644,6 +1650,21 @@ export default function ProjectsPage() {
       );
     }
 
+    const completionResult = await supabase
+      .from("session_entries")
+      .update({ record_status: "complete" })
+      .eq("id", result.data.id)
+      .select(
+        "id, appointment_id, customer_id, project_id, artist_id, entered_at, entry_type, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, record_status",
+      )
+      .single();
+    if (completionResult.error) {
+      setEntryError(completionResult.error.message);
+      setSaving(false);
+      return;
+    }
+    const completedSession = completionResult.data as SessionEntryRecord;
+
     const statusPromoted = await promoteSelectedProjectStatus("in_progress");
 
     if (!statusPromoted) {
@@ -1655,11 +1676,11 @@ export default function ProjectsPage() {
     setSessions((current) =>
       editingSession
         ? current.map((session) =>
-            session.id === editingSession.id ? (result.data as SessionEntryRecord) : session,
+            session.id === editingSession.id ? completedSession : session,
           )
-        : [result.data as SessionEntryRecord, ...current],
+        : [completedSession, ...current],
     );
-    setEditingSession(result.data as SessionEntryRecord);
+    setEditingSession(completedSession);
     setSavedSessionId(result.data.id);
     setMessage(editingSession ? "Session entry updated." : "Session entry saved.");
     setSaving(false);

@@ -75,6 +75,8 @@ type SessionPaymentRecord = {
   payment_method: string;
   amount: number;
   memo: string | null;
+  app_provider: "venmo" | "zelle" | "legacy_unknown" | null;
+  processed_at: string;
 };
 
 type DraftSessionRecord = {
@@ -246,7 +248,7 @@ export default function NewSessionPage() {
       if (visibleDrafts.length > 0) {
         const paymentResult = await supabase
           .from("session_payments")
-          .select("id, session_entry_id, payment_type, payment_method, amount, memo")
+          .select("id, session_entry_id, payment_type, payment_method, amount, memo, app_provider, processed_at")
           .in("session_entry_id", visibleDrafts.map((draft) => draft.id));
         if (paymentResult.error) {
           setError(paymentResult.error.message);
@@ -276,8 +278,10 @@ export default function NewSessionPage() {
     const paymentLines = form.paymentLines
       .map((line) => ({
         amount: Number(line.amount || 0),
+        appProvider: line.appProvider,
         paymentMethod: line.paymentMethod,
         paymentType: line.paymentType ?? "tattoo",
+        processedAt: line.processedAt,
       }))
       .filter((line) => line.amount > 0);
     const tattooPaymentTotal = paymentLines
@@ -388,8 +392,10 @@ export default function NewSessionPage() {
           created_by: user?.id ?? null,
           payment_method: line.paymentMethod,
           payment_type: line.paymentType,
+          app_provider: line.appProvider,
+          processed_at: new Date(line.processedAt).toISOString(),
           session_entry_id: draftResult.data.id,
-        }))).select("id, session_entry_id, payment_type, payment_method, amount, memo");
+        }))).select("id, session_entry_id, payment_type, payment_method, amount, memo, app_provider, processed_at");
         if (paymentResult.error) {
           setError(paymentResult.error.message);
           setSaving(false);
@@ -538,6 +544,8 @@ export default function NewSessionPage() {
           created_by: user?.id ?? null,
           payment_method: line.paymentMethod,
           payment_type: line.paymentType,
+          app_provider: line.appProvider,
+          processed_at: new Date(line.processedAt).toISOString(),
           session_entry_id: sessionResult.data.id,
         })),
       );
@@ -547,16 +555,6 @@ export default function NewSessionPage() {
         setSaving(false);
         return;
       }
-    }
-
-    const completionResult = await supabase
-      .from("session_entries")
-      .update({ record_status: "complete" })
-      .eq("id", sessionResult.data.id);
-    if (completionResult.error) {
-      setError(completionResult.error.message);
-      setSaving(false);
-      return;
     }
 
     const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
@@ -654,6 +652,16 @@ export default function NewSessionPage() {
         setSaving(false);
         return;
       }
+    }
+
+    const completionResult = await supabase
+      .from("session_entries")
+      .update({ record_status: "complete" })
+      .eq("id", sessionResult.data.id);
+    if (completionResult.error) {
+      setError(completionResult.error.message);
+      setSaving(false);
+      return;
     }
 
     await supabase.from("projects").update({ status: "in_progress" }).eq("id", project.id);

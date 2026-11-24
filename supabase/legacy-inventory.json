@@ -45,6 +45,10 @@
     {
       "file": "20261124000011_draft_session_records.sql",
       "sha256": "820df4d4e09c8a5d6211ec4644bb4909f94ccf8598e3d15f1d10eac30ba17019"
+    },
+    {
+      "file": "20261124000012_payment_fact_alignment.sql",
+      "sha256": "ca27e382cec08e6ec3d1dca32c4d201512ad7833b908033e7f79b1af910553a2"
     }
   ],
   "legacy": [

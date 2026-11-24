@@ -7,7 +7,7 @@
     "build": "npm test && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types src/lib/payout-calculation.test.ts && node scripts/db/catalog-diff.test.mjs && node --test scripts/db/financial-audit.test.mjs scripts/db/session-completion.test.mjs scripts/db/draft-session-records.test.mjs && node scripts/db/check-migrations.mjs"
+    "test": "node --experimental-strip-types src/lib/payout-calculation.test.ts && node scripts/db/catalog-diff.test.mjs && node --test scripts/db/financial-audit.test.mjs scripts/db/session-completion.test.mjs scripts/db/draft-session-records.test.mjs scripts/db/payment-fact-alignment.test.mjs && node scripts/db/check-migrations.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
