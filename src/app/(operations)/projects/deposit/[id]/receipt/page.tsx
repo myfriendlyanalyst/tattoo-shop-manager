@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
+import { FinancialHistory } from "@/components/financial-history";
 import { supabase } from "@/lib/supabase";
 
 type Receipt = {
@@ -93,6 +94,11 @@ export default function DepositReceiptPage() {
         <div className="print-actions mx-auto mt-4 flex justify-center gap-2">
           <button className="h-10 rounded bg-black px-4 text-sm font-bold text-white" onClick={() => window.print()} type="button">Print</button>
           <Link className="inline-flex h-10 items-center rounded border px-4 text-sm font-bold" href={backHref}>{backLabel}</Link>
+        </div>
+      ) : null}
+      {deposit ? (
+        <div className="print-actions mx-auto mt-4 w-full max-w-[620px]">
+          <FinancialHistory entityId={id} entityType="deposits" />
         </div>
       ) : null}
     </AppPage>

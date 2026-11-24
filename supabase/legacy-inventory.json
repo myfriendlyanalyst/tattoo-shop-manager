@@ -1,5 +1,6 @@
 {
   "state": "verified-fresh-local-replay-with-explicitly-reviewed-catalog-differences",
+  "baselineMigrationCount": 8,
   "migrations": [
     {
       "file": "20261123000001_repository_baseline.sql",
@@ -32,6 +33,10 @@
     {
       "file": "20261123000008_deployed_catalog_alignment.sql",
       "sha256": "be79f6364a4fb6dadf2eaace083d87761dbc975a0ea203a6b81d6c9c59a49e1c"
+    },
+    {
+      "file": "20261124000009_financial_audit_and_locks.sql",
+      "sha256": "0e3de58f59861e1b534389d2280e73cc3f8c08f3e95fcaf433220e42f015acf3"
     }
   ],
   "legacy": [

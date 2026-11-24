@@ -11,6 +11,7 @@ const navItems = [
   { label: "Artists", href: "/accounting/artists" },
   { label: "Deposits", href: "/accounting/deposits" },
   { label: "Payouts", href: "/accounting/payouts" },
+  { label: "History", href: "/accounting/history" },
   { label: "Users", href: "/accounting/users" },
   { label: "Settings", href: "/accounting/settings" },
 ];

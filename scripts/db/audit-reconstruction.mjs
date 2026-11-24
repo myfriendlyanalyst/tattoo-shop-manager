@@ -9,7 +9,9 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const inventory = JSON.parse(read('supabase/legacy-inventory.json'));
 const live = JSON.parse(read(inventory.snapshot.file));
-const sql = inventory.migrations.map(({ file }) => read(`supabase/migrations/${file}`)).join('\n');
+const baselineMigrationCount = inventory.baselineMigrationCount ?? inventory.migrations.length;
+const baselineMigrations = inventory.migrations.slice(0, baselineMigrationCount);
+const sql = baselineMigrations.map(({ file }) => read(`supabase/migrations/${file}`)).join('\n');
 const clean = sql.replace(/--[^\n]*/g, '');
 const identifiers = (regex) => [...clean.matchAll(regex)].map((m) => m[1]);
 const unique = (values) => [...new Set(values)].sort();
@@ -71,5 +73,6 @@ const optionalFields = ['customers.address', 'customers.phone_normalized', 'depo
   'payouts.adjustment_amount', 'payouts.adjustment_note', 'payouts.calculation_snapshot', 'payouts.snapshot_at', 'payouts.artist_earnings', 'payouts.settlement_amount'];
 check('all documented missing-column fallbacks exist in the captured DB', optionalFields, optionalFields.filter((field) => liveTableNames.includes(field)));
 console.log(`Captured: ${live.relations.length} relations, ${live.columns.length} columns, ${live.constraints.length} constraints, ${live.indexes.length} indexes, ${live.policies.length} policies, ${live.grants.length} ACL entries.`);
+console.log(`Baseline audit: ${baselineMigrations.length} migrations. Forward migrations are verified by checksum and local replay.`);
 console.log('NOT VERIFIED: SQL execution, column types/defaults/order, constraint/index definitions, policy/function semantics, effective privileges, full Supabase replay or snapshot exclusions.');
 process.exitCode = failures.length ? 1 : 0;

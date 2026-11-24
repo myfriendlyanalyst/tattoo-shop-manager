@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AppPage } from "@/components/app-shell";
+import { FinancialHistory } from "@/components/financial-history";
 import { supabase } from "@/lib/supabase";
 
 type Relation<T> = T | T[] | null;
@@ -653,6 +654,11 @@ export default function SessionResultPage() {
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href={`/projects/session/wizard?editSessionId=${session.id}`}>Edit</Link>
           <button className="h-10 rounded-md border border-[#8a3030] px-4 text-sm font-semibold text-[#8a3030] disabled:opacity-60" disabled={deleting} onClick={deleteSession} type="button">{deleting ? "Deleting..." : "Delete"}</button>
           <Link className="inline-flex h-10 items-center rounded-md border border-[#cfc7b8] px-4 text-sm font-semibold" href="/projects/session/wizard">Next session</Link>
+        </div>
+      ) : null}
+      {session ? (
+        <div className="mx-auto mt-4 w-full max-w-[620px] print:hidden">
+          <FinancialHistory entityId={session.id} entityType="session_entries" />
         </div>
       ) : null}
     </AppPage>
