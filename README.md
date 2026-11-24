@@ -40,6 +40,14 @@ Open `http://127.0.0.1:3000`.
 
 ## Next Steps
 
+Database setup instructions below are historical. For the current migration
+workflow and FND-01 verification status, use [Database migrations](docs/DATABASE_MIGRATIONS.md).
+All new DB changes belong in `supabase/migrations`; do not run legacy SQL files
+individually. Migrations 1–8 passed a fresh local Supabase replay and comparison
+with the captured production catalog, with explicitly documented differences.
+See [Schema comparison evidence](docs/BASELINE_SCHEMA_DIFF.md). Do not replay this
+baseline against an existing production database.
+
 1. Create a Supabase project.
 2. Run the schema from `../supabase_schema.sql`.
 3. Add Supabase environment variables.

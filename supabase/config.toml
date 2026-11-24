@@ -1,0 +1,9 @@
+project_id = "tattoo-shop-manager"
+
+[db]
+major_version = 17
+
+[db.seed]
+enabled = false
+
+# Verified fresh-local baseline. See docs/DATABASE_MIGRATIONS.md before use.

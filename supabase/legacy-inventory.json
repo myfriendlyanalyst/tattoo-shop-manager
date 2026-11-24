@@ -1,0 +1,568 @@
+{
+  "state": "verified-fresh-local-replay-with-explicitly-reviewed-catalog-differences",
+  "migrations": [
+    {
+      "file": "20261123000001_repository_baseline.sql",
+      "sha256": "e6889279895abe616cb9a1690ee4f8e0d2241072adb6f0584dc432341e5c6cda"
+    },
+    {
+      "file": "20261123000002_operational_support.sql",
+      "sha256": "45a42722b988f197e676168028c04b97491fa0db77dfb68c723c04988c24e3e1"
+    },
+    {
+      "file": "20261123000003_inquiry_support.sql",
+      "sha256": "e62069ae8dab9aac22490b47cb88411fb5fb05027d18f80a00b4a2875b505611"
+    },
+    {
+      "file": "20261123000004_session_and_deposit.sql",
+      "sha256": "97d48501fe2788417bd76f7686fcf25fd8dd32794587d01fdef3394e1bf47251"
+    },
+    {
+      "file": "20261123000005_payout_support.sql",
+      "sha256": "6e8a307f96e9542305643c8997436b4f44132e17ca60a564e222b041fe482fae"
+    },
+    {
+      "file": "20261123000006_access_alignment.sql",
+      "sha256": "6c45b3c4e8e648c8c0d315db0b44d2afa84541d6aba2f9505b9235e553f179df"
+    },
+    {
+      "file": "20261123000007_email_template_support.sql",
+      "sha256": "d62741560509888eb03325b443d17e808a33fd8f347c4d51526ba5bc76d40d26"
+    },
+    {
+      "file": "20261123000008_deployed_catalog_alignment.sql",
+      "sha256": "be79f6364a4fb6dadf2eaace083d87761dbc975a0ea203a6b81d6c9c59a49e1c"
+    }
+  ],
+  "legacy": [
+    {
+      "source": "docs/accounting_access_hardening.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "fad4cb0c9de985af193981666dda143535a06c0f88fd008f8a6582bbded96dc1",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/accounting_owner_only_access.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "4a7c85f33c5098926902a22ad580f618f7d6375a6b040229016a78271ee94c06",
+      "note": "Equivalent final access helpers are covered by accounting_access_hardening.sql."
+    },
+    {
+      "source": "docs/accounting_rls_audit.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "c0e15767b5a122cd04fa9c2e31feaad6bc2f3a43fecbe5b2f1f9420194c51bfc",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/accounting_users_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "bfc00fbd0e37a9dc4f12c7ea3992b3781c490e7db31a09a640d81711183278c5",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/accounting_users_permission_fix.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "29c7ed09298e356489354c3b76ee9ecb77a122c5b1324be6414a3c24ee55ae57",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/accounting_users_rls_recursion_fix.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "b5de03cf8b6805e27463ccc234669daa2cc1e23e81c66f9c8baed8b3d19e7e32",
+      "note": "Security-definer helper and policy already covered by accounting_users_permission_fix.sql followed by access hardening."
+    },
+    {
+      "source": "docs/add_request_referral_source.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "6c202062fa9eeb947ad33a692f6e355aa645d6924d937574a7df1c048db5bc4b",
+      "note": "Column already present in baseline and form-column migration."
+    },
+    {
+      "source": "docs/artist_accept_draft_flow.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "3b1dac7eda15dbcf250b4155a9d1203945ca71016a4f741cdacb070fb7136158",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/artist_calendar_booking_policy.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "66fc7d6b53b6952c4e25cf430ad521e0d011f01b2c0f394fe77ddb562f89c2d5",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/artist_calendar_feed_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "8c6cd4917bef809b24df8d0b2a0620299effc03845dabb75c7459aeaccf64e2e",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/artist_scope_hardening.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "44a5fccbeca52b06553fdb89e264e9acfe0721116b09e55771b5bc6532437cad",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/customer_address_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "9d21d6bb322b6fec0c723a3d1d3e741c0cf5d87006d6ad83e5f735997f4af5e3",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/customer_phone_normalization.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "aba9b93545b802066eb456567088180982e238985d7fb786e2b691ba3f8a418e",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/deposit_artist_update_policy.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "640d291fc1879c6c0fe3095d662086d6a5adc276f6a22f8136b66f4f4005b4fd",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/deposit_disposition_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000004_session_and_deposit.sql",
+      "sourceSha256": "b70ed4178ea5e11639995cdb2571eaf495c424506165703b70de38be309f6a58",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/google_calendar_oauth_mvp_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "0ed2fbbef9776be761f0d28e1b6d6e48459eb2de708c432365f3248c2bc91347",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/operations_email_templates_brand_update.sql",
+      "status": "pending",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "89ffc50672861695797c9c4d22ebe76ea3306820baa615cc4f721e9daeebe317",
+      "note": "Historical template content update; preserve current deployed customizations until separately verified."
+    },
+    {
+      "source": "docs/operations_email_templates_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000007_email_template_support.sql",
+      "sourceSha256": "317ef0ce60669fc364f4759b677765df909621f30c937853324fc878c502c457",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/operations_email_templates_permission_fix.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000007_email_template_support.sql",
+      "sourceSha256": "46c471e16e5260253fa03a280be844b2d2294ea248eeed7f38911e3729b1e976",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/operations_email_templates_zip_update.sql",
+      "status": "pending",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "d4fa83e6c69ffbd412fc9928fbd47cbe0e84109d489ec0ac09384f8ca762f36a",
+      "note": "Template content update, not schema; no evidence that overwriting deployed templates is required by FND-01."
+    },
+    {
+      "source": "docs/payout_overlap_guard.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000005_payout_support.sql",
+      "sourceSha256": "3c5dbe1fdbdd006ec839c496034f1814f7b626af544ed8d2a8881a3b68ff5755",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/payout_rate_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000005_payout_support.sql",
+      "sourceSha256": "ca08484d9258749f40234f295658cc25676a090cd6681656a5fa643aefa935c3",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/payout_settlement_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000005_payout_support.sql",
+      "sourceSha256": "b101bd80b8f3efecc8b76b37dc6ed1a52b725b7da8af3d6cb028cb1efde22818",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/request_client_actions.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "39c3c91731ace8bbe10e0dcaf0677964559a3d547faa9b6dba3b8d99eedb28b8",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/request_email_tracking_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "2082886fe4d071e31dca3bb5d642e45f3feb7ddb2702cf21b37ff3e5bf8420dc",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/request_number_and_artist_forwarding.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "69f299b41a3ee5a1410ee18098d8fd91e3cd56d2c3b470f774d35b7a9f8d4893",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/request_spam_status.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "3fa1823ac9882f33aab444496b2a83f4b8e9aced14da6365acb9d9703b16dfb0",
+      "note": "spam enum value already present in baseline."
+    },
+    {
+      "source": "docs/role_model_alignment.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "f50ba98f6e67295f4f28eea3e59317f2092bb38244cf3bc22d71e25247adee57",
+      "note": "Final can_access_accounting helper is covered by access hardening."
+    },
+    {
+      "source": "docs/seed_step_1_customers.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "37aacf06e4dcd77a6baa0ab7d0230c5a86d3e3ea05382651e7363a43299a3657",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/seed_step_2_projects.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "52800280ad46dc1e7804fb691b21addd0b113c5402ba827afc72c514726c01b9",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/seed_step_3_calendar_money.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "11cad62d40f94717e3915c9d2fc3aa331a418438bdad091ce785b76bf3fa680c",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/seed_step_4_requests.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "6d6586d62ff29213785e29fb54d0b1d5ace8339ef6d75d72777390f7bc7cacf7",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/session_entry_payment_grid_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000004_session_and_deposit.sql",
+      "sourceSha256": "34bc387a6e0a42410070a828f2d98e6ac8977738620bd53616f9809504e1db47",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/staff_password_change_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "a719994d8103ec8deca3b29ea2c92e46cb5713b4f0e5e3b9507e79383dee1f1d",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/staff_user_service_role_grants.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "15dba94edaebd85f6ec11470bb4c696652e8bbb3cf8e1bf2048ea98288a6ecac",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_accounting_migration.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000005_payout_support.sql",
+      "sourceSha256": "94083a504d9f9bcdf6345ddae3500d18bab739092e5521aacce1278090942730",
+      "note": "Section 5 only. Section 6 access logic superseded by access_alignment; optional/future proposals excluded.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_apply_grants.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "431f54eb2c012e444c7edf46cc26a52da5c3e2388dccb8ef08f67a1d43593da2",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_appointment_emails.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "207e0ac230a2c4fbb50d3beb1124a8c7acc377914c1211c06ce88d499e6b2173",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_clear_operational_data.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "b96bf136e2ef4432d4fb7f75d78344286df71d271f1e7078c98ed6252a60e29f",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/supabase_deposit_applications.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000004_session_and_deposit.sql",
+      "sourceSha256": "7b796543492efa9a182e455df9018430a5219ee93cf200af6196a7e394ec3d4d",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_owner_bootstrap.sql",
+      "status": "excluded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "97194d98b2f80301468fa113ec7ece92b65e8c1278780c2f4a59e675b33edd79",
+      "note": "Manual seed, destructive maintenance, account bootstrap or read-only diagnostic; never replay automatically."
+    },
+    {
+      "source": "docs/supabase_project_status_cleanup.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "8e2eb3f1871991103520442eeb4c2600998b888cb196ef96a4200a948ecc5346",
+      "note": "booked/on_hold baseline definitions; legacy data cleanup requires live data review."
+    },
+    {
+      "source": "docs/supabase_remove_consultation_stage.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "4ad49df4842651a25387a74976cd760bd00f28d314825171cae8c59e825f27d7",
+      "note": "booked baseline definitions; historical row conversion is not a fresh-schema migration."
+    },
+    {
+      "source": "docs/supabase_request_candidates.sql",
+      "status": "superseded",
+      "deploymentStatus": "unverified",
+      "migration": null,
+      "sourceSha256": "81573e344200a3f098b9c02b6d1efe5e7574b1e0d8fc8f7e95dee3d7478fd365",
+      "note": "Table, trigger and restricted policies already merged into repository baseline; replay would add a broad legacy ALL policy."
+    },
+    {
+      "source": "docs/supabase_request_conversion_and_waiver.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "bd76b2f9f97e03eefad8c93123d34ccad1b45ffb1312a771b9067ecb26afcc38",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_request_form_columns.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "a68567834da9db281c32b8c8578330ce367a0cb5a4639ba56acc62524662aaa6",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_request_reference_storage.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000003_inquiry_support.sql",
+      "sourceSha256": "467b5fada915e7b822323d389ca1cd749f9829cbd039612c619408c2610a7ae8",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_schema.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000001_repository_baseline.sql",
+      "sourceSha256": "bb9a489736ad9538b4bbf514a09eecd28180279d0471aafc932815159f4bcc9e",
+      "note": "Schema only; sample staff/permissions/schedules excluded. Existing merged definitions retained. Candidate amendments from captured catalog: preserve historical enum labels; pgcrypto extensions schema; named duration constraint; avoid duplicate token unique constraint.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_service_role_operational_grants.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000006_access_alignment.sql",
+      "sourceSha256": "4e9b474c8c30890121ea09d173eafd13908c4743dd3f26a0b92c6e48fee1368a",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_session_payments.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000004_session_and_deposit.sql",
+      "sourceSha256": "d9cb807ea2a72087b8968ec0e75636b7eb830d1adae5eb12d51d53fd680fde40",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    },
+    {
+      "source": "docs/supabase_staff_invites.sql",
+      "status": "applied",
+      "deploymentStatus": "unverified",
+      "migration": "20261123000002_operational_support.sql",
+      "sourceSha256": "a96da4defa3161238bd779a8710ea5d0455f3e516fb708018af888ae543a2493",
+      "note": "Included content replayed in the local migration chain. Production file-execution history remains unknown.",
+      "appliedTo": "verified disposable local reconstruction only",
+      "evidence": "supabase/snapshots/local-catalog-20261124.json; supabase/snapshots/comparison-20261124.json",
+      "executionHistoryInProduction": "unknown"
+    }
+  ],
+  "snapshot": {
+    "file": "supabase/snapshots/production-catalog-20261123.json",
+    "sha256": "38b73420b58bc6683b93946370330ef5dec737d453b96afef1e6babcf4ae87e0",
+    "sourceFilename": "Supabase Snippet Untitled query.csv",
+    "libraryFileId": "libfile_33fa6d8b42c08191a7b86c68062435e1",
+    "capturedFileCreatedAt": "2026-11-23T15:27:22.649065Z",
+    "scope": "Public catalog plus request-references storage metadata. Not a full pg_dump or migration-history export."
+  },
+  "localReplay": {
+    "file": "supabase/snapshots/local-catalog-20261124.json",
+    "sha256": "fff48929188f6a895771aa7f9bdd1f9af3a2658aa6fe6b0345d25efb3ad1b148",
+    "cliVersion": "3.3.0",
+    "execution": "User ran scripts/db/verify-local.ps1. Eight migrations replayed successfully; original strict comparator stopped on 178 unmatched rows. Captured local catalog reviewed locally without another DB mutation.",
+    "comparison": "supabase/snapshots/comparison-20261124.json",
+    "review": "supabase/reviewed-differences.json",
+    "unreviewedDifferences": 0,
+    "reviewedFields": 90,
+    "reviewedObjects": 89
+  }
+}

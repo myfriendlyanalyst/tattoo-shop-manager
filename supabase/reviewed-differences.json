@@ -1,0 +1,818 @@
+{
+  "expectedSnapshotSha256": "38b73420b58bc6683b93946370330ef5dec737d453b96afef1e6babcf4ae87e0",
+  "localEvidence": "supabase/snapshots/local-catalog-20261124.json",
+  "localSnapshotSha256": "fff48929188f6a895771aa7f9bdd1f9af3a2658aa6fe6b0345d25efb3ad1b148",
+  "scope": "Reviewed schema effects only; no SQL execution history or business data verification.",
+  "differences": [
+    {
+      "section": "columns",
+      "key": "appointments.reminder_email_sent_at",
+      "field": "position",
+      "expected": 13,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "appointments.cancellation_email_sent_at",
+      "field": "position",
+      "expected": 14,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "calendar_feed_tokens.token",
+      "field": "default",
+      "expected": "encode(gen_random_bytes(24), 'hex'::text)",
+      "actual": "encode(extensions.gen_random_bytes(24), 'hex'::text)",
+      "category": "pgcrypto-qualification",
+      "reason": "Both catalogs install pgcrypto in extensions. Local introspection qualifies the same gen_random_bytes function because search_path differs. The 24-byte random token default is unchanged."
+    },
+    {
+      "section": "columns",
+      "key": "customers.email",
+      "field": "position",
+      "expected": 4,
+      "actual": 5,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "customers.notes",
+      "field": "position",
+      "expected": 5,
+      "actual": 6,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "customers.created_by",
+      "field": "position",
+      "expected": 6,
+      "actual": 7,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "customers.created_at",
+      "field": "position",
+      "expected": 7,
+      "actual": 8,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "customers.updated_at",
+      "field": "position",
+      "expected": 8,
+      "actual": 9,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "customers.phone_normalized",
+      "field": "position",
+      "expected": 9,
+      "actual": 4,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.used_at",
+      "field": "position",
+      "expected": 9,
+      "actual": 10,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.used_session_entry_id",
+      "field": "position",
+      "expected": 10,
+      "actual": 11,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.memo",
+      "field": "position",
+      "expected": 11,
+      "actual": 12,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.created_by",
+      "field": "position",
+      "expected": 12,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.created_at",
+      "field": "position",
+      "expected": 13,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.updated_at",
+      "field": "position",
+      "expected": 14,
+      "actual": 15,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "deposits.disposition",
+      "field": "position",
+      "expected": 15,
+      "actual": 9,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.subject",
+      "field": "position",
+      "expected": 6,
+      "actual": 8,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.status",
+      "field": "position",
+      "expected": 7,
+      "actual": 9,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.provider",
+      "field": "position",
+      "expected": 8,
+      "actual": 10,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.provider_message_id",
+      "field": "position",
+      "expected": 9,
+      "actual": 11,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.error_message",
+      "field": "position",
+      "expected": 10,
+      "actual": 12,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.sent_at",
+      "field": "position",
+      "expected": 11,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.created_at",
+      "field": "position",
+      "expected": 12,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.reply_to_email",
+      "field": "position",
+      "expected": 13,
+      "actual": 6,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "email_logs.cc_emails",
+      "field": "position",
+      "expected": 14,
+      "actual": 7,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.status",
+      "field": "position",
+      "expected": 8,
+      "actual": 11,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.memo",
+      "field": "position",
+      "expected": 9,
+      "actual": 12,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.created_at",
+      "field": "position",
+      "expected": 10,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.updated_at",
+      "field": "position",
+      "expected": 11,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.waiver_status",
+      "field": "position",
+      "expected": 12,
+      "actual": 8,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.waiver_sent_at",
+      "field": "position",
+      "expected": 13,
+      "actual": 9,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "projects.waiver_signed_at",
+      "field": "position",
+      "expected": 14,
+      "actual": 10,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.client_name",
+      "field": "position",
+      "expected": 3,
+      "actual": 4,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.email",
+      "field": "position",
+      "expected": 4,
+      "actual": 5,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.phone",
+      "field": "position",
+      "expected": 5,
+      "actual": 6,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.subject",
+      "field": "position",
+      "expected": 6,
+      "actual": 7,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.artist_id",
+      "field": "position",
+      "expected": 7,
+      "actual": 17,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.status",
+      "field": "position",
+      "expected": 8,
+      "actual": 18,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.priority",
+      "field": "position",
+      "expected": 9,
+      "actual": 19,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.received_at",
+      "field": "position",
+      "expected": 10,
+      "actual": 20,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.forwarded_at",
+      "field": "position",
+      "expected": 11,
+      "actual": 21,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.artist_reply_at",
+      "field": "position",
+      "expected": 12,
+      "actual": 22,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.client_reply_at",
+      "field": "position",
+      "expected": 13,
+      "actual": 23,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.consultation_at",
+      "field": "position",
+      "expected": 14,
+      "actual": 24,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.booked_at",
+      "field": "position",
+      "expected": 15,
+      "actual": 25,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.notes",
+      "field": "position",
+      "expected": 16,
+      "actual": 26,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.created_by",
+      "field": "position",
+      "expected": 17,
+      "actual": 27,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.created_at",
+      "field": "position",
+      "expected": 18,
+      "actual": 28,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.updated_at",
+      "field": "position",
+      "expected": 19,
+      "actual": 29,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.tattoo_description",
+      "field": "position",
+      "expected": 20,
+      "actual": 8,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.approximate_size",
+      "field": "position",
+      "expected": 21,
+      "actual": 9,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.placement",
+      "field": "position",
+      "expected": 22,
+      "actual": 10,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.reference_image_url",
+      "field": "position",
+      "expected": 23,
+      "actual": 11,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.requested_artist_label",
+      "field": "position",
+      "expected": 24,
+      "actual": 12,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.age_confirmed",
+      "field": "position",
+      "expected": 25,
+      "actual": 16,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.project_id",
+      "field": "position",
+      "expected": 26,
+      "actual": 3,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.tattoo_timing_preference",
+      "field": "position",
+      "expected": 27,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.preferred_appointment_date",
+      "field": "position",
+      "expected": 28,
+      "actual": 15,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.external_source",
+      "field": "position",
+      "expected": 29,
+      "actual": 30,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.external_id",
+      "field": "position",
+      "expected": 30,
+      "actual": 31,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.gmail_thread_id",
+      "field": "position",
+      "expected": 31,
+      "actual": 32,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.gmail_message_id",
+      "field": "position",
+      "expected": 32,
+      "actual": 33,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.source_email_subject",
+      "field": "position",
+      "expected": 33,
+      "actual": 34,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.source_email_from",
+      "field": "position",
+      "expected": 34,
+      "actual": 35,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.source_email_to",
+      "field": "position",
+      "expected": 35,
+      "actual": 36,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.request_number",
+      "field": "position",
+      "expected": 36,
+      "actual": 37,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "requests.how_did_you_hear_about_us",
+      "field": "position",
+      "expected": 37,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.payment_method",
+      "field": "position",
+      "expected": 3,
+      "actual": 4,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.amount",
+      "field": "position",
+      "expected": 4,
+      "actual": 5,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.memo",
+      "field": "position",
+      "expected": 5,
+      "actual": 6,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.created_by",
+      "field": "position",
+      "expected": 6,
+      "actual": 7,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.created_at",
+      "field": "position",
+      "expected": 7,
+      "actual": 8,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "session_payments.payment_type",
+      "field": "position",
+      "expected": 8,
+      "actual": 3,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.notes",
+      "field": "position",
+      "expected": 11,
+      "actual": 14,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.sort_order",
+      "field": "position",
+      "expected": 12,
+      "actual": 15,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.created_at",
+      "field": "position",
+      "expected": 13,
+      "actual": 16,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.updated_at",
+      "field": "position",
+      "expected": 14,
+      "actual": 17,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.must_change_password",
+      "field": "position",
+      "expected": 15,
+      "actual": 11,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.payout_rate",
+      "field": "position",
+      "expected": 16,
+      "actual": 19,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.artist_accept_template",
+      "field": "position",
+      "expected": 17,
+      "actual": 18,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.default_session_duration_minutes",
+      "field": "position",
+      "expected": 18,
+      "actual": 12,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "columns",
+      "key": "staff.calendar_feed_token",
+      "field": "default",
+      "expected": "encode(gen_random_bytes(24), 'hex'::text)",
+      "actual": "encode(extensions.gen_random_bytes(24), 'hex'::text)",
+      "category": "pgcrypto-qualification",
+      "reason": "Both catalogs install pgcrypto in extensions. Local introspection qualifies the same gen_random_bytes function because search_path differs. The 24-byte random token default is unchanged."
+    },
+    {
+      "section": "columns",
+      "key": "staff.calendar_feed_token",
+      "field": "position",
+      "expected": 19,
+      "actual": 13,
+      "category": "column-position",
+      "reason": "Merged fresh baseline creates these existing columns in a different physical order. Names, types, defaults (except separately reviewed function qualification), nullability and constraints match. App queries use named JSON fields; no positional row import/export is part of this baseline."
+    },
+    {
+      "section": "functions",
+      "key": "can_access_accounting()",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.can_access_accounting()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select coalesce(\r\n    exists (\r\n      select 1\r\n      from public.profiles p\r\n      where p.id = auth.uid()\r\n        and p.role = 'owner'\r\n    )\r\n    or exists (\r\n      select 1\r\n      from public.accounting_users au\r\n      left join public.profiles p on p.id = au.profile_id\r\n      where au.profile_id = auth.uid()\r\n        and au.active = true\r\n        and coalesce(p.role, 'accounting') = 'accounting'\r\n    ),\r\n    false\r\n  )\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.can_access_accounting()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select coalesce(\n    exists (\n      select 1 from public.accounting_users au\n      left join public.profiles p on p.id = au.profile_id\n      where au.profile_id = auth.uid()\n        and au.active = true\n        and coalesce(p.role, 'accounting') = 'accounting'\n    )\n    or exists (\n      select 1 from public.profiles p\n      where p.id = auth.uid()\n        and p.role = 'owner'\n    ),\n    false\n  );\n$function$\n",
+      "category": "equivalent-access-helper",
+      "reason": "Reviewed full SQL definitions: same boolean return, STABLE SECURITY DEFINER and public search_path; Owner EXISTS OR active dedicated Accounting user EXISTS are reordered. All predicates match; both EXISTS return non-null booleans. No side effects."
+    },
+    {
+      "section": "functions",
+      "key": "current_staff_id()",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.current_staff_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select id from public.staff where profile_id = auth.uid()\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.current_staff_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select id from public.staff where profile_id = auth.uid()\n$function$\n",
+      "category": "function-line-endings",
+      "reason": "Exact function definition after CRLF-to-LF comparison. This rule pins both complete bodies and does not ignore later string/body changes."
+    },
+    {
+      "section": "functions",
+      "key": "is_accounting_admin()",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.is_accounting_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select coalesce(\r\n    exists (\r\n      select 1\r\n      from public.profiles p\r\n      where p.id = auth.uid()\r\n        and p.role = 'owner'\r\n    )\r\n    or exists (\r\n      select 1\r\n      from public.accounting_users au\r\n      left join public.profiles p on p.id = au.profile_id\r\n      where au.profile_id = auth.uid()\r\n        and au.active = true\r\n        and au.access_level in ('owner', 'admin')\r\n        and coalesce(p.role, 'accounting') = 'accounting'\r\n    ),\r\n    false\r\n  )\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.is_accounting_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select coalesce(\n    exists (\n      select 1 from public.profiles p\n      where p.id = auth.uid() and p.role = 'owner'\n    )\n    or exists (\n      select 1 from public.accounting_users au\n      left join public.profiles p on p.id = au.profile_id\n      where au.profile_id = auth.uid()\n        and au.active = true\n        and au.access_level in ('admin', 'owner')\n        and coalesce(p.role, 'accounting') = 'accounting'\n    ),\n    false\n  )\n$function$\n",
+      "category": "equivalent-access-helper",
+      "reason": "Reviewed full SQL definitions: same boolean return, STABLE SECURITY DEFINER and public search_path, Owner or active Accounting user with accounting profile and admin/owner access. Whitespace and order of IN constants differ; all predicates match."
+    },
+    {
+      "section": "functions",
+      "key": "normalize_customer_phone(phone_value text)",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.normalize_customer_phone(phone_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\r\ndeclare\r\n  digits text;\r\nbegin\r\n  digits := regexp_replace(coalesce(phone_value, ''), '[^0-9]', '', 'g');\r\n\r\n  if digits = '' then\r\n    return null;\r\n  end if;\r\n\r\n  if length(digits) = 10 then\r\n    return '1' || digits;\r\n  end if;\r\n\r\n  if length(digits) = 11 and left(digits, 1) = '1' then\r\n    return digits;\r\n  end if;\r\n\r\n  return digits;\r\nend;\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.normalize_customer_phone(phone_value text)\n RETURNS text\n LANGUAGE plpgsql\n IMMUTABLE\nAS $function$\ndeclare\n  digits text;\nbegin\n  digits := regexp_replace(coalesce(phone_value, ''), '[^0-9]', '', 'g');\n\n  if digits = '' then\n    return null;\n  end if;\n\n  if length(digits) = 10 then\n    return '1' || digits;\n  end if;\n\n  if length(digits) = 11 and left(digits, 1) = '1' then\n    return digits;\n  end if;\n\n  return digits;\nend;\n$function$\n",
+      "category": "function-line-endings",
+      "reason": "Exact function definition after CRLF-to-LF comparison. This rule pins both complete bodies and does not ignore later string/body changes."
+    },
+    {
+      "section": "functions",
+      "key": "prevent_overlapping_active_payouts()",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.prevent_overlapping_active_payouts()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  if new.status <> 'void' and exists (\r\n    select 1\r\n    from public.payouts existing\r\n    where existing.artist_id = new.artist_id\r\n      and existing.id <> new.id\r\n      and existing.status <> 'void'\r\n      and existing.period_start <= new.period_end\r\n      and existing.period_end >= new.period_start\r\n  ) then\r\n    raise exception 'Overlapping payout period exists for this artist.'\r\n      using errcode = '23514';\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.prevent_overlapping_active_payouts()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nbegin\n  if new.status <> 'void' and exists (\n    select 1\n    from public.payouts existing\n    where existing.artist_id = new.artist_id\n      and existing.id <> new.id\n      and existing.status <> 'void'\n      and existing.period_start <= new.period_end\n      and existing.period_end >= new.period_start\n  ) then\n    raise exception 'Overlapping payout period exists for this artist.'\n      using errcode = '23514';\n  end if;\n\n  return new;\nend;\n$function$\n",
+      "category": "function-line-endings",
+      "reason": "Exact function definition after CRLF-to-LF comparison. This rule pins both complete bodies and does not ignore later string/body changes."
+    },
+    {
+      "section": "functions",
+      "key": "set_customer_phone_normalized()",
+      "field": "definition",
+      "expected": "CREATE OR REPLACE FUNCTION public.set_customer_phone_normalized()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  new.phone_normalized := public.normalize_customer_phone(new.phone);\r\n  return new;\r\nend;\r\n$function$\n",
+      "actual": "CREATE OR REPLACE FUNCTION public.set_customer_phone_normalized()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nbegin\n  new.phone_normalized := public.normalize_customer_phone(new.phone);\n  return new;\nend;\n$function$\n",
+      "category": "function-line-endings",
+      "reason": "Exact function definition after CRLF-to-LF comparison. This rule pins both complete bodies and does not ignore later string/body changes."
+    },
+    {
+      "section": "extensions",
+      "key": "supabase_vault",
+      "field": "version",
+      "expected": "0.3.1",
+      "actual": "0.3.2",
+      "category": "platform-extension-version",
+      "reason": "Supabase platform extension patch version differs between hosted and local images. No application reference to vault/decrypted_secrets/supabase_vault was found in src. This is not a blanket exemption for later extension versions or new Vault dependencies."
+    }
+  ]
+}
