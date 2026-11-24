@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm test && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types src/lib/payout-calculation.test.ts && node scripts/db/catalog-diff.test.mjs && node scripts/db/check-migrations.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

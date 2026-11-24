@@ -42,6 +42,13 @@ function emptyMethodTotals(): Record<PayoutPaymentMethod, number> {
   return { app: 0, cash: 0, credit_card: 0 };
 }
 
+export function buildPayoutPeriodRange(periodStart: string, periodEnd: string) {
+  return {
+    from: new Date(`${periodStart}T00:00:00`).toISOString(),
+    to: new Date(`${periodEnd}T23:59:59.999`).toISOString(),
+  };
+}
+
 function addAmount(
   totals: Record<PayoutPaymentMethod, number>,
   method: string | null,

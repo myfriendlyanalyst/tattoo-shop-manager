@@ -8,6 +8,7 @@ import { getSafeSession, getSafeUser } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 import { hasAccountingAccess } from "@/lib/accounting-access";
 import {
+  buildPayoutPeriodRange,
   calculatePayout,
   type PayoutCalculation,
   type PayoutSession,
@@ -205,14 +206,13 @@ async function fetchPayouts() {
 }
 
 async function fetchEntriesForPayout(artistId: string, periodStart: string, periodEnd: string) {
-  const fromTs = new Date(`${periodStart}T00:00:00`).toISOString();
-  const toTs = new Date(`${periodEnd}T23:59:59.999`).toISOString();
+  const { from, to } = buildPayoutPeriodRange(periodStart, periodEnd);
   return supabase
     .from("accounting_entries")
     .select(entrySelect)
     .eq("artist_id", artistId)
-    .gte("entered_at", fromTs)
-    .lte("entered_at", toTs)
+    .gte("entered_at", from)
+    .lte("entered_at", to)
     .order("entered_at", { ascending: false });
 }
 
