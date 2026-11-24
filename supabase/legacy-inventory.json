@@ -41,6 +41,10 @@
     {
       "file": "20261124000010_session_completion.sql",
       "sha256": "96101ab5bcc795262ae65a573651766dd4d418d532352a1bbc1faf4bc9919447"
+    },
+    {
+      "file": "20261124000011_draft_session_records.sql",
+      "sha256": "820df4d4e09c8a5d6211ec4644bb4909f94ccf8598e3d15f1d10eac30ba17019"
     }
   ],
   "legacy": [

@@ -56,6 +56,7 @@ type DepositRecord = {
   used_at: string | null;
   used_session_entry_id: string | null;
   memo: string | null;
+  draft_deposit_applied_amount: number;
 };
 
 type DepositApplicationRecord = {
@@ -74,6 +75,20 @@ type SessionPaymentRecord = {
   payment_method: string;
   amount: number;
   memo: string | null;
+};
+
+type DraftSessionRecord = {
+  id: string;
+  appointment_id: string | null;
+  project_id: string | null;
+  artist_id: string | null;
+  entered_at: string;
+  tattoo_amount: number;
+  tattoo_payment_method: string | null;
+  tip_amount: number;
+  tip_payment_method: string | null;
+  memo: string | null;
+  updated_at: string;
 };
 
 const projectSelect =
@@ -122,6 +137,8 @@ export default function NewSessionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [drafts, setDrafts] = useState<DraftSessionRecord[]>([]);
+  const [draftPayments, setDraftPayments] = useState<SessionPaymentRecord[]>([]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === projectId) ?? null,
@@ -157,7 +174,7 @@ export default function NewSessionPage() {
       setError("");
 
       const context = await getOperationsContext();
-      const [projectResult, appointmentResult, depositResult, applicationResult] = await Promise.all([
+      const [projectResult, appointmentResult, depositResult, applicationResult, draftResult] = await Promise.all([
         supabase
           .from("projects")
           .select(projectSelect)
@@ -176,6 +193,11 @@ export default function NewSessionPage() {
         supabase
           .from("deposit_applications")
           .select("id, deposit_id, session_entry_id, amount, applied_at, memo"),
+        supabase
+          .from("session_entries")
+          .select("id, appointment_id, project_id, artist_id, entered_at, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, draft_deposit_applied_amount, updated_at")
+          .eq("record_status", "draft")
+          .order("entered_at", { ascending: false }),
       ]);
 
       if (projectResult.error) {
@@ -202,6 +224,12 @@ export default function NewSessionPage() {
         return;
       }
 
+      if (draftResult.error) {
+        setError(draftResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       const rawProjects = (projectResult.data ?? []) as unknown as ProjectRecord[];
       const visibleProjects =
         context?.isArtist && context.staffId
@@ -213,13 +241,27 @@ export default function NewSessionPage() {
       setAppointments((appointmentResult.data ?? []) as AppointmentRecord[]);
       setDeposits((depositResult.data ?? []) as DepositRecord[]);
       setDepositApplications((applicationResult.data ?? []) as DepositApplicationRecord[]);
+      const visibleDrafts = (draftResult.data ?? []) as DraftSessionRecord[];
+      setDrafts(visibleDrafts);
+      if (visibleDrafts.length > 0) {
+        const paymentResult = await supabase
+          .from("session_payments")
+          .select("id, session_entry_id, payment_type, payment_method, amount, memo")
+          .in("session_entry_id", visibleDrafts.map((draft) => draft.id));
+        if (paymentResult.error) {
+          setError(paymentResult.error.message);
+          setLoading(false);
+          return;
+        }
+        setDraftPayments((paymentResult.data ?? []) as SessionPaymentRecord[]);
+      }
       setLoading(false);
     }
 
     load();
   }, []);
 
-  async function saveSession(form: SessionForm) {
+  async function saveSession(form: SessionForm, targetStatus: "draft" | "complete" = "complete") {
     const project = selectedProject;
     const existingSessionId = createdSessionId;
     const appointmentId = form.appointmentId || createdSessionAppointmentId;
@@ -262,7 +304,7 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (!appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
+    if (targetStatus === "complete" && !appointment && (!startsAt || !endsAt || endsDate <= startsDate)) {
       setError("Manual sessions need a valid start and end time.");
       return;
     }
@@ -277,27 +319,27 @@ export default function NewSessionPage() {
       return;
     }
 
-    if (tattooAmount <= 0 && tipAmount <= 0) {
+    if (targetStatus === "complete" && tattooAmount <= 0 && tipAmount <= 0) {
       setError("Enter a tattoo amount or a tip amount.");
       return;
     }
 
-    if (depositAppliedAmount > availableDepositForSession) {
+    if (targetStatus === "complete" && depositAppliedAmount > availableDepositForSession) {
       setError(`Applied deposit cannot exceed available balance ${money(availableDepositForSession)}.`);
       return;
     }
 
-    if (depositAppliedAmount > tattooAmount) {
+    if (targetStatus === "complete" && depositAppliedAmount > tattooAmount) {
       setError("Applied deposit cannot exceed tattoo amount.");
       return;
     }
 
-    if (Math.abs(tattooAmount - depositAppliedAmount - tattooPaymentTotal) >= 0.01) {
+    if (targetStatus === "complete" && Math.abs(tattooAmount - depositAppliedAmount - tattooPaymentTotal) >= 0.01) {
       setError("Tattoo payments must equal tattoo total minus applied deposit.");
       return;
     }
 
-    if (Math.abs(tipAmount - tipPaymentTotal) >= 0.01) {
+    if (targetStatus === "complete" && Math.abs(tipAmount - tipPaymentTotal) >= 0.01) {
       setError("Tip payments must equal tip total.");
       return;
     }
@@ -305,6 +347,65 @@ export default function NewSessionPage() {
     setSaving(true);
 
     const user = await getSafeUser();
+
+    if (targetStatus === "draft") {
+      const draftPayload = {
+        appointment_id: appointment?.id ?? null,
+        artist_id: appointment?.artist_id ?? project.artist_id,
+        customer_id: project.customer_id,
+        entered_at: appointment?.starts_at ?? startsDate.toISOString(),
+        entry_type: "session" as const,
+        draft_deposit_applied_amount: depositAppliedAmount,
+        memo: form.memo.trim() || null,
+        project_id: project.id,
+        record_status: "draft" as const,
+        tattoo_amount: tattooAmount,
+        tattoo_payment_method: paymentLines.find((line) => line.paymentType === "tattoo")?.paymentMethod ?? null,
+        tip_amount: tipAmount,
+        tip_payment_method: paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
+      };
+      const draftResult = existingSessionId
+        ? await supabase.from("session_entries").update(draftPayload).eq("id", existingSessionId).select("id, appointment_id, project_id, artist_id, entered_at, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, draft_deposit_applied_amount, updated_at").single()
+        : await supabase.from("session_entries").insert({ ...draftPayload, created_by: user?.id ?? null }).select("id, appointment_id, project_id, artist_id, entered_at, tattoo_amount, tattoo_payment_method, tip_amount, tip_payment_method, memo, draft_deposit_applied_amount, updated_at").single();
+
+      if (draftResult.error) {
+        setError(draftResult.error.message);
+        setSaving(false);
+        return;
+      }
+      if (existingSessionId) {
+        const deleteResult = await supabase.from("session_payments").delete().eq("session_entry_id", existingSessionId);
+        if (deleteResult.error) {
+          setError(deleteResult.error.message);
+          setSaving(false);
+          return;
+        }
+      }
+      let savedPayments: SessionPaymentRecord[] = [];
+      if (paymentLines.length > 0) {
+        const paymentResult = await supabase.from("session_payments").insert(paymentLines.map((line) => ({
+          amount: line.amount,
+          created_by: user?.id ?? null,
+          payment_method: line.paymentMethod,
+          payment_type: line.paymentType,
+          session_entry_id: draftResult.data.id,
+        }))).select("id, session_entry_id, payment_type, payment_method, amount, memo");
+        if (paymentResult.error) {
+          setError(paymentResult.error.message);
+          setSaving(false);
+          return;
+        }
+        savedPayments = (paymentResult.data ?? []) as SessionPaymentRecord[];
+      }
+      setDrafts((current) => [draftResult.data as DraftSessionRecord, ...current.filter((draft) => draft.id !== draftResult.data.id)]);
+      setDraftPayments((current) => [...savedPayments, ...current.filter((payment) => payment.session_entry_id !== draftResult.data.id)]);
+      setCreatedSessionId(draftResult.data.id);
+      setSavedSessionLocked(true);
+      setMessage("Draft saved. Complete it before the end of the business day.");
+      setSaving(false);
+      return;
+    }
+
     let sessionAppointment = appointment;
 
     if (!sessionAppointment) {
@@ -392,7 +493,8 @@ export default function NewSessionPage() {
       tip_amount: tipAmount,
       tip_payment_method:
         paymentLines.find((line) => line.paymentType === "tip")?.paymentMethod ?? null,
-      record_status: "complete" as const,
+      record_status: existingSessionId ? "complete" as const : "draft" as const,
+      draft_deposit_applied_amount: 0,
     };
     const sessionResult = existingSessionId
       ? await supabase
@@ -445,6 +547,16 @@ export default function NewSessionPage() {
         setSaving(false);
         return;
       }
+    }
+
+    const completionResult = await supabase
+      .from("session_entries")
+      .update({ record_status: "complete" })
+      .eq("id", sessionResult.data.id);
+    if (completionResult.error) {
+      setError(completionResult.error.message);
+      setSaving(false);
+      return;
     }
 
     const affectedDepositIds = new Set(priorDepositApplications.map((application) => application.deposit_id));
@@ -551,6 +663,8 @@ export default function NewSessionPage() {
     setCreatedSessionAppointmentId(sessionAppointment.id);
     setSavedSessionLocked(true);
     setMessage(existingSessionId ? "Session entry updated." : "Session entry saved.");
+    setDrafts((current) => current.filter((draft) => draft.id !== sessionResult.data.id));
+    setDraftPayments((current) => current.filter((payment) => payment.session_entry_id !== sessionResult.data.id));
     setSaving(false);
   }
 
@@ -567,6 +681,39 @@ export default function NewSessionPage() {
       eyebrow="Projects"
       title="New session"
     >
+      {drafts.length > 0 ? (
+        <section className="mx-auto mb-5 max-w-4xl rounded-md border border-[#d6a85f] bg-[#fff8e8] px-5 py-4">
+          <h2 className="font-semibold">Drafts due by end of business day ({drafts.length})</h2>
+          <p className="mt-1 text-sm text-[#6f5833]">Drafts are visible to the assigned Artist and Owner, but are excluded from reconciliation and payout.</p>
+          <div className="mt-3 space-y-2">
+            {drafts.map((draft) => {
+              const draftProject = projects.find((project) => project.id === draft.project_id);
+              return (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-[#ead2a7] bg-white px-3 py-3" key={draft.id}>
+                  <div>
+                    <p className="text-sm font-semibold">{draftProject ? projectLabel(draftProject) : "Session draft"}</p>
+                    <p className="mt-1 text-xs text-[#697178]">Saved {new Date(draft.updated_at).toLocaleString()}</p>
+                  </div>
+                  <button
+                    className="rounded-md border border-[#cfc7b8] px-3 py-2 text-sm font-semibold hover:bg-[#eee8dd]"
+                    onClick={() => {
+                      setProjectId(draft.project_id ?? "");
+                      setCreatedSessionId(draft.id);
+                      setCreatedSessionAppointmentId(draft.appointment_id ?? "");
+                      setSavedSessionLocked(false);
+                      setMessage("");
+                      setError("");
+                    }}
+                    type="button"
+                  >
+                    Continue
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
       <section className="mx-auto max-w-4xl rounded-md border border-[#d9d3c7] bg-white shadow-sm">
         <div className="border-b border-[#e5dfd4] px-5 py-4">
           <h3 className="text-lg font-semibold">Session entry</h3>
@@ -609,6 +756,7 @@ export default function NewSessionPage() {
 
           {selectedProject ? (
             <SessionEntryForm
+              key={createdSessionId || projectId}
               appointments={selectedAppointments}
               availableDepositBalance={availableDeposit}
               defaultDurationMinutes={
@@ -623,10 +771,12 @@ export default function NewSessionPage() {
               onNextAppointment={() => {
                 window.location.href = `/calendar?projectId=${selectedProject.id}`;
               }}
-              onSave={saveSession}
+              onSave={(form) => saveSession(form, "complete")}
+              onSaveDraft={(form) => saveSession(form, "draft")}
               saved={savedSessionLocked}
               saving={saving}
-              sessionPayments={[] as SessionPaymentRecord[]}
+              session={drafts.find((draft) => draft.id === createdSessionId) ?? null}
+              sessionPayments={draftPayments}
               submitLabel={createdSessionId ? "Update record" : "Complete Session Record"}
             />
           ) : (

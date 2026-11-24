@@ -37,6 +37,7 @@ export type SessionEntryRecordForForm = {
   tip_amount: number | null;
   tip_payment_method: string | null;
   memo: string | null;
+  draft_deposit_applied_amount?: number | null;
 };
 
 export type PaymentLineForm = {
@@ -209,6 +210,7 @@ export function SessionEntryForm({
   initialSessionDate,
   initialStartTime,
   onSave,
+  onSaveDraft,
   onEdit,
   onNextAppointment,
   onBack,
@@ -235,6 +237,7 @@ export function SessionEntryForm({
   initialSessionDate?: string;
   initialStartTime?: string;
   onSave: (form: SessionForm) => void;
+  onSaveDraft?: (form: SessionForm) => void;
   onEdit?: () => void;
   onNextAppointment?: () => void;
   onBack?: () => void;
@@ -267,7 +270,9 @@ export function SessionEntryForm({
 
     return {
       appointmentId: session?.appointment_id ?? initialAppointmentId ?? appointments[0]?.id ?? "",
-      depositAppliedAmount: initialDepositAppliedAmount ?? numberInputValue(sessionAppliedDepositTotal),
+      depositAppliedAmount:
+        initialDepositAppliedAmount ??
+        numberInputValue(sessionAppliedDepositTotal || session?.draft_deposit_applied_amount),
       endTime,
       endsAt: localDateTimeInput(initialEndTime ? startDate : end.date, endTime),
       memo: initialMemo ?? session?.memo ?? "",
@@ -366,6 +371,15 @@ export function SessionEntryForm({
   function confirmAndSave() {
     if (confirmBeforeSave && !window.confirm(`Save this session?\n\n${summary}`)) return;
     onSave({
+      ...form,
+      paymentLines: paymentLinesFromGrid(form.paymentGrid),
+      tattooAmount: String(tattooWorkTotal),
+      tipAmount: String(tipTotal),
+    });
+  }
+
+  function saveDraft() {
+    onSaveDraft?.({
       ...form,
       paymentLines: paymentLinesFromGrid(form.paymentGrid),
       tattooAmount: String(tattooWorkTotal),
@@ -563,14 +577,26 @@ export function SessionEntryForm({
       ) : (
         <div className="flex items-center justify-between gap-3">
         {onBack ? <button className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd]" disabled={saving} onClick={onBack} type="button">Back</button> : <span />}
-        <button
-          className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={saving || depositMemoRequired}
-          onClick={confirmAndSave}
-          type="button"
-        >
-          {saving ? "Saving..." : submitLabel ?? (session ? "Update record" : "Complete Session Record")}
-        </button>
+        <div className="flex gap-2">
+          {onSaveDraft ? (
+            <button
+              className="h-10 rounded-md border border-[#cfc7b8] bg-white px-4 text-sm font-semibold hover:bg-[#eee8dd] disabled:opacity-60"
+              disabled={saving}
+              onClick={saveDraft}
+              type="button"
+            >
+              {saving ? "Saving..." : "Save draft"}
+            </button>
+          ) : null}
+          <button
+            className="h-10 rounded-md bg-[#1f2428] px-4 text-sm font-semibold text-white hover:bg-[#30373d] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving || depositMemoRequired}
+            onClick={confirmAndSave}
+            type="button"
+          >
+            {saving ? "Saving..." : submitLabel ?? (session ? "Update record" : "Complete Session Record")}
+          </button>
+        </div>
         </div>
       )}
     </div>
